@@ -1,0 +1,33 @@
+# Cargo build artifacts
+/target/
+**/target/
+
+# Cargo lockfile is committed at the workspace root only
+# (it's already there; sub-crate Cargo.locks shouldn't be).
+**/*/Cargo.lock
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local environment overrides
+.env
+.envrc
+.direnv/
+
+# Criterion bench output
+**/criterion/
+
+# Profiler output
+flamegraph.svg
+perf.data*

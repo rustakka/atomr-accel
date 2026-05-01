@@ -1,0 +1,21 @@
+[package]
+name = "rakka-cuda-agents"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Agentic / LLM GPU actor blueprints (RagPipeline, GpuVectorIndex, EmbeddingCache, SharedGpuStateAgents, …) — §7.4"
+
+[dependencies]
+rakka-core   = { workspace = true }
+rakka        = { workspace = true }
+rakka-config = { workspace = true }
+rakka-cuda   = { path = "../rakka-cuda", version = "0.0.1" }
+async-trait  = { workspace = true }
+tokio        = { workspace = true }
+parking_lot  = { workspace = true }
+tracing      = { workspace = true }
+thiserror    = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

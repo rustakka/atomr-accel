@@ -1,0 +1,28 @@
+[package]
+name = "rakka-cuda-realtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Interactive-rate GPU actor blueprints (ParticleSystem, SpatialIndex, ImageFilterPipeline, GpuHashMap, …) — §7.5"
+
+[features]
+default = []
+# Pass-through for the upstream rakka-cuda cudnn feature so the
+# realtime crate's blueprints can compile against the cuDNN actor
+# when the user opts in.
+cudnn = ["rakka-cuda/cudnn"]
+
+[dependencies]
+rakka-core   = { workspace = true }
+rakka        = { workspace = true }
+rakka-config = { workspace = true }
+rakka-cuda   = { path = "../rakka-cuda", version = "0.0.1" }
+async-trait  = { workspace = true }
+tokio        = { workspace = true }
+parking_lot  = { workspace = true }
+tracing      = { workspace = true }
+thiserror    = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

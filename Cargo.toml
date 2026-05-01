@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/rakka-cuda",
+    "crates/rakka-cuda-patterns",
+    "crates/rakka-cuda-train",
+    "crates/rakka-cuda-agents",
+    "crates/rakka-cuda-realtime",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.78"
+license = "Apache-2.0"
+repository = "https://github.com/local/rakka-cuda"
+authors = ["rakka-cuda contributors"]
+
+[workspace.dependencies]
+rakka-core   = { path = "../rakka/crates/rakka-core", version = "0.1.0" }
+rakka        = { path = "../rakka/crates/rakka",      version = "0.1.0" }
+rakka-config = { path = "../rakka/crates/rakka-config", version = "0.1.0" }
+
+cudarc       = { version = "0.19.4", features = ["cuda-version-from-build-system", "fallback-latest"] }
+
+tokio        = { version = "1.39", features = ["rt-multi-thread", "macros", "sync", "time"] }
+async-trait  = "0.1"
+futures      = "0.3"
+futures-util = "0.3"
+arc-swap     = "1.7"
+parking_lot  = "0.12"
+thiserror    = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+criterion    = { version = "0.5", default-features = false, features = ["html_reports"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+lto = "thin"

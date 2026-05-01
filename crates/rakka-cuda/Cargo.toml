@@ -1,0 +1,94 @@
+[package]
+name = "rakka-cuda"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "GPU acceleration via the actor model — CUDA library wrappers as rakka actors. Foundation Phase F1."
+
+[features]
+default = []
+# Gates examples and benches that allocate a real CudaContext / launch real kernels.
+# Off-by-default so the crate builds and unit-tests on hosts without a GPU
+# (cudarc's default features include fallback-dynamic-loading).
+cuda-runtime-tests = []
+
+# Per-library actor gates. Each pulls in the matching cudarc feature.
+cudnn    = ["cudarc/cudnn"]
+cufft    = ["cudarc/cufft"]
+cusolver = ["cudarc/cusolver"]
+cusparse = ["cudarc/cusparse"]
+cutensor = ["cudarc/cutensor"]
+nccl     = ["cudarc/nccl"]
+# cublaslt, curand, nvrtc are on-by-default in cudarc; the rakka-cuda
+# feature gates the actor module compilation only.
+cublaslt = []
+curand   = []
+nvrtc    = []
+# half-precision dtype variants (f16, bf16) for AllocateF16 / AllocateBf16
+# and tensor descriptors. Pulls in cudarc's `f16` feature which
+# requires `half`.
+f16      = ["cudarc/f16", "dep:half"]
+
+# Convenience aggregates.
+core-libs     = ["cudnn", "cufft", "curand"]
+training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
+full-cuda     = ["training-libs", "nccl"]
+
+[dependencies]
+rakka-core   = { workspace = true }
+rakka        = { workspace = true }
+rakka-config = { workspace = true }
+cudarc       = { workspace = true }
+tokio        = { workspace = true }
+async-trait  = { workspace = true }
+futures      = { workspace = true }
+futures-util = { workspace = true }
+arc-swap     = { workspace = true }
+parking_lot  = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+bitflags     = "2"
+lru          = "0.12"
+half         = { version = "2", optional = true }
+tokio-stream = "0.1"
+
+[dev-dependencies]
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+tracing-subscriber = { workspace = true }
+criterion          = { workspace = true }
+
+[[example]]
+name = "echo_no_gpu"
+
+[[example]]
+name = "pipeline_no_gpu"
+
+[[example]]
+name = "sgemm"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "rng_uniform"
+required-features = ["cuda-runtime-tests", "curand"]
+
+[[example]]
+name = "fft_1d"
+required-features = ["cuda-runtime-tests", "cufft"]
+
+[[example]]
+name = "jit_relu"
+required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[bench]]
+name = "sgemm_overhead"
+harness = false
+required-features = ["cuda-runtime-tests"]
+
+[[bench]]
+name = "rng_throughput"
+harness = false
+required-features = ["cuda-runtime-tests", "curand"]
+
+[lib]
+path = "src/lib.rs"
