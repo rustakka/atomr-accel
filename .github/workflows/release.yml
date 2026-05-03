@@ -130,12 +130,7 @@ jobs:
   build-sdist:
     name: Build sdist (Python)
     needs: verify
-    # Disabled until the sibling rakka workspace fixes its
-    # crates/rakka/Cargo.toml `readme` path (currently points at a
-    # non-existent per-crate README; should be ../../README.md). Maturin
-    # sdist follows path-deps to read crate metadata and fails. Wheels
-    # publish independently; PyPI accepts wheels-only releases.
-    if: false && (github.event_name == 'push' || github.event.inputs.skip_python != 'true')
+    if: github.event_name == 'push' || github.event.inputs.skip_python != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sibling rakka
@@ -317,7 +312,7 @@ jobs:
   # ─── PyPI ────────────────────────────────────────────────────────────
   publish-pypi:
     name: Publish wheels + sdist to PyPI
-    needs: [verify, build-wheels, github-release]
+    needs: [verify, build-wheels, build-sdist, github-release]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.inputs.skip_python != 'true'
     # Trusted publishing — configure on PyPI: pypi.org → manage project →
@@ -331,11 +326,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "rakka-accel-wheels-*"
-      - name: Flatten wheel artifacts
+          pattern: "rakka-accel-{wheels-*,sdist}"
+      - name: Flatten wheel + sdist artifacts
         run: |
           mkdir -p upload
-          find dist -type f -name "*.whl" -exec cp {} upload/ \;
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec cp {} upload/ \;
           ls -la upload/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -347,7 +342,7 @@ jobs:
 
   publish-pypi-dry-run:
     name: PyPI dry-run (TestPyPI)
-    needs: [build-wheels]
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_python != 'true'
     environment:

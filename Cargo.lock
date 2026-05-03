@@ -1063,7 +1063,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-cluster"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1080,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-cluster-metrics"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "bincode",
  "parking_lot",
@@ -1091,7 +1091,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-cluster-sharding"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1108,7 +1108,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-config"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1118,7 +1118,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1142,7 +1142,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-distributed-data"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "parking_lot",
@@ -1155,7 +1155,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-macros"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-persistence"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "parking_lot",
@@ -1176,7 +1176,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-remote"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1197,7 +1197,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-streams"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1212,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-telemetry"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1236,7 +1236,7 @@ dependencies = [
 
 [[package]]
 name = "rakka-testkit"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-trait",
  "parking_lot",
