@@ -3,8 +3,10 @@
 //! Subcommands:
 //! * `bump <patch|minor|major>` — bump the workspace version, refresh
 //!   `Cargo.lock`, mirror to `crates/rakka-accel-py/pyproject.toml`,
-//!   and rewrite internal-path-dep version pins inside
-//!   `[workspace.dependencies]`.
+//!   rewrite internal-path-dep version pins inside
+//!   `[workspace.dependencies]`, and rewrite per-crate inline
+//!   `path = "../rakka-accel-*"`-with-`version = "..."` pins so
+//!   sibling-crate deps don't drift.
 //! * `bump --pre <id>` / `bump --set <ver>` — variants for
 //!   pre-release tags and exact-version overrides.
 //! * `verify` — local mirror of the release-pipeline gate:
@@ -78,6 +80,7 @@ fn bump(args: Vec<String>) -> Result<()> {
     println!("{} -> {}", current, next);
     write_workspace_version(cargo_toml, &next)?;
     write_workspace_deps_versions(cargo_toml, &current, &next)?;
+    write_member_inline_deps_versions(&current, &next)?;
     if pyproject.exists() {
         write_pyproject_version(pyproject, &next)?;
     }
@@ -211,6 +214,46 @@ fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<
     out.push_str(&new_block);
     out.push_str(tail);
     std::fs::write(path, out)?;
+    Ok(())
+}
+
+/// Bump every per-crate inline `path = "../rakka-accel-*"`-with-`version = "<prev>"`
+/// pin in member Cargo.tomls. xtask's workspace-deps rewrite covers
+/// `[workspace.dependencies]` only; sibling-crate deps that the
+/// member crates declare directly (e.g. patterns/train/agents/realtime/py
+/// → rakka-accel-cuda) drift on every bump otherwise, breaking
+/// `cargo publish` with "no matching package" errors.
+fn write_member_inline_deps_versions(prev: &str, next: &str) -> Result<()> {
+    let crates_dir = Path::new("crates");
+    if !crates_dir.exists() {
+        return Ok(());
+    }
+    let needle = format!("version = \"{prev}\"");
+    let replacement = format!("version = \"{next}\"");
+    for entry in std::fs::read_dir(crates_dir)? {
+        let entry = entry?;
+        let manifest = entry.path().join("Cargo.toml");
+        if !manifest.exists() {
+            continue;
+        }
+        let text = std::fs::read_to_string(&manifest)?;
+        let mut out = String::with_capacity(text.len());
+        let mut changed = false;
+        for line in text.split_inclusive('\n') {
+            // Only rewrite lines that pin a sibling rakka-accel-* path
+            // dep at the previous workspace version.
+            let is_sibling_path = line.contains("path = \"../rakka-accel");
+            if is_sibling_path && line.contains(&needle) {
+                out.push_str(&line.replace(&needle, &replacement));
+                changed = true;
+            } else {
+                out.push_str(line);
+            }
+        }
+        if changed {
+            std::fs::write(&manifest, out)?;
+        }
+    }
     Ok(())
 }
 
