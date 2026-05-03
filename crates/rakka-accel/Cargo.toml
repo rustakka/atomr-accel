@@ -23,7 +23,7 @@ cuda    = ["dep:rakka-accel-cuda"]
 [dependencies]
 rakka-core   = { workspace = true }
 rakka-config = { workspace = true }
-rakka-accel-cuda = { path = "../rakka-accel-cuda", version = "0.2.8", optional = true }
+rakka-accel-cuda = { path = "../rakka-accel-cuda", version = "0.2.9", optional = true }
 async-trait  = { workspace = true }
 thiserror    = { workspace = true }
 tokio        = { workspace = true }
