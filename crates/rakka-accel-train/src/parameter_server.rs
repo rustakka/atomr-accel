@@ -85,8 +85,8 @@ impl AsyncParameterServer {
         let lr = self.optimizer.lr();
         // SGD-style: w <- w - lr * grad.
         let n = self.weights.len().min(grad.len());
-        for i in 0..n {
-            self.weights[i] -= lr * grad[i];
+        for (w, g) in self.weights.iter_mut().zip(grad.iter()).take(n) {
+            *w -= lr * g;
         }
         self.version += 1;
         self.gradients_applied += 1;

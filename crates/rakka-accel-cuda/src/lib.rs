@@ -20,6 +20,25 @@
 //! Phases F2–F5 (cuDNN, cuFFT, NCCL, TensorRT, the `PythonGpuBridge`)
 //! and the four blueprint sub-crates are deferred.
 
+// Subjective clippy lints that fight the actor-message design:
+// * `type_complexity` — actor messages and kernel envelopes return
+//   tuples of typed `Arc<CudaSlice<T>>` keep-alives; refactoring to
+//   `type` aliases would worsen the public API.
+// * `too_many_arguments` — kernel-launcher fns mirror the underlying
+//   CUDA library entry points (cuDNN conv, cuSPARSE SpMV) which take
+//   8–10 args; collapsing to a config struct just moves the fields.
+// * `arc_with_non_send_sync` — CUDA driver handles (CudaGraph,
+//   cudnnHandle) are `!Send` by design and only ever shared inside
+//   the producing actor.
+// * `large_enum_variant` — kernel-message enums have one large
+//   conv-descriptor variant; boxing it would fragment the hot path.
+#![allow(
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::arc_with_non_send_sync,
+    clippy::large_enum_variant
+)]
+
 pub mod completion;
 pub mod device;
 pub mod dispatcher;

@@ -68,10 +68,11 @@ pub struct RngActor {
     inner: RngInner,
 }
 
-/// `CudaRng` holds a raw `*mut curandGenerator_st` and so is `!Send`
-/// + `!Sync`. RngActor runs exclusively on the [`crate::dispatcher::GpuDispatcher`]
-/// single thread; we assert Send + Sync via this newtype so rakka's
-/// `Actor: Send + 'static` bound is satisfied.
+/// `CudaRng` holds a raw `*mut curandGenerator_st` and so is
+/// `!Send` + `!Sync`. RngActor runs exclusively on the
+/// [`crate::dispatcher::GpuDispatcher`] single thread; we assert
+/// Send + Sync via this newtype so rakka's `Actor: Send + 'static`
+/// bound is satisfied.
 struct SendCudaRng(CudaRng);
 
 // SAFETY: the underlying handle is bound to a single CUDA stream; it

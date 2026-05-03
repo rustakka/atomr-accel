@@ -84,7 +84,7 @@ impl<P: ShardProtocol> Actor for TensorParallelTrainer<P> {
                 let n = self.shards.len();
                 // Split input by chunks across shards (round-robin
                 // along the row dimension).
-                let chunk_size = (input.len() + n - 1) / n;
+                let chunk_size = input.len().div_ceil(n);
                 let mut chunks: Vec<Vec<f32>> = Vec::with_capacity(n);
                 for i in 0..n {
                     let lo = (i * chunk_size).min(input.len());

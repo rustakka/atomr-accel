@@ -15,6 +15,8 @@
 //!    issues `cuMemcpyPeerAsync` on a fresh destination-side stream
 //!    and replies after `cudaStreamSynchronize`.
 
+#![allow(clippy::needless_range_loop)]
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -442,10 +444,7 @@ impl Actor for P2pTopology {
                 };
                 let (tx, rx) = oneshot::channel();
                 dev.tell(DeviceMsg::SnapshotContext { reply: tx });
-                let new_ctx = match rx.await {
-                    Ok(c) => c,
-                    Err(_) => None,
-                };
+                let new_ctx = rx.await.unwrap_or_default();
                 {
                     let mut g = self.contexts.lock();
                     if let Some(slot) = g.get_mut(device_idx as usize) {

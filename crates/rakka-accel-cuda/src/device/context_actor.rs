@@ -347,15 +347,13 @@ impl ContextActor {
 
 /// Helper: do an async D2H copy via cudarc's `memcpy_dtoh` and
 /// schedule completion via the shared envelope.
-fn run_copy_to_host<T: DeviceRepr + 'static>(
+fn run_copy_to_host<T: DeviceRepr + Send + 'static>(
     src: GpuRef<T>,
     mut dst: HostBuf<T>,
     stream: Arc<cudarc::driver::CudaStream>,
     completion: Arc<dyn CompletionStrategy>,
     reply: oneshot::Sender<Result<HostBuf<T>, GpuError>>,
-) where
-    T: Send,
-{
+) {
     let src_slice = match src.access() {
         Ok(s) => s.clone(),
         Err(e) => {
@@ -392,15 +390,13 @@ fn run_copy_to_host<T: DeviceRepr + 'static>(
     });
 }
 
-fn run_copy_from_host<T: DeviceRepr + 'static>(
+fn run_copy_from_host<T: DeviceRepr + Send + 'static>(
     src: HostBuf<T>,
     dst: GpuRef<T>,
     stream: Arc<cudarc::driver::CudaStream>,
     completion: Arc<dyn CompletionStrategy>,
     reply: oneshot::Sender<Result<HostBuf<T>, GpuError>>,
-) where
-    T: Send,
-{
+) {
     let dst_slice = match dst.access() {
         Ok(s) => s.clone(),
         Err(e) => {

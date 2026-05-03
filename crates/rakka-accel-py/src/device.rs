@@ -209,7 +209,7 @@ impl PyDevice {
         Ok(DeviceLoadDict {
             free_bytes: load.free_bytes as u64,
             total_bytes: load.total_bytes as u64,
-            active_streams: load.active_streams as u32,
+            active_streams: load.active_streams,
             queue_depth: load.queue_depth,
             compute_cap_major: load.compute_cap.0,
             compute_cap_minor: load.compute_cap.1,
