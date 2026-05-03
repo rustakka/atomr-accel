@@ -26,7 +26,6 @@ categories = ["concurrency", "asynchronous", "science", "hardware-support"]
 
 [workspace.dependencies]
 rakka-core                       = { path = "../rakka/crates/rakka-core",                       version = "0.2.0" }
-rakka                            = { path = "../rakka/crates/rakka",                            version = "0.2.0", package = "rakka-rs" }
 rakka-config                     = { path = "../rakka/crates/rakka-config",                     version = "0.2.0" }
 rakka-macros                     = { path = "../rakka/crates/rakka-macros",                     version = "0.2.0" }
 rakka-persistence                = { path = "../rakka/crates/rakka-persistence",                version = "0.2.0" }

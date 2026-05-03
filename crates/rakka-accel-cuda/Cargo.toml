@@ -62,7 +62,6 @@ full-cuda     = ["training-libs", "nccl"]
 
 [dependencies]
 rakka-core   = { workspace = true }
-rakka        = { workspace = true }
 rakka-config = { workspace = true }
 rakka-macros = { workspace = true }
 cudarc       = { workspace = true }

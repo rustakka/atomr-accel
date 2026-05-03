@@ -962,7 +962,6 @@ dependencies = [
  "rakka-config",
  "rakka-core",
  "rakka-macros",
- "rakka-rs",
  "thiserror",
  "tokio",
  "tracing",
@@ -987,7 +986,6 @@ dependencies = [
  "rakka-core",
  "rakka-macros",
  "rakka-persistence",
- "rakka-rs",
  "rakka-streams",
  "rakka-telemetry",
  "rakka-testkit",
@@ -1010,7 +1008,6 @@ dependencies = [
  "rakka-config",
  "rakka-core",
  "rakka-macros",
- "rakka-rs",
  "thiserror",
  "tokio",
  "tracing",
@@ -1026,7 +1023,6 @@ dependencies = [
  "rakka-config",
  "rakka-core",
  "rakka-macros",
- "rakka-rs",
  "thiserror",
  "tokio",
  "tracing",
@@ -1060,7 +1056,6 @@ dependencies = [
  "rakka-config",
  "rakka-core",
  "rakka-macros",
- "rakka-rs",
  "thiserror",
  "tokio",
  "tracing",
@@ -1198,15 +1193,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
-]
-
-[[package]]
-name = "rakka-rs"
-version = "0.2.1"
-dependencies = [
- "rakka-config",
- "rakka-core",
- "rakka-macros",
 ]
 
 [[package]]

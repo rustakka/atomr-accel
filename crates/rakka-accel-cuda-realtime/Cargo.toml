@@ -25,10 +25,9 @@ nvrtc = ["rakka-accel-cuda/nvrtc"]
 
 [dependencies]
 rakka-core   = { workspace = true }
-rakka        = { workspace = true }
 rakka-config = { workspace = true }
 rakka-macros = { workspace = true }
-rakka-accel-cuda   = { path = "../rakka-accel-cuda", version = "0.2.1" }
+rakka-accel-cuda   = { path = "../rakka-accel-cuda", version = "0.2.6" }
 async-trait  = { workspace = true }
 tokio        = { workspace = true }
 parking_lot  = { workspace = true }
