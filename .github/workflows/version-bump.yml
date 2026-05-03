@@ -1,0 +1,151 @@
+name: Version bump + tag
+
+# When commits land on `main`, decide a SemVer bump from
+# Conventional-Commit subjects and (optionally) push a `vX.Y.Z` tag
+# that fires the `release.yml` pipeline.
+#
+# Bump rules (matches the .claude/skills/version-bump skill):
+#   * `BREAKING CHANGE` / `!:` in any commit since the last tag → major
+#   * `feat:` → minor
+#   * `fix:` / `perf:` / `revert:` → patch
+#   * `chore:` / `docs:` / `ci:` / `test:` / `refactor:` / `style:` /
+#     `build:` only → no bump (skip)
+#
+# Override: push a commit whose body or footer contains
+# `Release-As: <version>` and the workflow will set that exact
+# version. Pass `dry_run=true` via workflow_dispatch to print the
+# decision without committing or tagging.
+#
+# Mirrors the rakka workspace's version-bump.yml — the only difference
+# is the bot identity and the tag namespace ("rakka-accel v…").
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the bump decision but skip commit + tag"
+        required: false
+        default: "false"
+      force:
+        description: "Force a bump (patch|minor|major) even when commits are skip-only"
+        required: false
+        default: ""
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  decide-and-bump:
+    name: Decide bump + tag
+    runs-on: ubuntu-latest
+    # Skip when the head commit is itself a release commit so the
+    # workflow doesn't loop on its own output.
+    if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):')
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel (full history for `git tag`)
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: rakka-accel }
+
+      - name: Decide bump kind from Conventional Commits
+        id: decide
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          FORCE: ${{ github.event.inputs.force }}
+        working-directory: rakka-accel-cuda
+        run: |
+          set -euo pipefail
+          if [ -n "${FORCE:-}" ]; then
+            echo "kind=$FORCE" >> "$GITHUB_OUTPUT"
+            echo "Forced bump: $FORCE"
+            exit 0
+          fi
+          last_tag=$(git tag --sort=-creatordate | head -n1 || true)
+          if [ -z "$last_tag" ]; then
+            range="HEAD"
+          else
+            range="${last_tag}..HEAD"
+          fi
+          subjects=$(git log --no-merges --pretty=format:%s%n%b "$range" || true)
+          # Honor explicit "Release-As: x.y.z" override.
+          release_as=$(printf '%s\n' "$subjects" | grep -E '^Release-As: ' | tail -n1 | awk '{print $2}' || true)
+          if [ -n "$release_as" ]; then
+            echo "kind=set:$release_as" >> "$GITHUB_OUTPUT"
+            echo "Override via Release-As: $release_as"
+            exit 0
+          fi
+          if printf '%s' "$subjects" | grep -qE 'BREAKING CHANGE|^[a-z]+(\([^)]+\))?!:'; then
+            echo "kind=major" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if printf '%s' "$subjects" | grep -qE '^feat(\([^)]+\))?:'; then
+            echo "kind=minor" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if printf '%s' "$subjects" | grep -qE '^(fix|perf|revert)(\([^)]+\))?:'; then
+            echo "kind=patch" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "kind=skip" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version + refresh Cargo.lock
+        if: steps.decide.outputs.kind != 'skip'
+        id: bump
+        working-directory: rakka-accel-cuda
+        run: |
+          set -euo pipefail
+          kind="${{ steps.decide.outputs.kind }}"
+          if [[ "$kind" == set:* ]]; then
+            ver="${kind#set:}"
+            cargo xtask bump --set "$ver"
+          else
+            cargo xtask bump "$kind"
+          fi
+          new_ver=$(awk '
+            /^\[workspace\.package\]/ { f=1; next }
+            f && /^\[/ { exit }
+            f && /^version[[:space:]]*=/ {
+              match($0, /"[^"]+"/)
+              print substr($0, RSTART+1, RLENGTH-2)
+              exit
+            }' Cargo.toml)
+          if [ -z "$new_ver" ]; then
+            echo "::error::failed to extract bumped version from Cargo.toml"
+            exit 1
+          fi
+          echo "version=$new_ver" >> "$GITHUB_OUTPUT"
+
+      - name: Commit + tag
+        if: steps.decide.outputs.kind != 'skip' && github.event.inputs.dry_run != 'true'
+        working-directory: rakka-accel-cuda
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "rakka-accel-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add Cargo.toml Cargo.lock crates/rakka-accel-py/pyproject.toml 2>/dev/null || true
+          git commit -m "chore(release): v${NEW_VERSION}"
+          git tag -a "v${NEW_VERSION}" -m "rakka-accel v${NEW_VERSION}"
+          git push origin HEAD --follow-tags
+
+      - name: Summary
+        run: |
+          echo "kind=${{ steps.decide.outputs.kind }}"
+          echo "version=${{ steps.bump.outputs.version || 'unchanged' }}"

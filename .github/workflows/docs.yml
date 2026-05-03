@@ -1,0 +1,71 @@
+name: Docs
+
+# Publish rustdoc to GitHub Pages on every push to `main` and on
+# every `v*` tag. The site lives at:
+#   https://rustakka.github.io/rakka-accel/rakka_accel/index.html
+#
+# Mirrors the rakka workspace's docs.yml. rakka uses mkdocs-material
+# because its docs are markdown-driven; rakka-accel's primary doc
+# surface is rustdoc, so we publish that instead. The markdown docs
+# under `docs/` are linked from rustdoc and the README.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: rakka-accel }
+      - name: cargo doc --workspace --no-deps (every feature on)
+        working-directory: rakka-accel-cuda
+        run: |
+          cargo doc --workspace --no-deps \
+            --features rakka-accel-cuda/full-cuda,rakka-accel-cuda/replay,rakka-accel-cuda/cluster,rakka-accel-cuda/streams,rakka-accel-cuda/telemetry
+      - name: Add index redirect to the umbrella crate
+        working-directory: rakka-accel-cuda
+        run: |
+          cat > target/doc/index.html <<'EOF'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>rakka-accel — Rust API documentation</title>
+          <meta http-equiv="refresh" content="0; url=rakka_accel/index.html">
+          <link rel="canonical" href="rakka_accel/index.html">
+          EOF
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: rakka-accel/target/doc
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,33 @@
+# rakka-accel-train
+
+Distributed training blueprints on [rakka-accel-cuda](../rakka-accel-cuda):
+data-parallel, pipeline-parallel, tensor-parallel, async parameter
+server, plus typed `OptimizerKind` / `LossKind` enums.
+
+## Add to your project
+
+```toml
+[dependencies]
+rakka-accel       = "0.0"
+rakka-accel-train = "0.0"
+```
+
+```rust
+use rakka_accel_train::prelude::*;
+```
+
+This crate depends on `rakka-accel-cuda` (foundation) plus
+`rakka-accel-patterns` (for replica routing). Nothing else.
+
+## What's inside
+
+| Blueprint                  | Type                          |
+|----------------------------|-------------------------------|
+| Data parallel              | `DataParallelTrainer<P>`      |
+| Pipeline parallel          | `PipelineParallelTrainer<P>`  |
+| Tensor parallel            | `TensorParallelTrainer<P>`    |
+| Async parameter server     | `AsyncParameterServer`        |
+| Optimizer enum             | `OptimizerKind` (SGD, AdamW)  |
+| Loss enum                  | `LossKind` (MSE, CrossEntropy) |
+
+License: Apache-2.0.

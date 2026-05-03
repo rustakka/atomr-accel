@@ -1,0 +1,368 @@
+name: Release
+
+# Releases are tagged from `main`. Push a tag matching `v*` (e.g.
+# `v0.1.0`, `v1.0.0-rc.1`) to fire this pipeline. The bump-and-tag
+# step is automated by `.github/workflows/version-bump.yml` (see the
+# `.claude/skills/version-bump/SKILL.md` skill).
+#
+# This workflow:
+#   1. Runs the local release-pipeline gate (`cargo xtask verify`).
+#   2. Builds Python wheels (manylinux x86_64, musllinux x86_64,
+#      macOS universal2, Windows x86_64) and an sdist.
+#   3. Creates the GitHub Release with the artifacts attached.
+#   4. Publishes every publishable Rust crate to crates.io in
+#      dependency order (with rate-limit retry).
+#   5. Publishes wheels + sdist to PyPI (trusted publishing).
+#
+# Honors `--dry-run` for `workflow_dispatch`.
+#
+# Mirrors the rakka workspace's release.yml — same job graph, same
+# dry-run semantics, same trusted-publishing setup.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run cargo publish + maturin upload with --dry-run; skip GitHub Release upload"
+        required: false
+        default: "true"
+      skip_python:
+        description: "Skip the Python wheel build/publish jobs"
+        required: false
+        default: "false"
+      skip_crates:
+        description: "Skip the crates.io publish job"
+        required: false
+        default: "false"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─── Gate ─────────────────────────────────────────────────────────────
+  verify:
+    name: Verify (release-pipeline gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy, rustfmt }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: rakka-accel }
+      - name: cargo xtask verify
+        run: cargo xtask verify
+        working-directory: rakka-accel-cuda
+
+  # ─── Python wheels ───────────────────────────────────────────────────
+  build-wheels:
+    name: Build wheels (${{ matrix.target }} / ${{ matrix.os }})
+    needs: verify
+    if: github.event_name == 'push' || github.event.inputs.skip_python != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux glibc + musl, x86_64. ARM Linux users install from sdist.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            python-target: x86_64
+            manylinux: auto
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            python-target: x86_64
+            manylinux: musllinux_1_2
+          # macOS — universal2 yields a single fat wheel covering
+          # both x86_64 and arm64.
+          - os: macos-latest
+            target: universal2-apple-darwin
+            python-target: universal2
+            manylinux: "off"
+          # Windows.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            python-target: x64
+            manylinux: "off"
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheels (maturin)
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.python-target }}
+          # abi3-py310 wheel: one binary per (os, arch) covers Python 3.10+.
+          # We still pass interpreter hints so manylinux containers grab
+          # the right CPython headers.
+          args: --release --strip --out dist --no-default-features --features extension-module
+          manylinux: ${{ matrix.manylinux }}
+          working-directory: rakka-accel/crates/rakka-accel-py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rakka-accel-wheels-${{ matrix.target }}
+          path: rakka-accel/crates/rakka-accel-py/dist/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    name: Build sdist (Python)
+    needs: verify
+    if: github.event_name == 'push' || github.event.inputs.skip_python != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+          working-directory: rakka-accel/crates/rakka-accel-py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rakka-accel-sdist
+          path: rakka-accel/crates/rakka-accel-py/dist/*.tar.gz
+          if-no-files-found: error
+
+  # ─── GitHub Release ──────────────────────────────────────────────────
+  github-release:
+    name: GitHub Release
+    needs: [verify, build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate release notes
+        id: notes
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          prev=$(git tag --sort=-creatordate | grep -v "^${tag}$" | head -n1 || true)
+          range="${prev:+$prev..}HEAD"
+          {
+            echo "## rakka-accel ${tag}"
+            echo
+            echo "### Changes"
+            git log --no-merges --pretty=format:'- %s (%h)' "${range}"
+            echo
+            echo
+            echo "### Crates published"
+            echo "- rakka-accel-cuda"
+            echo "- rakka-accel"
+            echo "- rakka-accel-patterns"
+            echo "- rakka-accel-train"
+            echo "- rakka-accel-agents"
+            echo "- rakka-accel-cuda-realtime"
+            echo
+            echo "### Python wheels"
+            ls artifacts | grep "rakka-accel-wheels-" | sed 's/^/- /' || true
+          } > RELEASE_NOTES.md
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: rakka-accel ${{ steps.notes.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ contains(steps.notes.outputs.tag, '-') }}
+          files: |
+            artifacts/**/*.whl
+            artifacts/**/*.tar.gz
+
+  # ─── crates.io ───────────────────────────────────────────────────────
+  publish-crates:
+    name: Publish to crates.io
+    needs: [verify, github-release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.inputs.skip_crates != 'true'
+    environment: crates-io
+    permissions:
+      contents: read
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: rakka-accel }
+      - name: Publish all crates in dep order
+        working-directory: rakka-accel-cuda
+        run: |
+          set -euo pipefail
+          # crates.io applies a "new crates per period" rate limit. Pace
+          # successful publishes with a sleep, retry transient 429s
+          # after a longer backoff. `already uploaded` is treated as
+          # success so a partially-completed run can be safely retried
+          # by re-tagging.
+          publish_one() {
+            local crate=$1
+            local attempt=1
+            while true; do
+              echo "==> publishing $crate (attempt $attempt)"
+              local out
+              if out=$(cargo publish -p "$crate" 2>&1); then
+                printf '%s\n' "$out"
+                sleep 30
+                return 0
+              fi
+              printf '%s\n' "$out"
+              if printf '%s' "$out" | grep -qE "already (uploaded|exists)"; then
+                echo "    (already on crates.io — continuing)"
+                return 0
+              fi
+              if printf '%s' "$out" | grep -qE "(429|Too Many Requests|rate.*limit)" && [ $attempt -lt 6 ]; then
+                local delay=$((90 * attempt))
+                echo "    (rate-limited — sleeping ${delay}s before retry)"
+                sleep "$delay"
+                attempt=$((attempt + 1))
+                continue
+              fi
+              return 1
+            done
+          }
+          # Strict dep-order:
+          #   1. rakka-accel-cuda  — backend impl (no internal deps)
+          #   2. rakka-accel       — umbrella core (optional re-export)
+          #   3. blueprints        — patterns / agents / cuda-realtime
+          #                          (each depends only on rakka-accel-cuda)
+          #   4. rakka-accel-train — depends on rakka-accel-patterns
+          for crate in \
+            rakka-accel-cuda \
+            rakka-accel \
+            rakka-accel-patterns \
+            rakka-accel-agents \
+            rakka-accel-cuda-realtime \
+            rakka-accel-train; do
+            publish_one "$crate"
+          done
+
+  publish-crates-dry-run:
+    name: Publish to crates.io (dry run)
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_crates != 'true'
+    steps:
+      - name: Checkout sibling rakka
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/rakka
+          path: rakka
+      - name: Checkout rakka-accel-cuda
+        uses: actions/checkout@v4
+        with:
+          path: rakka-accel-cuda
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: rakka-accel }
+      - name: Dry-run publish
+        working-directory: rakka-accel-cuda
+        run: |
+          for c in rakka-accel-cuda rakka-accel rakka-accel-patterns rakka-accel-train rakka-accel-agents rakka-accel-cuda-realtime; do
+            echo "==> $c"
+            cargo publish -p "$c" --dry-run --allow-dirty || true
+          done
+
+  # ─── PyPI ────────────────────────────────────────────────────────────
+  publish-pypi:
+    name: Publish wheels + sdist to PyPI
+    needs: [verify, build-wheels, build-sdist, github-release]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.inputs.skip_python != 'true'
+    # Trusted publishing — configure on PyPI: pypi.org → manage project →
+    # publishing → add GitHub publisher (owner / repo / workflow / env).
+    environment:
+      name: pypi
+      url: https://pypi.org/p/rakka-accel
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "rakka-accel-{wheels-*,sdist}"
+      - name: Flatten wheel + sdist artifacts
+        run: |
+          mkdir -p upload
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec cp {} upload/ \;
+          ls -la upload/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload
+          # If trusted publishing is not yet configured, set
+          # `password: ${{ secrets.PYPI_API_TOKEN }}` instead.
+          skip-existing: true
+
+  publish-pypi-dry-run:
+    name: PyPI dry-run (TestPyPI)
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_python != 'true'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/rakka-accel
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "rakka-accel-{wheels-*,sdist}"
+      - name: Flatten wheel + sdist artifacts
+        run: |
+          mkdir -p upload
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec cp {} upload/ \;
+          ls -la upload/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true

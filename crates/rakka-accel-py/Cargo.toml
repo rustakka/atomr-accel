@@ -1,0 +1,46 @@
+[package]
+name = "rakka-accel-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["cuda", "gpu", "python", "pyo3"]
+categories = ["concurrency", "asynchronous", "api-bindings"]
+description = "Python bindings for rakka-accel. Drives an actor-supervised CUDA pipeline from Python without juggling streams or contexts."
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+# Pass-through to feature-gate the corresponding rakka-accel-cuda kernel actors.
+cudnn    = ["rakka-accel-cuda/cudnn"]
+cufft    = ["rakka-accel-cuda/cufft"]
+curand   = ["rakka-accel-cuda/curand"]
+cusolver = ["rakka-accel-cuda/cusolver"]
+cublaslt = ["rakka-accel-cuda/cublaslt"]
+nvrtc    = ["rakka-accel-cuda/nvrtc"]
+nccl     = ["rakka-accel-cuda/nccl"]
+core-libs     = ["rakka-accel-cuda/core-libs"]
+training-libs = ["rakka-accel-cuda/training-libs"]
+full-cuda     = ["rakka-accel-cuda/full-cuda"]
+
+[dependencies]
+rakka-core   = { workspace = true }
+rakka-config = { workspace = true }
+rakka-accel-cuda   = { path = "../rakka-accel-cuda", version = "0.2.1" }
+
+pyo3                = { workspace = true, features = ["abi3-py310", "macros"] }
+pyo3-async-runtimes = { workspace = true }
+numpy               = { workspace = true }
+tokio        = { workspace = true }
+parking_lot  = { workspace = true }
+tracing      = { workspace = true }
+once_cell    = { workspace = true }

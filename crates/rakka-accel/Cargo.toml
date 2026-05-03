@@ -1,0 +1,32 @@
+[package]
+name = "rakka-accel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "Backend-agnostic compute-acceleration core. Defines the AccelBackend trait, AccelRef<T> typed pointers, AccelError enum, and CompletionStrategy — the abstraction layer that lets rakka-accel-cuda (NVIDIA), and future ROCm / Metal / oneAPI / Vulkan backends plug into the same actor surface."
+
+[features]
+default = []
+# Re-export the CUDA backend at `rakka_accel::cuda`. Most users want
+# this on; turn it off only when building backend-agnostic libraries
+# that should not pull cudarc in.
+cuda    = ["dep:rakka-accel-cuda"]
+
+[dependencies]
+rakka-core   = { workspace = true }
+rakka-config = { workspace = true }
+rakka-accel-cuda = { path = "../rakka-accel-cuda", version = "0.2.1", optional = true }
+async-trait  = { workspace = true }
+thiserror    = { workspace = true }
+tokio        = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

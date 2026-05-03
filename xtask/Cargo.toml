@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Developer tooling for the rakka-accel workspace (bump, verify)."
+
+[dependencies]
+anyhow = "1"

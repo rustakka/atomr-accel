@@ -1,25 +1,40 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/rakka-cuda",
-    "crates/rakka-cuda-patterns",
-    "crates/rakka-cuda-train",
-    "crates/rakka-cuda-agents",
-    "crates/rakka-cuda-realtime",
+    "crates/rakka-accel",            # backend-agnostic core (umbrella)
+    "crates/rakka-accel-cuda",       # NVIDIA CUDA implementation
+    "crates/rakka-accel-patterns",   # backend-agnostic blueprints
+    "crates/rakka-accel-train",      # backend-agnostic training blueprints
+    "crates/rakka-accel-agents",     # backend-agnostic LLM blueprints
+    "crates/rakka-accel-cuda-realtime", # CUDA-specific realtime sims (NVRTC)
+    "crates/rakka-accel-py",         # Python bindings
+    "xtask",
 ]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.78"
 license = "Apache-2.0"
-repository = "https://github.com/local/rakka-cuda"
-authors = ["rakka-cuda contributors"]
+repository = "https://github.com/rustakka/rakka-accel"
+homepage = "https://github.com/rustakka/rakka-accel"
+documentation = "https://docs.rs/rakka-accel"
+authors = ["rakka-accel contributors"]
+readme = "README.md"
+keywords = ["cuda", "gpu", "rakka", "actor", "ml"]
+categories = ["concurrency", "asynchronous", "science", "hardware-support"]
 
 [workspace.dependencies]
-rakka-core   = { path = "../rakka/crates/rakka-core", version = "0.1.0" }
-rakka        = { path = "../rakka/crates/rakka",      version = "0.1.0" }
-rakka-config = { path = "../rakka/crates/rakka-config", version = "0.1.0" }
+rakka-core                       = { path = "../rakka/crates/rakka-core",                       version = "0.2.0" }
+rakka                            = { path = "../rakka/crates/rakka",                            version = "0.2.0", package = "rakka-rs" }
+rakka-config                     = { path = "../rakka/crates/rakka-config",                     version = "0.2.0" }
+rakka-macros                     = { path = "../rakka/crates/rakka-macros",                     version = "0.2.0" }
+rakka-persistence                = { path = "../rakka/crates/rakka-persistence",                version = "0.2.0" }
+rakka-persistence-query-inmemory = { path = "../rakka/crates/rakka-persistence-query-inmemory", version = "0.2.0" }
+rakka-cluster-sharding           = { path = "../rakka/crates/rakka-cluster-sharding",           version = "0.2.0" }
+rakka-streams                    = { path = "../rakka/crates/rakka-streams",                    version = "0.2.0" }
+rakka-telemetry                  = { path = "../rakka/crates/rakka-telemetry",                  version = "0.2.0" }
+rakka-testkit                    = { path = "../rakka/crates/rakka-testkit",                    version = "0.2.0" }
 
 cudarc       = { version = "0.19.4", features = ["cuda-version-from-build-system", "fallback-latest"] }
 
@@ -33,6 +48,12 @@ thiserror    = "1"
 tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 criterion    = { version = "0.5", default-features = false, features = ["html_reports"] }
+once_cell    = "1"
+
+# Python bindings (rakka-accel-py crate).
+pyo3                = { version = "0.22", default-features = false }
+pyo3-async-runtimes = { version = "0.22", default-features = false, features = ["tokio-runtime"] }
+numpy               = { version = "0.22", default-features = false }
 
 [profile.release]
 opt-level = 3
