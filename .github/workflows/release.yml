@@ -218,7 +218,7 @@ jobs:
     permissions:
       contents: read
     env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
     steps:
       - name: Checkout sibling rakka
         uses: actions/checkout@v4
