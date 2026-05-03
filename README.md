@@ -128,6 +128,11 @@ abstraction (and the ROCm / Metal / oneAPI roadmap),
 bindings, and [`docs/features-matrix.md`](docs/features-matrix.md)
 for the by-goal dependency picker.
 
+If you're using an AI coding assistant (Claude Code, Cursor, etc.),
+[`ai-skills/`](ai-skills/) ships seven `SKILL.md` files your tool
+can pick up so the assistant gives you idiomatic rakka-accel
+guidance instead of guessing.
+
 ## Library coverage
 
 | Library                            | Actor              | NVIDIA reference                                  | Feature flag |
