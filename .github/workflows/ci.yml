@@ -26,7 +26,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
       - run: cargo fmt --all -- --check
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
 
   clippy:
     runs-on: ubuntu-latest
@@ -37,18 +37,18 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
       - run: cargo clippy --workspace --all-targets --features rakka-accel-cuda/core-libs -- -D warnings
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
 
   test:
     runs-on: ubuntu-latest
@@ -71,19 +71,19 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: cargo check ${{ matrix.features }}
         run: cargo check --workspace ${{ matrix.features }}
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
       - name: cargo test ${{ matrix.features }}
         run: cargo test --workspace ${{ matrix.features }}
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
 
   docs:
     runs-on: ubuntu-latest
@@ -98,16 +98,16 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: cargo doc --workspace --no-deps --all-features
         run: cargo doc --workspace --no-deps --features rakka-accel-cuda/full-cuda,rakka-accel-cuda/replay,rakka-accel-cuda/cluster,rakka-accel-cuda/streams,rakka-accel-cuda/telemetry
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
       - uses: actions/upload-artifact@v4
         with:
           name: rustdoc
@@ -129,17 +129,17 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
       - name: Check public-API SemVer for every published crate
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           set -e
           fails=0
@@ -164,17 +164,17 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy, rustfmt }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: cargo xtask verify
         run: cargo xtask verify
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
 
   # ─── Python bridge gate ──────────────────────────────────────────────
   python:
@@ -190,10 +190,10 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:

@@ -56,17 +56,17 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy, rustfmt }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: cargo xtask verify
         run: cargo xtask verify
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
 
   # ─── Python wheels ───────────────────────────────────────────────────
   build-wheels:
@@ -104,10 +104,10 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -138,10 +138,10 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -225,15 +225,15 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: Publish all crates in dep order
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           set -euo pipefail
           # crates.io applies a "new crates per period" rate limit. Pace
@@ -294,15 +294,15 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: Dry-run publish
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           for c in rakka-accel-cuda rakka-accel rakka-accel-patterns rakka-accel-train rakka-accel-agents rakka-accel-cuda-realtime; do
             echo "==> $c"

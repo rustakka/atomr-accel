@@ -33,20 +33,20 @@ jobs:
         with:
           repository: rustakka/rakka
           path: rakka
-      - name: Checkout rakka-accel-cuda
+      - name: Checkout rakka-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: rakka-accel }
       - name: cargo doc --workspace --no-deps (every feature on)
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           cargo doc --workspace --no-deps \
             --features rakka-accel-cuda/full-cuda,rakka-accel-cuda/replay,rakka-accel-cuda/cluster,rakka-accel-cuda/streams,rakka-accel-cuda/telemetry
       - name: Add index redirect to the umbrella crate
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           cat > target/doc/index.html <<'EOF'
           <!doctype html>

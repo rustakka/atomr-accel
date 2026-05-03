@@ -56,7 +56,7 @@ jobs:
       - name: Checkout rakka-accel (full history for `git tag`)
         uses: actions/checkout@v4
         with:
-          path: rakka-accel-cuda
+          path: rakka-accel
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
@@ -68,7 +68,7 @@ jobs:
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           FORCE: ${{ github.event.inputs.force }}
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           set -euo pipefail
           if [ -n "${FORCE:-}" ]; then
@@ -107,7 +107,7 @@ jobs:
       - name: Bump version + refresh Cargo.lock
         if: steps.decide.outputs.kind != 'skip'
         id: bump
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         run: |
           set -euo pipefail
           kind="${{ steps.decide.outputs.kind }}"
@@ -133,7 +133,7 @@ jobs:
 
       - name: Commit + tag
         if: steps.decide.outputs.kind != 'skip' && github.event.inputs.dry_run != 'true'
-        working-directory: rakka-accel-cuda
+        working-directory: rakka-accel
         env:
           NEW_VERSION: ${{ steps.bump.outputs.version }}
         run: |
