@@ -16,8 +16,8 @@ description = "Distributed training blueprints on rakka-accel-cuda: DataParallel
 rakka-core         = { workspace = true }
 rakka-config       = { workspace = true }
 rakka-macros       = { workspace = true }
-rakka-accel-cuda         = { path = "../rakka-accel-cuda", version = "0.2.7" }
-rakka-accel-patterns = { path = "../rakka-accel-patterns", version = "0.2.7" }
+rakka-accel-cuda         = { path = "../rakka-accel-cuda", version = "0.2.8" }
+rakka-accel-patterns = { path = "../rakka-accel-patterns", version = "0.2.8" }
 async-trait        = { workspace = true }
 tokio              = { workspace = true }
 parking_lot        = { workspace = true }
