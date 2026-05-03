@@ -14,13 +14,13 @@ internal release workflow.
 
 | Skill | Use when… |
 |---|---|
-| [`rakka-accel-getting-started`](skills/rakka-accel-getting-started/SKILL.md) | Wiring rakka-accel into a new Rust project — what to add to `Cargo.toml`, picking features, sub-crate selection |
-| [`rakka-accel-device`](skills/rakka-accel-device/SKILL.md) | Driving a GPU through `DeviceActor` — `GpuRef<T>`, typed allocations, host↔device memcpy, dispatching `Sgemm` |
-| [`rakka-accel-kernels`](skills/rakka-accel-kernels/SKILL.md) | Picking or extending a kernel actor — cuBLAS / cuBLASLt / cuDNN / cuFFT / cuRAND / cuSOLVER / cuSPARSE / cuTENSOR / NVRTC / NCCL — and the `KernelEnvelope::run_kernel` pattern |
-| [`rakka-accel-supervision`](skills/rakka-accel-supervision/SKILL.md) | Reasoning about failure recovery — two-tier `DeviceActor ↔ ContextActor`, sticky-error context loss, the `ContextPoisoned`/`OutOfMemory`/`Unrecoverable` panic-tag protocol, `GpuRef` generation tokens |
-| [`rakka-accel-python`](skills/rakka-accel-python/SKILL.md) | Using the Python bindings — `System`/`Device`/`GpuBuffer`, numpy float32 roundtrip, GIL release, mock-mode tests |
-| [`rakka-accel-troubleshooting`](skills/rakka-accel-troubleshooting/SKILL.md) | Diagnosing failures — feature-flag misses, `GpuRefStale`, mailbox stalls, OOM loops, no-GPU CI vs GPU-runtime gate |
-| [`rakka-accel-backends`](skills/rakka-accel-backends/SKILL.md) | Choosing between portable (`AccelBackend` trait) and vendor-specific (`rakka-accel-cuda`) APIs; future ROCm/Metal/oneAPI/Vulkan story |
+| `rakka-accel-getting-started` | Wiring rakka-accel into a new Rust project — `Cargo.toml`, picking features, sub-crate selection |
+| `rakka-accel-device` | Driving a GPU through `DeviceActor` — `GpuRef<T>`, typed allocations, host↔device memcpy, dispatching `Sgemm` |
+| `rakka-accel-kernels` | Picking or extending a kernel actor — cuBLAS / cuBLASLt / cuDNN / cuFFT / cuRAND / cuSOLVER / cuSPARSE / cuTENSOR / NVRTC / NCCL — and the `KernelEnvelope::run_kernel` pattern |
+| `rakka-accel-supervision` | Reasoning about failure recovery — two-tier `DeviceActor ↔ ContextActor`, sticky-error context loss, the `ContextPoisoned`/`OutOfMemory`/`Unrecoverable` panic-tag protocol, `GpuRef` generation tokens |
+| `rakka-accel-python` | Using the Python bindings — `System`/`Device`/`GpuBuffer`, numpy float32 roundtrip, GIL release, mock-mode tests |
+| `rakka-accel-troubleshooting` | Diagnosing failures — feature-flag misses, `GpuRefStale`, mailbox stalls, OOM loops, no-GPU CI vs GPU-runtime gate |
+| `rakka-accel-backends` | Choosing between portable (`AccelBackend` trait) and vendor-specific (`rakka-accel-cuda`) APIs; future ROCm/Metal/oneAPI/Vulkan story |
 
 Each `SKILL.md` is a thin router: it points at canonical docs in
 this repo (`docs/*.md`, `examples/*`) and at the relevant crate's
@@ -29,33 +29,100 @@ belong in rustdoc, because those drift faster than docs.
 
 ## Installing
 
-### As a plugin (most agent runtimes)
+Pick the path that matches your assistant. The skills themselves are
+vendor-neutral `SKILL.md` files — only the install mechanism differs.
 
-Most agent harnesses (Claude Code, Cursor, etc.) accept a folder of
-`SKILL.md` files via a plugin manifest. Point your tool at this
-folder; the skills in `skills/` will be picked up automatically.
+### Claude Code (recommended: marketplace)
+
+If you use Claude Code, install via the plugin marketplace — this
+keeps the skills updated as rakka-accel releases, with no manual
+copy step:
 
 ```text
-# Claude Code (example)
-/plugin install /path/to/rakka-accel/ai-skills
+/plugin marketplace add rustakka/rakka-accel
+/plugin install rakka-accel-ai-skills@rakka-accel
 ```
 
-### By copying
+You can also install from a local checkout (useful when developing
+against a rakka-accel fork):
 
-If your tooling expects skills under a project-local directory, copy
-them in:
+```text
+/plugin marketplace add /path/to/rakka-accel
+/plugin install rakka-accel-ai-skills@rakka-accel
+```
+
+Skills auto-activate based on the `description` frontmatter — no need
+to invoke them explicitly.
+
+### Claude Agent SDK / project-local `.claude/skills/`
+
+For SDK-based agents or project-local Claude Code setups that read
+from `.claude/skills/`, copy or symlink the skills in:
 
 ```bash
+# copy (snapshot)
 cp -r /path/to/rakka-accel/ai-skills/skills/* .claude/skills/
-# or wherever your assistant looks for SKILL.md files
-```
 
-### By symlink (track upstream)
-
-```bash
+# symlink (track upstream)
 ln -s /path/to/rakka-accel/ai-skills/skills/rakka-accel-device \
       .claude/skills/rakka-accel-device
 ```
+
+### Cursor
+
+Cursor reads project rules from `.cursor/rules/`. Copy the skills in
+as `.mdc` rules; Cursor will treat the frontmatter `description` as
+the activation hint:
+
+```bash
+mkdir -p .cursor/rules
+for s in /path/to/rakka-accel/ai-skills/skills/*/SKILL.md; do
+  name=$(basename "$(dirname "$s")")
+  cp "$s" ".cursor/rules/${name}.mdc"
+done
+```
+
+### OpenAI Codex CLI
+
+Codex CLI reads `AGENTS.md` (project-level) and `~/.codex/AGENTS.md`
+(user-level). It does not have a SKILL.md loader, so reference the
+skills from `AGENTS.md` and let the model pull them in on demand:
+
+```markdown
+<!-- in AGENTS.md -->
+## rakka-accel skills
+When working on rakka-accel, consult the matching skill in
+`ai-skills/skills/<name>/SKILL.md`:
+- first-time wiring / Cargo.toml          → rakka-accel-getting-started
+- DeviceActor / GpuRef / memcpy / Sgemm   → rakka-accel-device
+- picking or extending a kernel actor     → rakka-accel-kernels
+- supervision / context loss / generations → rakka-accel-supervision
+- Python bindings / numpy / GIL           → rakka-accel-python
+- portable vs vendor-specific API choice  → rakka-accel-backends
+- feature flags / OOM / CI vs GPU         → rakka-accel-troubleshooting
+```
+
+### Gemini CLI
+
+Gemini CLI reads `GEMINI.md` and supports custom commands under
+`.gemini/commands/`. Point Gemini at the skills the same way:
+
+```markdown
+<!-- in GEMINI.md -->
+For rakka-accel work, load the relevant skill from
+`ai-skills/skills/<name>/SKILL.md` before editing.
+```
+
+Optionally wrap each skill as a slash command in
+`.gemini/commands/rakka-accel-<name>.toml` whose `prompt` includes
+`@ai-skills/skills/<name>/SKILL.md`.
+
+### Other harnesses (Aider, Continue, Zed, etc.)
+
+Any tool that accepts a system prompt or rules file can load these
+skills — `SKILL.md` is plain Markdown with YAML frontmatter. Either
+include the file directly in the system prompt, or reference its path
+from your tool's rules file (`.aider.conf.yml`, `.continue/`, etc.).
 
 ## Authoring conventions
 
