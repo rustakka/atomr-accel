@@ -1,6 +1,6 @@
 {
   "name": "rakka-accel-ai-skills",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Skills for AI coding assistants working on projects that depend on rakka-accel.",
   "homepage": "https://github.com/rustakka/rakka-accel",
   "skills_dir": "skills"
