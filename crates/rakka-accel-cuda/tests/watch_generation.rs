@@ -29,8 +29,15 @@ async fn watch_generation_delivers_a_receiver() {
         .expect("WatchGeneration reply should arrive within timeout")
         .expect("oneshot was dropped without sending");
 
-    // The initial generation channel value is 0 (set by DeviceState::new).
-    assert_eq!(*watch_rx.borrow(), 0);
+    // The watch channel starts at 0 (DeviceState::new), but the
+    // DeviceActor's startup path may bump it once (mock-mode context
+    // bring-up) before WatchGeneration is processed. We only require
+    // that a usable receiver was delivered.
+    let initial = *watch_rx.borrow();
+    assert!(
+        initial <= 1,
+        "expected initial generation 0 or 1 (post-startup bump), got {initial}"
+    );
 
     sys.terminate().await;
 }
