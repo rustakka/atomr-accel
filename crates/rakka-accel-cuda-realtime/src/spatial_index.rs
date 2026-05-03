@@ -138,7 +138,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn neighbors_within_cell_neighborhood() {
-        let sys = ActorSystem::create("spatial-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("spatial-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(
                 SpatialIndexActor::props(SpatialIndexConfig { cell_size: 1.0 }),
@@ -147,17 +149,47 @@ mod tests {
             .unwrap();
 
         let pts = vec![
-            Point3 { id: 1, x: 0.5, y: 0.5, z: 0.5 },
-            Point3 { id: 2, x: 1.2, y: 0.4, z: 0.4 }, // adjacent cell
-            Point3 { id: 3, x: 5.0, y: 5.0, z: 5.0 }, // far away
+            Point3 {
+                id: 1,
+                x: 0.5,
+                y: 0.5,
+                z: 0.5,
+            },
+            Point3 {
+                id: 2,
+                x: 1.2,
+                y: 0.4,
+                z: 0.4,
+            }, // adjacent cell
+            Point3 {
+                id: 3,
+                x: 5.0,
+                y: 5.0,
+                z: 5.0,
+            }, // far away
         ];
         let (tx, rx) = oneshot::channel();
-        actor.tell(SpatialMsg::Rebuild { points: pts, reply: tx });
-        tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        actor.tell(SpatialMsg::Rebuild {
+            points: pts,
+            reply: tx,
+        });
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
 
         let (tx, rx) = oneshot::channel();
-        actor.tell(SpatialMsg::QueryNeighbors { x: 0.5, y: 0.5, z: 0.5, reply: tx });
-        let n = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(SpatialMsg::QueryNeighbors {
+            x: 0.5,
+            y: 0.5,
+            z: 0.5,
+            reply: tx,
+        });
+        let n = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(n.contains(&1));
         assert!(n.contains(&2));
         assert!(!n.contains(&3));

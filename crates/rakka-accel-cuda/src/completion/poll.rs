@@ -73,10 +73,9 @@ impl CompletionStrategy for PolledCompletion {
             };
             let started = std::time::Instant::now();
             loop {
-                let complete = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    event.is_complete()
-                }))
-                .unwrap_or(false);
+                let complete =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| event.is_complete()))
+                        .unwrap_or(false);
                 if complete {
                     return Ok(());
                 }

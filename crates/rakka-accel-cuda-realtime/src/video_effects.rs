@@ -32,7 +32,9 @@ pub struct VideoEffectsConfig {
 
 impl Clone for VideoEffectsConfig {
     fn clone(&self) -> Self {
-        Self { effects: self.effects.clone() }
+        Self {
+            effects: self.effects.clone(),
+        }
     }
 }
 
@@ -54,7 +56,9 @@ pub struct VideoEffectsGraph {
 
 impl VideoEffectsGraph {
     pub fn props(config: VideoEffectsConfig) -> Props<Self> {
-        Props::create(move || VideoEffectsGraph { config: config.clone() })
+        Props::create(move || VideoEffectsGraph {
+            config: config.clone(),
+        })
     }
 }
 
@@ -96,9 +100,13 @@ mod tests {
     async fn chain_applies_each_effect() {
         let invert: Arc<dyn Effect> = Arc::new(|f: &[u8]| Ok(f.iter().map(|x| 255 - *x).collect()));
         let half: Arc<dyn Effect> = Arc::new(|f: &[u8]| Ok(f.iter().map(|x| x / 2).collect()));
-        let cfg = VideoEffectsConfig { effects: vec![invert, half] };
+        let cfg = VideoEffectsConfig {
+            effects: vec![invert, half],
+        };
 
-        let sys = ActorSystem::create("vfx-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("vfx-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys.actor_of(VideoEffectsGraph::props(cfg), "vfx").unwrap();
 
         let (tx, rx) = oneshot::channel();
@@ -106,7 +114,11 @@ mod tests {
             frame: vec![100, 200],
             reply: tx,
         });
-        let out = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let out = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // (255-100)/2 = 77, (255-200)/2 = 27.
         assert_eq!(out, vec![77, 27]);
 

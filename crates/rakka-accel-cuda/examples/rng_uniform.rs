@@ -18,8 +18,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
 
     let sys = ActorSystem::create("rng-demo", Config::empty()).await?;
-    let dev_cfg = DeviceConfig::new(0)
-        .with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CURAND);
+    let dev_cfg =
+        DeviceConfig::new(0).with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CURAND);
     let device = sys.actor_of(DeviceActor::props(dev_cfg), "device-0")?;
 
     // Wait briefly for context init.
@@ -49,7 +49,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Fire the fill.
     let r: Result<(), _> = rakka_core::actor::ActorRef::ask_with(
         &rng,
-        move |tx| RngMsg::FillUniformF32 { dst: buf, reply: tx },
+        move |tx| RngMsg::FillUniformF32 {
+            dst: buf,
+            reply: tx,
+        },
         Duration::from_secs(10),
     )
     .await?;

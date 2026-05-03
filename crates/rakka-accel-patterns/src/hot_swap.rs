@@ -148,19 +148,22 @@ mod tests {
         type Msg = BackendMsg;
         type Req = u32;
         type Resp = u32;
-        fn make_predict(
-            req: u32,
-            reply: oneshot::Sender<Result<u32, GpuError>>,
-        ) -> BackendMsg {
+        fn make_predict(req: u32, reply: oneshot::Sender<Result<u32, GpuError>>) -> BackendMsg {
             BackendMsg::Predict { req, reply }
         }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn swap_routes_to_new_backend() {
-        let sys = ActorSystem::create("hot-swap", Config::empty()).await.unwrap();
-        let v1 = sys.actor_of(rakka_core::actor::Props::create(|| V1), "v1").unwrap();
-        let v2 = sys.actor_of(rakka_core::actor::Props::create(|| V2), "v2").unwrap();
+        let sys = ActorSystem::create("hot-swap", Config::empty())
+            .await
+            .unwrap();
+        let v1 = sys
+            .actor_of(rakka_core::actor::Props::create(|| V1), "v1")
+            .unwrap();
+        let v2 = sys
+            .actor_of(rakka_core::actor::Props::create(|| V2), "v2")
+            .unwrap();
         let server = sys
             .actor_of(ModelHotSwapServer::<EchoProto>::props(v1), "server")
             .unwrap();
@@ -168,19 +171,33 @@ mod tests {
         // Predict before swap.
         let (tx, rx) = oneshot::channel();
         server.tell(HotSwapMsg::Predict { req: 5, reply: tx });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(r, 6);
 
         // Swap.
         let (tx, rx) = oneshot::channel();
-        server.tell(HotSwapMsg::SwapIn { new_backend: v2, reply: tx });
-        let s = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        server.tell(HotSwapMsg::SwapIn {
+            new_backend: v2,
+            reply: tx,
+        });
+        let s = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(s.swaps, 1);
 
         // Predict after swap.
         let (tx, rx) = oneshot::channel();
         server.tell(HotSwapMsg::Predict { req: 5, reply: tx });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(r, 105);
 
         sys.terminate().await;

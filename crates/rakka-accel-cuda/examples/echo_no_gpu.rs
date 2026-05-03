@@ -15,8 +15,8 @@
 use std::time::Duration;
 
 use rakka_accel_cuda::prelude::*;
-use rakka_core::actor::ActorSystem;
 use rakka_config::Config;
+use rakka_core::actor::ActorSystem;
 use tokio::sync::oneshot;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -33,12 +33,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("DeviceActor (mock) spawned. Sending Allocate request...");
     let (tx, rx) = oneshot::channel();
-    device.tell(DeviceMsg::Allocate { len: 1024, reply: tx });
+    device.tell(DeviceMsg::Allocate {
+        len: 1024,
+        reply: tx,
+    });
 
     let reply = tokio::time::timeout(Duration::from_secs(5), rx).await??;
     match reply {
         Ok(buf) => {
-            println!("Allocated buffer (unexpected in mock mode): len={}", buf.len());
+            println!(
+                "Allocated buffer (unexpected in mock mode): len={}",
+                buf.len()
+            );
         }
         Err(GpuError::Unrecoverable(msg)) => {
             println!("Got expected mock-mode error: {msg}");

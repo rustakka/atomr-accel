@@ -203,7 +203,11 @@ impl ManagedAllocatorActor {
         })
     }
 
-    fn allocate_f32(&mut self, len: usize, flags: ManagedFlags) -> Result<ManagedRef<f32>, GpuError> {
+    fn allocate_f32(
+        &mut self,
+        len: usize,
+        flags: ManagedFlags,
+    ) -> Result<ManagedRef<f32>, GpuError> {
         let bytes = len.checked_mul(std::mem::size_of::<f32>()).ok_or_else(|| {
             GpuError::Unrecoverable("managed alloc: len * size_of overflowed".into())
         })?;
@@ -284,8 +288,12 @@ impl Actor for ManagedAllocatorActor {
                 // resolve the symbol.
                 let location = runtime_sys::cudaMemLocation {
                     type_: match target {
-                        PrefetchTarget::Device(_) => runtime_sys::cudaMemLocationType::cudaMemLocationTypeDevice,
-                        PrefetchTarget::Cpu => runtime_sys::cudaMemLocationType::cudaMemLocationTypeHost,
+                        PrefetchTarget::Device(_) => {
+                            runtime_sys::cudaMemLocationType::cudaMemLocationTypeDevice
+                        }
+                        PrefetchTarget::Cpu => {
+                            runtime_sys::cudaMemLocationType::cudaMemLocationTypeHost
+                        }
                     },
                     id: match target {
                         PrefetchTarget::Device(d) => d as i32,
@@ -347,7 +355,9 @@ mod tests {
     /// allocations.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn allocate_replies_then_invalidate_on_post_stop() {
-        let sys = ActorSystem::create("managed-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("managed-test", Config::empty())
+            .await
+            .unwrap();
         let mgr = sys
             .actor_of(ManagedAllocatorActor::props(), "managed")
             .unwrap();
@@ -360,12 +370,18 @@ mod tests {
         });
         // Either succeeds (real GPU) or returns OutOfMemory (no
         // driver). Either is fine for this test.
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         let _ = r;
 
         let (tx, rx) = oneshot::channel();
         mgr.tell(ManagedMsg::Stats { reply: tx });
-        let _stats = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let _stats = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
 
         sys.terminate().await;
     }

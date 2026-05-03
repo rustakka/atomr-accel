@@ -8,8 +8,8 @@
 //! reference `rakka_accel.RngGenerator` via the facade.
 
 use pyo3::prelude::*;
-use rakka_core::actor::ActorRef;
 use rakka_accel_cuda::kernel::RngMsg;
+use rakka_core::actor::ActorRef;
 
 #[pyclass(name = "RngGenerator", module = "rakka_accel._native")]
 pub struct PyRngGenerator {

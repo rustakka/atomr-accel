@@ -39,7 +39,10 @@ pub struct CpuVectorIndex {
 
 impl CpuVectorIndex {
     pub fn props(dim: usize) -> Props<Self> {
-        Props::create(move || CpuVectorIndex { dim, entries: Vec::new() })
+        Props::create(move || CpuVectorIndex {
+            dim,
+            entries: Vec::new(),
+        })
     }
 
     fn cosine(a: &[f32], b: &[f32]) -> f32 {
@@ -72,7 +75,11 @@ impl Actor for CpuVectorIndex {
                 self.entries.push(entry);
                 let _ = reply.send(Ok(()));
             }
-            VectorIndexMsg::Search { query, top_k, reply } => {
+            VectorIndexMsg::Search {
+                query,
+                top_k,
+                reply,
+            } => {
                 if query.len() != self.dim {
                     let _ = reply.send(Err(GpuError::Unrecoverable(format!(
                         "query dim {} != index dim {}",
@@ -106,7 +113,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cpu_index_topk() {
-        let sys = ActorSystem::create("vec-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("vec-test", Config::empty())
+            .await
+            .unwrap();
         let idx = sys.actor_of(CpuVectorIndex::props(3), "idx").unwrap();
 
         for (id, e) in [
@@ -121,7 +130,11 @@ mod tests {
                 entry: VectorEntry { id, embedding: e },
                 reply: tx,
             });
-            tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
         }
 
         let (tx, rx) = oneshot::channel();
@@ -130,7 +143,11 @@ mod tests {
             top_k: 2,
             reply: tx,
         });
-        let res = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let res = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // ID 1 is best match (cosine = 1.0).
         assert_eq!(res[0].0, 1);
         assert!((res[0].1 - 1.0).abs() < 1e-5);

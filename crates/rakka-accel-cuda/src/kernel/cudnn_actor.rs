@@ -124,11 +124,15 @@ struct SendDesc<T>(Arc<T>);
 unsafe impl<T> Send for SendDesc<T> {}
 unsafe impl<T> Sync for SendDesc<T> {}
 impl<T> Clone for SendDesc<T> {
-    fn clone(&self) -> Self { Self(self.0.clone()) }
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 impl<T> std::ops::Deref for SendDesc<T> {
     type Target = T;
-    fn deref(&self) -> &T { &self.0 }
+    fn deref(&self) -> &T {
+        &self.0
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -221,7 +225,9 @@ impl CudnnActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| CudnnActor { inner: CudnnInner::Mock })
+        Props::create(|| CudnnActor {
+            inner: CudnnInner::Mock,
+        })
     }
 }
 
@@ -264,9 +270,15 @@ impl Actor for CudnnActor {
 fn reply_mock(msg: CudnnMsg) {
     let err = || GpuError::Unrecoverable("CudnnActor in mock mode".into());
     match msg {
-        CudnnMsg::ConvForward(r) => { let _ = r.reply.send(Err(err())); }
-        CudnnMsg::Activation(r) => { let _ = r.reply.send(Err(err())); }
-        CudnnMsg::Softmax(r) => { let _ = r.reply.send(Err(err())); }
+        CudnnMsg::ConvForward(r) => {
+            let _ = r.reply.send(Err(err()));
+        }
+        CudnnMsg::Activation(r) => {
+            let _ = r.reply.send(Err(err()));
+        }
+        CudnnMsg::Softmax(r) => {
+            let _ = r.reply.send(Err(err()));
+        }
     }
 }
 
@@ -279,10 +291,7 @@ fn get_or_make_tensor(
         return Ok(t.clone());
     }
     let t = handle
-        .create_4d_tensor::<f32>(
-            cudnn_sys::cudnnTensorFormat_t::CUDNN_TENSOR_NCHW,
-            key.dims,
-        )
+        .create_4d_tensor::<f32>(cudnn_sys::cudnnTensorFormat_t::CUDNN_TENSOR_NCHW, key.dims)
         .map_err(|e| GpuError::LibraryError {
             lib: LIB,
             msg: format!("create_4d_tensor: {e}"),
@@ -301,10 +310,7 @@ fn get_or_make_filter(
         return Ok(f.clone());
     }
     let f = handle
-        .create_4d_filter::<f32>(
-            cudnn_sys::cudnnTensorFormat_t::CUDNN_TENSOR_NCHW,
-            key.dims,
-        )
+        .create_4d_filter::<f32>(cudnn_sys::cudnnTensorFormat_t::CUDNN_TENSOR_NCHW, key.dims)
         .map_err(|e| GpuError::LibraryError {
             lib: LIB,
             msg: format!("create_4d_filter: {e}"),
@@ -370,12 +376,24 @@ fn handle_conv_forward(
     req: ConvForwardRequest,
 ) {
     let ConvForwardRequest {
-        x, x_dims, w, w_dims, y, y_dims, conv: cp, alpha, beta, reply,
+        x,
+        x_dims,
+        w,
+        w_dims,
+        y,
+        y_dims,
+        conv: cp,
+        alpha,
+        beta,
+        reply,
     } = req;
 
     let (x_slice, w_slice, y_slice) = match envelope::access_all_3(&x, &w, &y) {
         Ok(t) => t,
-        Err(e) => { let _ = reply.send(Err(e)); return; }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
     };
     let mut y_owned = match Arc::try_unwrap(y_slice) {
         Ok(s) => s,
@@ -390,26 +408,47 @@ fn handle_conv_forward(
     let x_key = TensorKey { dims: x_dims };
     let w_key = FilterKey { dims: w_dims };
     let y_key = TensorKey { dims: y_dims };
-    let c_key = ConvKey { pad: cp.pad, stride: cp.stride, dilation: cp.dilation };
-    let algo_key = ConvAlgoKey { x: x_key, w: w_key, y: y_key, conv: c_key };
+    let c_key = ConvKey {
+        pad: cp.pad,
+        stride: cp.stride,
+        dilation: cp.dilation,
+    };
+    let algo_key = ConvAlgoKey {
+        x: x_key,
+        w: w_key,
+        y: y_key,
+        conv: c_key,
+    };
 
     let (x_desc, w_desc, y_desc, c_desc, algo, ws_size) = {
         let mut cache = descriptors.lock();
         let x_desc = match get_or_make_tensor(handle, &mut cache, x_key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         let w_desc = match get_or_make_filter(handle, &mut cache, w_key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         let y_desc = match get_or_make_tensor(handle, &mut cache, y_key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         let c_desc = match get_or_make_conv(handle, &mut cache, c_key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
 
         // Pick algo (cached).
@@ -466,7 +505,9 @@ fn handle_conv_forward(
         };
         if need_alloc {
             match stream.alloc_zeros::<u8>(ws_size) {
-                Ok(s) => { *ws_lock = Some(s); }
+                Ok(s) => {
+                    *ws_lock = Some(s);
+                }
                 Err(e) => {
                     let _ = reply.send(Err(GpuError::OutOfMemory(format!(
                         "cudnn workspace ({ws_size}B): {e}"
@@ -480,7 +521,12 @@ fn handle_conv_forward(
     y.record_write(stream);
 
     // Hold descriptor Arcs in keep_alive so they outlive the kernel.
-    let descriptors_arc = (x_desc.clone(), w_desc.clone(), y_desc.clone(), c_desc.clone());
+    let descriptors_arc = (
+        x_desc.clone(),
+        w_desc.clone(),
+        y_desc.clone(),
+        c_desc.clone(),
+    );
     let workspace_clone = workspace; // borrow for closure
     let stream_for_clos = stream.clone();
     let workspace_ptr: *const Mutex<Option<CudaSlice<u8>>> = workspace_clone;
@@ -525,10 +571,21 @@ fn handle_activation(
     descriptors: &Mutex<DescriptorCache>,
     req: ActivationRequest,
 ) {
-    let ActivationRequest { kind, x, y, dims, alpha, beta, reply } = req;
+    let ActivationRequest {
+        kind,
+        x,
+        y,
+        dims,
+        alpha,
+        beta,
+        reply,
+    } = req;
     let (x_slice, y_slice) = match envelope::access_all_2(&x, &y) {
         Ok(t) => t,
-        Err(e) => { let _ = reply.send(Err(e)); return; }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
     };
     let mut y_owned = match Arc::try_unwrap(y_slice) {
         Ok(s) => s,
@@ -544,12 +601,18 @@ fn handle_activation(
         let mut cache = descriptors.lock();
         let x_desc = match get_or_make_tensor(handle, &mut cache, key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         let y_desc = x_desc.clone();
         let act_desc = match get_or_make_activation(handle, &mut cache, kind) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         (x_desc, y_desc, act_desc)
     };
@@ -576,10 +639,20 @@ fn handle_softmax(
     descriptors: &Mutex<DescriptorCache>,
     req: SoftmaxRequest,
 ) {
-    let SoftmaxRequest { x, y, dims, alpha, beta, reply } = req;
+    let SoftmaxRequest {
+        x,
+        y,
+        dims,
+        alpha,
+        beta,
+        reply,
+    } = req;
     let (x_slice, y_slice) = match envelope::access_all_2(&x, &y) {
         Ok(t) => t,
-        Err(e) => { let _ = reply.send(Err(e)); return; }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
     };
     let mut y_owned = match Arc::try_unwrap(y_slice) {
         Ok(s) => s,
@@ -595,13 +668,18 @@ fn handle_softmax(
         let mut cache = descriptors.lock();
         let x_desc = match get_or_make_tensor(handle, &mut cache, key) {
             Ok(d) => d,
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         };
         let y_desc = x_desc.clone();
         let sm_desc = if let Some(s) = cache.softmax.clone() {
             s
         } else {
-            match handle.create_softmax::<f32>(cudnn_sys::cudnnSoftmaxMode_t::CUDNN_SOFTMAX_MODE_INSTANCE) {
+            match handle
+                .create_softmax::<f32>(cudnn_sys::cudnnSoftmaxMode_t::CUDNN_SOFTMAX_MODE_INSTANCE)
+            {
                 Ok(s) => {
                     let s = SendDesc(Arc::new(s));
                     cache.softmax = Some(s.clone());

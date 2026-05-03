@@ -126,14 +126,25 @@ impl Actor for FluidSimulationActor {
 
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: FluidMsg) {
         match msg {
-            FluidMsg::AddDensity { x, y, amount, reply } => {
+            FluidMsg::AddDensity {
+                x,
+                y,
+                amount,
+                reply,
+            } => {
                 if x < self.cfg.width && y < self.cfg.height {
                     let i = self.idx(x, y);
                     self.density[i] += amount;
                 }
                 let _ = reply.send(());
             }
-            FluidMsg::AddVelocity { x, y, vx, vy, reply } => {
+            FluidMsg::AddVelocity {
+                x,
+                y,
+                vx,
+                vy,
+                reply,
+            } => {
                 if x < self.cfg.width && y < self.cfg.height {
                     let i = self.idx(x, y);
                     self.vx[i] += vx;

@@ -25,7 +25,9 @@ pub mod prelude {
     pub use crate::embedding_cache::{
         CacheStats, EmbeddingCache, EmbeddingCacheConfig, EmbeddingCacheMsg,
     };
-    pub use crate::langgraph_nodes::{LangGraphGpuActor, NodeEntry, NodeGraph, NodeGraphMsg, NodeId};
+    pub use crate::langgraph_nodes::{
+        LangGraphGpuActor, NodeEntry, NodeGraph, NodeGraphMsg, NodeId,
+    };
     pub use crate::rag::{RagAnswer, RagConfig, RagMsg, RagPipeline, RagQuery};
     pub use crate::shared_state::{
         SharedGpuStateCoordinator, SharedStateMsg, SharedStateStats, WriteToken,

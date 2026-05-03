@@ -186,7 +186,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn end_to_end_rag_query() {
-        let sys = ActorSystem::create("rag-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("rag-test", Config::empty())
+            .await
+            .unwrap();
         let cache = sys
             .actor_of(
                 EmbeddingCache::props(EmbeddingCacheConfig {
@@ -196,9 +198,7 @@ mod tests {
                 "cache",
             )
             .unwrap();
-        let index = sys
-            .actor_of(CpuVectorIndex::props(3), "idx")
-            .unwrap();
+        let index = sys.actor_of(CpuVectorIndex::props(3), "idx").unwrap();
 
         // Seed the index with three docs.
         for (id, e) in [
@@ -211,7 +211,11 @@ mod tests {
                 entry: VectorEntry { id, embedding: e },
                 reply: tx,
             });
-            tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
         }
 
         // Trivial embedding fn: hash-by-length into a 3-vector.
@@ -223,9 +227,8 @@ mod tests {
             };
             Ok(v)
         });
-        let llm: Arc<dyn LlmFn> = Arc::new(|q: &str, ctx: &[u64]| {
-            Ok(format!("answered '{q}' from {ctx:?}"))
-        });
+        let llm: Arc<dyn LlmFn> =
+            Arc::new(|q: &str, ctx: &[u64]| Ok(format!("answered '{q}' from {ctx:?}")));
 
         let rag = sys
             .actor_of(
@@ -242,10 +245,17 @@ mod tests {
 
         let (tx, rx) = oneshot::channel();
         rag.tell(RagMsg::Query {
-            q: RagQuery { text: "alpha".into(), top_k: 2 },
+            q: RagQuery {
+                text: "alpha".into(),
+                top_k: 2,
+            },
             reply: tx,
         });
-        let r = tokio::time::timeout(Duration::from_secs(5), rx).await.unwrap().unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert!(r.answer.contains("alpha"));
         // First source should be id=1 (best cosine match for [1,0,0]).
         assert_eq!(r.sources[0], 1);
@@ -254,10 +264,17 @@ mod tests {
         // Second query for same text → cache hit.
         let (tx, rx) = oneshot::channel();
         rag.tell(RagMsg::Query {
-            q: RagQuery { text: "alpha".into(), top_k: 2 },
+            q: RagQuery {
+                text: "alpha".into(),
+                top_k: 2,
+            },
             reply: tx,
         });
-        let r2 = tokio::time::timeout(Duration::from_secs(5), rx).await.unwrap().unwrap().unwrap();
+        let r2 = tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert!(r2.embedding_was_cached);
 
         sys.terminate().await;

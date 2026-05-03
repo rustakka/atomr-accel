@@ -14,10 +14,10 @@ use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use tokio::sync::oneshot;
 
-use rakka_core::actor::ActorRef;
 use rakka_accel_cuda::device::{DeviceLoad, DeviceMsg, HostBuf, SgemmRequest};
 use rakka_accel_cuda::error::GpuError;
 use rakka_accel_cuda::gpu_ref::GpuRef;
+use rakka_core::actor::ActorRef;
 
 use crate::buffer::PyGpuBuffer;
 use crate::errors;
@@ -31,7 +31,10 @@ pub struct PyDevice {
 
 impl PyDevice {
     pub fn new(actor_ref: ActorRef<DeviceMsg>, device_id: u32) -> Self {
-        Self { actor_ref, device_id }
+        Self {
+            actor_ref,
+            device_id,
+        }
     }
 }
 
@@ -45,7 +48,12 @@ impl PyDevice {
     /// Allocate `len` `f32` elements on-device. Returns a
     /// [`GpuBuffer`].
     #[pyo3(signature = (len, timeout_secs=10.0))]
-    fn allocate_f32(&self, py: Python<'_>, len: usize, timeout_secs: f64) -> PyResult<Py<PyGpuBuffer>> {
+    fn allocate_f32(
+        &self,
+        py: Python<'_>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Py<PyGpuBuffer>> {
         let g = ask_alloc_f32(py, &self.actor_ref, len, timeout_secs)?;
         Py::new(py, PyGpuBuffer::new(g))
     }
@@ -144,16 +152,33 @@ impl PyDevice {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let actor = self.actor_ref.clone();
         let rt = runtime();
         py.allow_threads(|| {
             rt.block_on(async move {
                 let (tx, rx) = oneshot::channel();
                 actor.tell(DeviceMsg::Sgemm(Box::new(SgemmRequest {
-                    a, b, c, m, n, k, alpha, beta, reply: tx,
+                    a,
+                    b,
+                    c,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    reply: tx,
                 })));
                 match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                     Ok(Ok(Ok(()))) => Ok(()),

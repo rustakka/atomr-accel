@@ -75,7 +75,14 @@ impl GpuMockActor {
     async fn handle_msg(&mut self, _ctx: &mut Context<Self>, msg: GpuMockMsg) {
         match msg {
             GpuMockMsg::Sgemm(req) => {
-                let MockSgemm { a, b, m, n, k, reply } = *req;
+                let MockSgemm {
+                    a,
+                    b,
+                    m,
+                    n,
+                    k,
+                    reply,
+                } = *req;
                 if a.len() != m * k {
                     let _ = reply.send(Err(GpuError::Unrecoverable(format!(
                         "MockSgemm: A len {} != m*k {}",
@@ -105,7 +112,15 @@ impl GpuMockActor {
                 let _ = reply.send(Ok(c));
             }
             GpuMockMsg::Conv(req) => {
-                let MockConv { input, n, c, h, w, kernel_3x3, reply } = *req;
+                let MockConv {
+                    input,
+                    n,
+                    c,
+                    h,
+                    w,
+                    kernel_3x3,
+                    reply,
+                } = *req;
                 if kernel_3x3.len() != 9 {
                     let _ = reply.send(Err(GpuError::Unrecoverable(
                         "MockConv: kernel must be 3x3 (length 9)".into(),
@@ -130,10 +145,12 @@ impl GpuMockActor {
                                     for kx in 0..3 {
                                         let sy = y as isize + ky as isize - 1;
                                         let sx = x as isize + kx as isize - 1;
-                                        if sy < 0 || sy >= h as isize || sx < 0 || sx >= w as isize {
+                                        if sy < 0 || sy >= h as isize || sx < 0 || sx >= w as isize
+                                        {
                                             continue;
                                         }
-                                        let idx = ((ni * c + ci) * h + sy as usize) * w + sx as usize;
+                                        let idx =
+                                            ((ni * c + ci) * h + sy as usize) * w + sx as usize;
                                         acc += input[idx] * kernel_3x3[ky * 3 + kx];
                                     }
                                 }
@@ -180,7 +197,9 @@ impl GpuMockActor {
                 let mut state: u64 = seed.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(1);
                 let mut out = Vec::with_capacity(len);
                 for _ in 0..len {
-                    state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                    state = state
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
                     let bits = (state >> 33) as u32;
                     out.push((bits as f32) / (u32::MAX as f32));
                 }
@@ -199,7 +218,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn mock_sgemm_2x2() {
-        let sys = ActorSystem::create("mock-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("mock-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys.actor_of(GpuMockActor::props(), "mock").unwrap();
 
         // 2x2 * 2x2 identity-ish: A = [[1,2],[3,4]], B = [[1,0],[0,1]] -> C = A.
@@ -212,7 +233,11 @@ mod tests {
             k: 2,
             reply: tx,
         })));
-        let c = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let c = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(c, vec![1.0, 2.0, 3.0, 4.0]);
 
         sys.terminate().await;

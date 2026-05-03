@@ -27,10 +27,7 @@ pub trait ReplicaMessage: Send + 'static {
     /// reply channel.
     type Req: Send + 'static;
     type Resp: Send + 'static;
-    fn make_submit(
-        req: Self::Req,
-        reply: oneshot::Sender<Result<Self::Resp, GpuError>>,
-    ) -> Self;
+    fn make_submit(req: Self::Req, reply: oneshot::Sender<Result<Self::Resp, GpuError>>) -> Self;
 }
 
 pub struct ReplicaPoolConfig<Msg: ReplicaMessage> {
@@ -66,7 +63,9 @@ pub struct ModelReplicaPool<Msg: ReplicaMessage> {
 impl<Msg: ReplicaMessage> ModelReplicaPool<Msg> {
     pub fn props(config: ReplicaPoolConfig<Msg>) -> Props<Self> {
         let n = config.replicas.len();
-        let counters: Vec<_> = (0..n).map(|_| Arc::new(parking_lot::Mutex::new(0u32))).collect();
+        let counters: Vec<_> = (0..n)
+            .map(|_| Arc::new(parking_lot::Mutex::new(0u32)))
+            .collect();
         Props::create(move || ModelReplicaPool {
             config: config.clone(),
             cursor: Mutex::new(0),
@@ -158,7 +157,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn round_robin_routes_across_replicas() {
-        let sys = ActorSystem::create("replica-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("replica-test", Config::empty())
+            .await
+            .unwrap();
         let r1 = sys.actor_of(GpuMockActor::props(), "r1").unwrap();
         let r2 = sys.actor_of(GpuMockActor::props(), "r2").unwrap();
         let pool = sys
@@ -177,11 +178,17 @@ mod tests {
                 req: MockSgemmReq {
                     a: vec![1.0, 0.0, 0.0, 1.0],
                     b: vec![1.0, 2.0, 3.0, 4.0],
-                    m: 2, n: 2, k: 2,
+                    m: 2,
+                    n: 2,
+                    k: 2,
                 },
                 reply: tx,
             });
-            let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            let v = tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
             assert_eq!(v, vec![1.0, 2.0, 3.0, 4.0]);
         }
 

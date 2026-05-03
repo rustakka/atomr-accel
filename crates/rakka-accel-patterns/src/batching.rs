@@ -72,11 +72,16 @@ pub struct BatchingStats {
 }
 
 pub enum BatchingMsg<Req: Send + 'static, Resp: Send + 'static> {
-    Submit { req: Req, reply: oneshot::Sender<Result<Resp, GpuError>> },
+    Submit {
+        req: Req,
+        reply: oneshot::Sender<Result<Resp, GpuError>>,
+    },
     /// Internal: timer fired, flush the current batch if non-empty.
     TimerFlush,
     FlushNow,
-    Stats { reply: oneshot::Sender<BatchingStats> },
+    Stats {
+        reply: oneshot::Sender<BatchingStats>,
+    },
 }
 
 pub struct DynamicBatchingServer<Req: Send + 'static, Resp: Send + 'static> {
@@ -149,9 +154,7 @@ impl<Req: Send + 'static, Resp: Send + 'static> Actor for DynamicBatchingServer<
                 if self.pending.len() >= self.config.max_batch {
                     match self.config.overflow {
                         BatchOverflow::Reject => {
-                            let _ = reply.send(Err(GpuError::Unrecoverable(
-                                "batch full".into(),
-                            )));
+                            let _ = reply.send(Err(GpuError::Unrecoverable("batch full".into())));
                             self.stats.items_dropped += 1;
                             return;
                         }
@@ -208,16 +211,17 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn flushes_at_max_batch() {
-        let echo: Arc<dyn BatchFn<u32, u32>> = Arc::new(|reqs: Vec<u32>| {
-            reqs.into_iter().map(|x| Ok(x * 2)).collect()
-        });
+        let echo: Arc<dyn BatchFn<u32, u32>> =
+            Arc::new(|reqs: Vec<u32>| reqs.into_iter().map(|x| Ok(x * 2)).collect());
         let cfg = BatchingConfig {
             max_batch: 3,
             max_wait: Duration::from_secs(60), // long enough not to fire
             batch_fn: echo,
             overflow: BatchOverflow::Reject,
         };
-        let sys = ActorSystem::create("batching-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("batching-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(DynamicBatchingServer::<u32, u32>::props(cfg), "batcher")
             .unwrap();
@@ -238,9 +242,21 @@ mod tests {
             rx
         };
 
-        let v1 = tokio::time::timeout(Duration::from_secs(2), r1).await.unwrap().unwrap().unwrap();
-        let v2 = tokio::time::timeout(Duration::from_secs(2), r2).await.unwrap().unwrap().unwrap();
-        let v3 = tokio::time::timeout(Duration::from_secs(2), r3).await.unwrap().unwrap().unwrap();
+        let v1 = tokio::time::timeout(Duration::from_secs(2), r1)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let v2 = tokio::time::timeout(Duration::from_secs(2), r2)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let v3 = tokio::time::timeout(Duration::from_secs(2), r3)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!((v1, v2, v3), (2, 4, 6));
 
         sys.terminate().await;
@@ -248,16 +264,17 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn flushes_on_timer() {
-        let echo: Arc<dyn BatchFn<u32, u32>> = Arc::new(|reqs: Vec<u32>| {
-            reqs.into_iter().map(|x| Ok(x + 100)).collect()
-        });
+        let echo: Arc<dyn BatchFn<u32, u32>> =
+            Arc::new(|reqs: Vec<u32>| reqs.into_iter().map(|x| Ok(x + 100)).collect());
         let cfg = BatchingConfig {
             max_batch: 100,
             max_wait: Duration::from_millis(50),
             batch_fn: echo,
             overflow: BatchOverflow::Reject,
         };
-        let sys = ActorSystem::create("batching-timer-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("batching-timer-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(DynamicBatchingServer::<u32, u32>::props(cfg), "batcher")
             .unwrap();

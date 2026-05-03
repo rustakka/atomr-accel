@@ -64,7 +64,11 @@ pub struct AsyncParameterServer {
 }
 
 impl AsyncParameterServer {
-    pub fn props(initial_weights: Vec<f32>, optimizer: OptimizerKind, max_staleness: u64) -> Props<Self> {
+    pub fn props(
+        initial_weights: Vec<f32>,
+        optimizer: OptimizerKind,
+        max_staleness: u64,
+    ) -> Props<Self> {
         Props::create(move || AsyncParameterServer {
             weights: initial_weights.clone(),
             version: 0,
@@ -148,12 +152,18 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn push_gradient_advances_version() {
-        let sys = ActorSystem::create("ps-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("ps-test", Config::empty())
+            .await
+            .unwrap();
         let ps = sys
             .actor_of(
                 AsyncParameterServer::props(
                     vec![10.0, 20.0],
-                    OptimizerKind::Sgd { lr: 0.1, momentum: 0.0, weight_decay: 0.0 },
+                    OptimizerKind::Sgd {
+                        lr: 0.1,
+                        momentum: 0.0,
+                        weight_decay: 0.0,
+                    },
                     /* max_staleness */ 4,
                 ),
                 "ps",
@@ -167,12 +177,22 @@ mod tests {
             gradient: vec![1.0, 2.0],
             reply: tx,
         });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(v, 1);
 
         let (tx, rx) = oneshot::channel();
-        ps.tell(ParameterServerMsg::PullWeights { worker: WorkerId(1), reply: tx });
-        let (w, version) = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        ps.tell(ParameterServerMsg::PullWeights {
+            worker: WorkerId(1),
+            reply: tx,
+        });
+        let (w, version) = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(version, 1);
         // w[0] = 10 - 0.1 * 1 = 9.9; w[1] = 20 - 0.1 * 2 = 19.8.
         assert!((w[0] - 9.9).abs() < 1e-5);
@@ -183,12 +203,18 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn stale_gradient_is_rejected() {
-        let sys = ActorSystem::create("ps-stale", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("ps-stale", Config::empty())
+            .await
+            .unwrap();
         let ps = sys
             .actor_of(
                 AsyncParameterServer::props(
                     vec![1.0],
-                    OptimizerKind::Sgd { lr: 0.1, momentum: 0.0, weight_decay: 0.0 },
+                    OptimizerKind::Sgd {
+                        lr: 0.1,
+                        momentum: 0.0,
+                        weight_decay: 0.0,
+                    },
                     /* max_staleness */ 1,
                 ),
                 "ps",
@@ -206,7 +232,10 @@ mod tests {
             });
             // Some pushes will be rejected once staleness exceeds 1;
             // we ignore individual results here.
-            let _ = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+            let _ = tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap();
         }
         // Now push with worker_version=0 against a much-newer
         // server; should be rejected.
@@ -217,7 +246,10 @@ mod tests {
             gradient: vec![0.1],
             reply: tx,
         });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(matches!(r, Err(GpuError::Unrecoverable(_))));
 
         sys.terminate().await;

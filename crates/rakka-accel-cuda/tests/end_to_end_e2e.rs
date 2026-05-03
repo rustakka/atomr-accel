@@ -27,10 +27,7 @@ async fn end_to_end_smoke() {
         .unwrap();
     let _placement = sys
         .actor_of(
-            PlacementActor::props(
-                vec![(0, device.clone())],
-                Arc::new(LeastLoadedPolicy),
-            ),
+            PlacementActor::props(vec![(0, device.clone())], Arc::new(LeastLoadedPolicy)),
             "placement",
         )
         .unwrap();
@@ -73,12 +70,20 @@ async fn end_to_end_smoke() {
     // Run an SGEMM.
     let (tx, rx) = oneshot::channel();
     device.tell(DeviceMsg::Sgemm(Box::new(SgemmRequest {
-        a, b, c,
-        m: 64, n: 64, k: 64,
-        alpha: 1.0, beta: 0.0,
+        a,
+        b,
+        c,
+        m: 64,
+        n: 64,
+        k: 64,
+        alpha: 1.0,
+        beta: 0.0,
         reply: tx,
     })));
-    let result = tokio::time::timeout(Duration::from_secs(30), rx).await.unwrap().unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(30), rx)
+        .await
+        .unwrap()
+        .unwrap();
     result.unwrap();
 
     // Record an entry.
@@ -90,7 +95,10 @@ async fn end_to_end_smoke() {
     tokio::time::sleep(Duration::from_millis(50)).await;
     let (tx, rx) = oneshot::channel();
     replay.tell(ReplayMsg::Snapshot { reply: tx });
-    let entries = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+    let entries = tokio::time::timeout(Duration::from_secs(2), rx)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(entries.len(), 1);
 
     sys.terminate().await;

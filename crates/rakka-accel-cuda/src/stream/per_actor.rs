@@ -40,7 +40,9 @@ enum PerActorInner {
 impl PerActorAllocator {
     /// F1 back-compat: every `acquire()` returns the supplied stream.
     pub fn new(stream: Arc<CudaStream>) -> Self {
-        Self { inner: Arc::new(PerActorInner::Shared { stream }) }
+        Self {
+            inner: Arc::new(PerActorInner::Shared { stream }),
+        }
     }
 
     /// F2 default: each `acquire()` mints a fresh stream on the given

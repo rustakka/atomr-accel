@@ -167,7 +167,9 @@ impl SolverActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| SolverActor { inner: SolverInner::Mock })
+        Props::create(|| SolverActor {
+            inner: SolverInner::Mock,
+        })
     }
 }
 
@@ -186,23 +188,80 @@ impl Actor for SolverActor {
                 info,
                 ..
             } => match msg {
-                SolverMsg::QrFactorize { a, m, n, tau, reply } => {
-                    handle_qr_factorize(handle, stream, completion, workspace, info, a, m, n, tau, reply);
+                SolverMsg::QrFactorize {
+                    a,
+                    m,
+                    n,
+                    tau,
+                    reply,
+                } => {
+                    handle_qr_factorize(
+                        handle, stream, completion, workspace, info, a, m, n, tau, reply,
+                    );
                 }
-                SolverMsg::LuFactorize { a, m, n, ipiv, reply } => {
-                    handle_lu_factorize(handle, stream, completion, workspace, info, a, m, n, ipiv, reply);
+                SolverMsg::LuFactorize {
+                    a,
+                    m,
+                    n,
+                    ipiv,
+                    reply,
+                } => {
+                    handle_lu_factorize(
+                        handle, stream, completion, workspace, info, a, m, n, ipiv, reply,
+                    );
                 }
-                SolverMsg::LuSolve { lu, ipiv, b, n, nrhs, trans, reply } => {
-                    handle_lu_solve(handle, stream, completion, info, lu, ipiv, b, n, nrhs, trans, reply);
+                SolverMsg::LuSolve {
+                    lu,
+                    ipiv,
+                    b,
+                    n,
+                    nrhs,
+                    trans,
+                    reply,
+                } => {
+                    handle_lu_solve(
+                        handle, stream, completion, info, lu, ipiv, b, n, nrhs, trans, reply,
+                    );
                 }
                 SolverMsg::Cholesky { a, n, uplo, reply } => {
-                    handle_cholesky(handle, stream, completion, workspace, info, a, n, uplo, reply);
+                    handle_cholesky(
+                        handle, stream, completion, workspace, info, a, n, uplo, reply,
+                    );
                 }
-                SolverMsg::Svd { a, m, n, s, u, vt, reply } => {
-                    handle_svd(handle, stream, completion, workspace, info, a, m, n, s, u, vt, reply);
+                SolverMsg::Svd {
+                    a,
+                    m,
+                    n,
+                    s,
+                    u,
+                    vt,
+                    reply,
+                } => {
+                    handle_svd(
+                        handle, stream, completion, workspace, info, a, m, n, s, u, vt, reply,
+                    );
                 }
-                SolverMsg::Syevd { a, n, uplo, w, compute_vectors, reply } => {
-                    handle_syevd(handle, stream, completion, workspace, info, a, n, uplo, w, compute_vectors, reply);
+                SolverMsg::Syevd {
+                    a,
+                    n,
+                    uplo,
+                    w,
+                    compute_vectors,
+                    reply,
+                } => {
+                    handle_syevd(
+                        handle,
+                        stream,
+                        completion,
+                        workspace,
+                        info,
+                        a,
+                        n,
+                        uplo,
+                        w,
+                        compute_vectors,
+                        reply,
+                    );
                 }
             },
         }
@@ -235,11 +294,10 @@ fn ensure_workspace(
     if cur >= needed_elems {
         return Ok(());
     }
-    *g = Some(
-        stream
-            .alloc_zeros::<f32>(needed_elems)
-            .map_err(|e| GpuError::OutOfMemory(format!("solver workspace ({needed_elems}f): {e}")))?,
-    );
+    *g =
+        Some(stream.alloc_zeros::<f32>(needed_elems).map_err(|e| {
+            GpuError::OutOfMemory(format!("solver workspace ({needed_elems}f): {e}"))
+        })?);
     Ok(())
 }
 
@@ -258,12 +316,10 @@ fn check_info(
             lib: LIB,
             msg: format!("{op}: read info: {e}"),
         })?;
-    stream
-        .synchronize()
-        .map_err(|e| GpuError::LibraryError {
-            lib: LIB,
-            msg: format!("{op}: sync after info: {e}"),
-        })?;
+    stream.synchronize().map_err(|e| GpuError::LibraryError {
+        lib: LIB,
+        msg: format!("{op}: sync after info: {e}"),
+    })?;
     if host[0] != 0 {
         return Err(GpuError::LibraryError {
             lib: LIB,
@@ -287,15 +343,28 @@ fn handle_qr_factorize(
 ) {
     let (a_slice, tau_slice) = match envelope::access_all_2(&a, &tau) {
         Ok(t) => t,
-        Err(e) => { let _ = reply.send(Err(e)); return; }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
     };
     let mut a_owned = match Arc::try_unwrap(a_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("QR a has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "QR a has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let mut tau_owned = match Arc::try_unwrap(tau_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("QR tau has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "QR tau has multiple live references".into(),
+            )));
+            return;
+        }
     };
 
     // Query workspace size.
@@ -380,15 +449,37 @@ fn handle_lu_factorize(
     ipiv: GpuRef<i32>,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let a_slice = match a.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let ipiv_slice = match ipiv.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let a_slice = match a.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let ipiv_slice = match ipiv.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut a_owned = match Arc::try_unwrap(a_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("LU a has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "LU a has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let mut ipiv_owned = match Arc::try_unwrap(ipiv_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("LU ipiv has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "LU ipiv has multiple live references".into(),
+            )));
+            return;
+        }
     };
 
     // Query workspace.
@@ -473,12 +564,35 @@ fn handle_lu_solve(
     trans: bool,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let lu_slice = match lu.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let ipiv_slice = match ipiv.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let b_slice = match b.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let lu_slice = match lu.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let ipiv_slice = match ipiv.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let b_slice = match b.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut b_owned = match Arc::try_unwrap(b_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("LU b has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "LU b has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let trans_op = if trans {
         cusolver_sys::cublasOperation_t::CUBLAS_OP_T
@@ -534,10 +648,21 @@ fn handle_cholesky(
     uplo: Uplo,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let a_slice = match a.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let a_slice = match a.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut a_owned = match Arc::try_unwrap(a_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("Cholesky a has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "Cholesky a has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let fill = uplo.as_cusolver_fill();
 
@@ -621,39 +746,77 @@ fn handle_svd(
     vt: Option<GpuRef<f32>>,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let a_slice = match a.access() { Ok(sl) => sl.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let s_slice = match s.access() { Ok(sl) => sl.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let a_slice = match a.access() {
+        Ok(sl) => sl.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let s_slice = match s.access() {
+        Ok(sl) => sl.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut a_owned = match Arc::try_unwrap(a_slice) {
         Ok(sl) => sl,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SVD a has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "SVD a has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let mut s_owned = match Arc::try_unwrap(s_slice) {
         Ok(sl) => sl,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SVD s has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "SVD s has multiple live references".into(),
+            )));
+            return;
+        }
     };
     // Optional u / vt buffers. When absent we pass null pointers and
     // jobu/jobvt='N'.
     let u_slice = match u.as_ref().map(|g| g.access().map(|sl| sl.clone())) {
         Some(Ok(sl)) => Some(sl),
-        Some(Err(e)) => { let _ = reply.send(Err(e)); return; }
+        Some(Err(e)) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
         None => None,
     };
     let vt_slice = match vt.as_ref().map(|g| g.access().map(|sl| sl.clone())) {
         Some(Ok(sl)) => Some(sl),
-        Some(Err(e)) => { let _ = reply.send(Err(e)); return; }
+        Some(Err(e)) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
         None => None,
     };
     let mut u_owned = match u_slice {
         Some(sl) => match Arc::try_unwrap(sl) {
             Ok(o) => Some(o),
-            Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SVD u has multiple live references".into()))); return; }
+            Err(_) => {
+                let _ = reply.send(Err(GpuError::Unrecoverable(
+                    "SVD u has multiple live references".into(),
+                )));
+                return;
+            }
         },
         None => None,
     };
     let mut vt_owned = match vt_slice {
         Some(sl) => match Arc::try_unwrap(sl) {
             Ok(o) => Some(o),
-            Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SVD vt has multiple live references".into()))); return; }
+            Err(_) => {
+                let _ = reply.send(Err(GpuError::Unrecoverable(
+                    "SVD vt has multiple live references".into(),
+                )));
+                return;
+            }
         },
         None => None,
     };
@@ -665,7 +828,10 @@ fn handle_svd(
             cusolver_sys::cusolverDnSgesvd_bufferSize(h.0.cu(), m, n, &mut lwork as *mut _)
         };
         if status != cusolver_sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS {
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("Sgesvd_bufferSize: {status:?}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("Sgesvd_bufferSize: {status:?}"),
+            }));
             return;
         }
     }
@@ -676,15 +842,27 @@ fn handle_svd(
 
     a.record_write(stream);
     s.record_write(stream);
-    if let Some(g) = &u { g.record_write(stream); }
-    if let Some(g) = &vt { g.record_write(stream); }
+    if let Some(g) = &u {
+        g.record_write(stream);
+    }
+    if let Some(g) = &vt {
+        g.record_write(stream);
+    }
 
     let handle_clone = handle;
     let workspace_ref = workspace;
     let info_ref = info;
     let stream_for_check = stream.clone();
-    let jobu = if u_owned.is_some() { b'A' as i8 } else { b'N' as i8 };
-    let jobvt = if vt_owned.is_some() { b'A' as i8 } else { b'N' as i8 };
+    let jobu = if u_owned.is_some() {
+        b'A' as i8
+    } else {
+        b'N' as i8
+    };
+    let jobvt = if vt_owned.is_some() {
+        b'A' as i8
+    } else {
+        b'N' as i8
+    };
 
     envelope::run_kernel(LIB, stream, completion, (), reply, move || {
         let h = handle_clone.lock();
@@ -736,7 +914,10 @@ fn handle_svd(
         };
         drop((_g1, _g2, _g5, _g6, _gu_opt, _gvt_opt));
         if status != cusolver_sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS {
-            return Err(GpuError::LibraryError { lib: LIB, msg: format!("Sgesvd: {status:?}") });
+            return Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("Sgesvd: {status:?}"),
+            });
         }
         check_info(info_ref, &stream_for_check, "Sgesvd")?;
         Ok((a_owned, s_owned, u_owned, vt_owned))
@@ -757,15 +938,37 @@ fn handle_syevd(
     compute_vectors: bool,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let a_slice = match a.access() { Ok(sl) => sl.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let w_slice = match w.access() { Ok(sl) => sl.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let a_slice = match a.access() {
+        Ok(sl) => sl.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let w_slice = match w.access() {
+        Ok(sl) => sl.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut a_owned = match Arc::try_unwrap(a_slice) {
         Ok(sl) => sl,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("Syevd a has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "Syevd a has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let mut w_owned = match Arc::try_unwrap(w_slice) {
         Ok(sl) => sl,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("Syevd w has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "Syevd w has multiple live references".into(),
+            )));
+            return;
+        }
     };
     let fill = uplo.as_cusolver_fill();
     let jobz = if compute_vectors {
@@ -793,7 +996,10 @@ fn handle_syevd(
         };
         drop((_ga, _gw));
         if status != cusolver_sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS {
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("Ssyevd_bufferSize: {status:?}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("Ssyevd_bufferSize: {status:?}"),
+            }));
             return;
         }
     }
@@ -835,7 +1041,10 @@ fn handle_syevd(
         };
         drop((_g1, _g2, _g3, _g4));
         if status != cusolver_sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS {
-            return Err(GpuError::LibraryError { lib: LIB, msg: format!("Ssyevd: {status:?}") });
+            return Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("Ssyevd: {status:?}"),
+            });
         }
         check_info(info_ref, &stream_for_check, "Ssyevd")?;
         Ok((a_owned, w_owned))

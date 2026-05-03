@@ -35,7 +35,9 @@ async fn main() {
 
     println!("rakka-accel-cuda pipeline-no-gpu demo");
     println!("Pipeline stages compile against the trait but require a CUDA stream to enqueue.");
-    println!("Run examples/sgemm or examples/conv_forward (gated cuda-runtime-tests) on a GPU host");
+    println!(
+        "Run examples/sgemm or examples/conv_forward (gated cuda-runtime-tests) on a GPU host"
+    );
     println!("to exercise the full pipeline path.");
     let _ = AddOne;
 }

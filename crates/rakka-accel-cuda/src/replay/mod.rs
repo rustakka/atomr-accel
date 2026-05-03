@@ -39,10 +39,24 @@ pub enum ReplayMode {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "replay", derive(serde::Serialize, serde::Deserialize))]
 pub enum JournalEntry {
-    DeviceCmd { ts_micros: u64, name: String, payload: String },
-    KernelCmd { ts_micros: u64, kind: String, payload: String },
-    RngSeed { actor_path: String, seed: u64 },
-    BatchSize { actor_path: String, size: usize },
+    DeviceCmd {
+        ts_micros: u64,
+        name: String,
+        payload: String,
+    },
+    KernelCmd {
+        ts_micros: u64,
+        kind: String,
+        payload: String,
+    },
+    RngSeed {
+        actor_path: String,
+        seed: u64,
+    },
+    BatchSize {
+        actor_path: String,
+        size: usize,
+    },
 }
 
 /// Trait the user implements to consume replayed entries. The actor
@@ -51,10 +65,7 @@ pub enum JournalEntry {
 /// sink's reply).
 pub trait ReplaySink: Send + 'static {
     type Msg: Send + 'static;
-    fn make_on_entry(
-        entry: JournalEntry,
-        reply: oneshot::Sender<()>,
-    ) -> Self::Msg;
+    fn make_on_entry(entry: JournalEntry, reply: oneshot::Sender<()>) -> Self::Msg;
 }
 
 pub enum ReplayMsg {
@@ -234,7 +245,11 @@ impl Actor for ReplayHarness {
                 }
             }
             #[cfg(feature = "replay")]
-            ReplayMsg::LoadFromJournal { from_sequence_nr, max, reply } => {
+            ReplayMsg::LoadFromJournal {
+                from_sequence_nr,
+                max,
+                reply,
+            } => {
                 let p = match &self.persistence {
                     Some(p) => p,
                     None => {
@@ -253,7 +268,8 @@ impl Actor for ReplayHarness {
                             match serde_json::from_slice::<JournalEntry>(&r.payload) {
                                 Ok(e) => decoded.push(e),
                                 Err(e) => {
-                                    let _ = reply.send(Err(format!("decode seq={}: {e}", r.sequence_nr)));
+                                    let _ = reply
+                                        .send(Err(format!("decode seq={}: {e}", r.sequence_nr)));
                                     return;
                                 }
                             }
@@ -318,8 +334,12 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn record_then_snapshot() {
-        let sys = ActorSystem::create("replay-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(ReplayHarness::props(ReplayMode::Record), "replay").unwrap();
+        let sys = ActorSystem::create("replay-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(ReplayHarness::props(ReplayMode::Record), "replay")
+            .unwrap();
 
         actor.tell(ReplayMsg::Record(JournalEntry::RngSeed {
             actor_path: "test/rng".into(),
@@ -329,7 +349,10 @@ mod tests {
 
         let (tx, rx) = oneshot::channel();
         actor.tell(ReplayMsg::Snapshot { reply: tx });
-        let entries = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let entries = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(entries.len(), 1);
 
         sys.terminate().await;
@@ -337,8 +360,12 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn off_mode_drops_records() {
-        let sys = ActorSystem::create("replay-off", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(ReplayHarness::props(ReplayMode::Off), "replay").unwrap();
+        let sys = ActorSystem::create("replay-off", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(ReplayHarness::props(ReplayMode::Off), "replay")
+            .unwrap();
 
         actor.tell(ReplayMsg::Record(JournalEntry::RngSeed {
             actor_path: "test".into(),
@@ -348,7 +375,10 @@ mod tests {
 
         let (tx, rx) = oneshot::channel();
         actor.tell(ReplayMsg::Snapshot { reply: tx });
-        let entries = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let entries = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(entries.len(), 0);
 
         sys.terminate().await;
@@ -358,16 +388,32 @@ mod tests {
     async fn load_then_replay_via_sink() {
         // Build a harness in Replay mode, load a small journal, then
         // drive replay through a closure sink.
-        let sys = ActorSystem::create("replay-load", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(ReplayHarness::props(ReplayMode::Replay), "replay").unwrap();
+        let sys = ActorSystem::create("replay-load", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(ReplayHarness::props(ReplayMode::Replay), "replay")
+            .unwrap();
 
         let journal = vec![
-            JournalEntry::RngSeed { actor_path: "a".into(), seed: 1 },
-            JournalEntry::RngSeed { actor_path: "b".into(), seed: 2 },
+            JournalEntry::RngSeed {
+                actor_path: "a".into(),
+                seed: 1,
+            },
+            JournalEntry::RngSeed {
+                actor_path: "b".into(),
+                seed: 2,
+            },
         ];
         let (tx, rx) = oneshot::channel();
-        actor.tell(ReplayMsg::LoadJournal { entries: journal.clone(), reply: tx });
-        tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(ReplayMsg::LoadJournal {
+            entries: journal.clone(),
+            reply: tx,
+        });
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Drive replay manually via the public `journal` accessor —
         // the actor doesn't have a public replay-with-sink method
@@ -376,13 +422,13 @@ mod tests {
         // application code.
         let (tx_done, rx_done) = oneshot::channel::<Vec<JournalEntry>>();
         actor.tell(ReplayMsg::Snapshot { reply: tx_done });
-        let snap = tokio::time::timeout(Duration::from_secs(2), rx_done).await.unwrap().unwrap();
+        let snap = tokio::time::timeout(Duration::from_secs(2), rx_done)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(snap.len(), 2);
         match (&snap[0], &snap[1]) {
-            (
-                JournalEntry::RngSeed { seed: s0, .. },
-                JournalEntry::RngSeed { seed: s1, .. },
-            ) => {
+            (JournalEntry::RngSeed { seed: s0, .. }, JournalEntry::RngSeed { seed: s1, .. }) => {
                 assert_eq!(*s0, 1);
                 assert_eq!(*s1, 2);
             }

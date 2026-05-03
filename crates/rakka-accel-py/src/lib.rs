@@ -20,10 +20,10 @@ mod errors;
 mod runtime;
 mod system;
 
-#[cfg(feature = "curand")]
-mod rng;
 #[cfg(feature = "nvrtc")]
 mod nvrtc;
+#[cfg(feature = "curand")]
+mod rng;
 
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

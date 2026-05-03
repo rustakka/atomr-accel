@@ -94,7 +94,9 @@ impl CollectiveActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| CollectiveActor { inner: CollectiveInner::Mock })
+        Props::create(|| CollectiveActor {
+            inner: CollectiveInner::Mock,
+        })
     }
 }
 
@@ -140,10 +142,18 @@ fn mock_reply(msg: CollectiveMsg) {
 
 fn msg_reply_err(msg: CollectiveMsg, e: GpuError) {
     match msg {
-        CollectiveMsg::AllReduceF32 { reply, .. } => { let _ = reply.send(Err(e)); }
-        CollectiveMsg::BroadcastF32 { reply, .. } => { let _ = reply.send(Err(e)); }
-        CollectiveMsg::BeginGroup { reply } => { let _ = reply.send(Err(e)); }
-        CollectiveMsg::EndGroup { reply } => { let _ = reply.send(Err(e)); }
+        CollectiveMsg::AllReduceF32 { reply, .. } => {
+            let _ = reply.send(Err(e));
+        }
+        CollectiveMsg::BroadcastF32 { reply, .. } => {
+            let _ = reply.send(Err(e));
+        }
+        CollectiveMsg::BeginGroup { reply } => {
+            let _ = reply.send(Err(e));
+        }
+        CollectiveMsg::EndGroup { reply } => {
+            let _ = reply.send(Err(e));
+        }
     }
 }
 
@@ -152,7 +162,10 @@ fn handle_real(comm: &SendComm, msg: CollectiveMsg) {
         CollectiveMsg::AllReduceF32 { tensor, op, reply } => {
             let slice = match tensor.access() {
                 Ok(s) => s.clone(),
-                Err(e) => { let _ = reply.send(Err(e)); return; }
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
             };
             // In-place all-reduce avoids the unwrap-Arc dance.
             let mut owned = match Arc::try_unwrap(slice) {
@@ -164,13 +177,13 @@ fn handle_real(comm: &SendComm, msg: CollectiveMsg) {
                     return;
                 }
             };
-            let res = comm
-                .0
-                .all_reduce_in_place(&mut owned, &op)
-                .map_err(|e| GpuError::LibraryError {
-                    lib: LIB,
-                    msg: format!("all_reduce: {e:?}"),
-                });
+            let res =
+                comm.0
+                    .all_reduce_in_place(&mut owned, &op)
+                    .map_err(|e| GpuError::LibraryError {
+                        lib: LIB,
+                        msg: format!("all_reduce: {e:?}"),
+                    });
             // We don't await completion here — NcclWorldActor's
             // EndGroup awaits stream completion at the world level.
             let _ = reply.send(res.map(|_| ()));
@@ -183,7 +196,10 @@ fn handle_real(comm: &SendComm, msg: CollectiveMsg) {
         CollectiveMsg::BroadcastF32 { data, root, reply } => {
             let slice = match data.access() {
                 Ok(s) => s.clone(),
-                Err(e) => { let _ = reply.send(Err(e)); return; }
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
             };
             let owned = match Arc::try_unwrap(slice) {
                 Ok(s) => s,

@@ -17,9 +17,9 @@
 //! against the cuDNN backend.
 
 use async_trait::async_trait;
-use rakka_core::actor::{Actor, Context, Props};
 #[cfg(feature = "cudnn")]
 use rakka_core::actor::ActorRef;
+use rakka_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use rakka_accel_cuda::error::GpuError;
@@ -81,10 +81,7 @@ impl ImageFilterPipeline {
     /// Construct a cuDNN-backed pipeline. The `ProcessGpu` message
     /// routes through `cudnn`; `Process` (host-side) still works.
     #[cfg(feature = "cudnn")]
-    pub fn props_with_cudnn(
-        config: ImageFilterConfig,
-        cudnn: ActorRef<CudnnMsg>,
-    ) -> Props<Self> {
+    pub fn props_with_cudnn(config: ImageFilterConfig, cudnn: ActorRef<CudnnMsg>) -> Props<Self> {
         Props::create(move || ImageFilterPipeline {
             config: config.clone(),
             cudnn: Some(cudnn.clone()),
@@ -144,11 +141,17 @@ impl Actor for ImageFilterPipeline {
                 let _ = reply.send(self.convolve(&frame));
             }
             #[cfg(feature = "cudnn")]
-            ImageFilterMsg::ProcessGpu { input, weights, output, reply } => {
+            ImageFilterMsg::ProcessGpu {
+                input,
+                weights,
+                output,
+                reply,
+            } => {
                 let Some(cudnn) = self.cudnn.clone() else {
                     let _ = reply.send(Err(GpuError::Unrecoverable(
                         "ProcessGpu: pipeline constructed without a CudnnActor; \
-                         call ImageFilterPipeline::props_with_cudnn".into(),
+                         call ImageFilterPipeline::props_with_cudnn"
+                            .into(),
                     )));
                     return;
                 };
@@ -215,12 +218,23 @@ mod tests {
         };
         let frame: Vec<u8> = (0..16).map(|i| i as u8 * 8).collect();
 
-        let sys = ActorSystem::create("filter-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(ImageFilterPipeline::props(cfg), "filter").unwrap();
+        let sys = ActorSystem::create("filter-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(ImageFilterPipeline::props(cfg), "filter")
+            .unwrap();
 
         let (tx, rx) = oneshot::channel();
-        actor.tell(ImageFilterMsg::Process { frame: frame.clone(), reply: tx });
-        let out = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        actor.tell(ImageFilterMsg::Process {
+            frame: frame.clone(),
+            reply: tx,
+        });
+        let out = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(out, frame);
 
         sys.terminate().await;

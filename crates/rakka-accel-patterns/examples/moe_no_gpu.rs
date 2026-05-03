@@ -49,9 +49,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
 
     let sys = ActorSystem::create("moe-demo", Config::empty()).await?;
-    let e0 = sys.actor_of(Props::create(|| Expert { bias: 1.0, name: "e0" }), "e0")?;
-    let e1 = sys.actor_of(Props::create(|| Expert { bias: 10.0, name: "e1" }), "e1")?;
-    let e2 = sys.actor_of(Props::create(|| Expert { bias: 100.0, name: "e2" }), "e2")?;
+    let e0 = sys.actor_of(
+        Props::create(|| Expert {
+            bias: 1.0,
+            name: "e0",
+        }),
+        "e0",
+    )?;
+    let e1 = sys.actor_of(
+        Props::create(|| Expert {
+            bias: 10.0,
+            name: "e1",
+        }),
+        "e1",
+    )?;
+    let e2 = sys.actor_of(
+        Props::create(|| Expert {
+            bias: 100.0,
+            name: "e2",
+        }),
+        "e2",
+    )?;
 
     // Gate: based on input mean, prefer larger-bias experts for
     // larger inputs.
@@ -69,8 +87,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for input in [vec![0.5; 4], vec![5.0; 4]] {
         let (tx, rx) = oneshot::channel();
-        router.tell(MoeMsg::Run { input: input.clone(), reply: tx });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await??.map_err(|e: GpuError| -> Box<dyn std::error::Error> { Box::new(e) })?;
+        router.tell(MoeMsg::Run {
+            input: input.clone(),
+            reply: tx,
+        });
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await??
+            .map_err(|e: GpuError| -> Box<dyn std::error::Error> { Box::new(e) })?;
         println!("input={input:?} → blended {v:?}");
     }
 

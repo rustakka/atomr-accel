@@ -57,10 +57,7 @@ pub enum AccelError {
     /// `"rocfft"`, `"mps"`. Callers that need to discriminate match
     /// on `lib`.
     #[error("{lib} error: {msg}")]
-    LibraryError {
-        lib: &'static str,
-        msg: String,
-    },
+    LibraryError { lib: &'static str, msg: String },
 
     #[error("ask timed out before completion")]
     Timeout,
@@ -69,7 +66,10 @@ pub enum AccelError {
 impl AccelError {
     /// Construct a tagged library error.
     pub fn lib(lib: &'static str, msg: impl Into<String>) -> Self {
-        Self::LibraryError { lib, msg: msg.into() }
+        Self::LibraryError {
+            lib,
+            msg: msg.into(),
+        }
     }
 
     /// Format suitable for panicking out of an actor handler so

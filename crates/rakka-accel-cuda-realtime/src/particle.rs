@@ -23,7 +23,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    pub const ZERO: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Vec3 = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,7 +53,11 @@ pub struct ParticleSystemConfig {
 impl Default for ParticleSystemConfig {
     fn default() -> Self {
         Self {
-            gravity: Vec3 { x: 0.0, y: -9.8, z: 0.0 },
+            gravity: Vec3 {
+                x: 0.0,
+                y: -9.8,
+                z: 0.0,
+            },
             drag: 0.0,
             bounds: None,
             bounce: 0.5,
@@ -165,32 +173,53 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn gravity_pulls_particle_down() {
         let cfg = ParticleSystemConfig {
-            gravity: Vec3 { x: 0.0, y: -10.0, z: 0.0 },
+            gravity: Vec3 {
+                x: 0.0,
+                y: -10.0,
+                z: 0.0,
+            },
             drag: 0.0,
             bounds: None,
             bounce: 0.0,
         };
-        let sys = ActorSystem::create("particle-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(ParticleSystemActor::props(cfg), "particles").unwrap();
+        let sys = ActorSystem::create("particle-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(ParticleSystemActor::props(cfg), "particles")
+            .unwrap();
 
         let p = Particle {
             position: Vec3::ZERO,
             velocity: Vec3::ZERO,
         };
         let (tx, rx) = oneshot::channel();
-        actor.tell(ParticleMsg::Reset { particles: vec![p], reply: tx });
-        tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(ParticleMsg::Reset {
+            particles: vec![p],
+            reply: tx,
+        });
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Two steps of dt=0.1 → v_y = -2; y = -0.1 + -0.2 = -0.3.
         for _ in 0..2 {
             let (tx, rx) = oneshot::channel();
             actor.tell(ParticleMsg::Step { dt: 0.1, reply: tx });
-            tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
         }
 
         let (tx, rx) = oneshot::channel();
         actor.tell(ParticleMsg::Snapshot { reply: tx });
-        let snap = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let snap = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert!((snap[0].velocity.y - (-2.0)).abs() < 1e-5);
         assert!(snap[0].position.y < 0.0);
 

@@ -204,15 +204,23 @@ mod tests {
         g.add_edge(NodeId(2), NodeId(3));
         g.set_entry(NodeId(1));
 
-        let sys = ActorSystem::create("nodegraph-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(LangGraphGpuActor::<State>::props(g), "graph").unwrap();
+        let sys = ActorSystem::create("nodegraph-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(LangGraphGpuActor::<State>::props(g), "graph")
+            .unwrap();
 
         let (tx, rx) = oneshot::channel();
         actor.tell(NodeGraphMsg::Run {
             state: State { x: 0, log: vec![] },
             reply: tx,
         });
-        let s = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let s = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // (0 + 1) * 10 - 5 = 5; order = [a, b, c].
         assert_eq!(s.x, 5);
         assert_eq!(s.log, vec!["a", "b", "c"]);
@@ -228,12 +236,22 @@ mod tests {
         g.add_edge(NodeId(1), NodeId(2));
         g.add_edge(NodeId(2), NodeId(1));
 
-        let sys = ActorSystem::create("cycle-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(LangGraphGpuActor::<i32>::props(g), "graph").unwrap();
+        let sys = ActorSystem::create("cycle-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(LangGraphGpuActor::<i32>::props(g), "graph")
+            .unwrap();
 
         let (tx, rx) = oneshot::channel();
-        actor.tell(NodeGraphMsg::Run { state: 0, reply: tx });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(NodeGraphMsg::Run {
+            state: 0,
+            reply: tx,
+        });
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(matches!(r, Err(GpuError::Unrecoverable(_))));
 
         sys.terminate().await;

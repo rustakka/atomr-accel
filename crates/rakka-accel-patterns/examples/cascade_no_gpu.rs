@@ -34,24 +34,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     // Stage 2: catch-all.
-    let s2: Arc<dyn CascadeStage<i32, &'static str>> =
-        Arc::new(|_: &i32| Ok(("fallback", 1.0)));
+    let s2: Arc<dyn CascadeStage<i32, &'static str>> = Arc::new(|_: &i32| Ok(("fallback", 1.0)));
 
     let cfg = CascadeConfig {
         stages: vec![
-            CascadeStageEntry { stage: s0, confidence_threshold: 0.5 },
-            CascadeStageEntry { stage: s1, confidence_threshold: 0.9 },
-            CascadeStageEntry { stage: s2, confidence_threshold: 0.0 },
+            CascadeStageEntry {
+                stage: s0,
+                confidence_threshold: 0.5,
+            },
+            CascadeStageEntry {
+                stage: s1,
+                confidence_threshold: 0.9,
+            },
+            CascadeStageEntry {
+                stage: s2,
+                confidence_threshold: 0.0,
+            },
         ],
     };
 
     let sys = ActorSystem::create("cascade-demo", Config::empty()).await?;
-    let cascade =
-        sys.actor_of(InferenceCascade::<i32, &'static str>::props(cfg), "cascade")?;
+    let cascade = sys.actor_of(InferenceCascade::<i32, &'static str>::props(cfg), "cascade")?;
 
     for input in [3, 4, 100, -7] {
         let (tx, rx) = oneshot::channel();
-        cascade.tell(CascadeMsg::Predict { req: input, reply: tx });
+        cascade.tell(CascadeMsg::Predict {
+            req: input,
+            reply: tx,
+        });
         let r = tokio::time::timeout(Duration::from_secs(2), rx).await??;
         let r = r?;
         println!(

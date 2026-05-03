@@ -112,11 +112,11 @@ impl SparseActor {
             if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
                 panic!("ContextPoisoned: cusparseCreate failed: {s:?}");
             }
-            let s = unsafe {
-                cusparse_sys::cusparseSetStream(h, stream.cu_stream() as *mut _)
-            };
+            let s = unsafe { cusparse_sys::cusparseSetStream(h, stream.cu_stream() as *mut _) };
             if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
-                unsafe { let _ = cusparse_sys::cusparseDestroy(h); }
+                unsafe {
+                    let _ = cusparse_sys::cusparseDestroy(h);
+                }
                 panic!("ContextPoisoned: cusparseSetStream failed: {s:?}");
             }
             SparseActor {
@@ -132,7 +132,9 @@ impl SparseActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| SparseActor { inner: SparseInner::Mock })
+        Props::create(|| SparseActor {
+            inner: SparseInner::Mock,
+        })
     }
 }
 
@@ -150,15 +152,32 @@ impl Actor for SparseActor {
                 workspace,
                 ..
             } => match msg {
-                SparseMsg::SpMv { csr, x, y, alpha, beta, reply } => {
-                    handle_spmv(handle, stream, completion, workspace, csr, x, y, alpha, beta, reply);
+                SparseMsg::SpMv {
+                    csr,
+                    x,
+                    y,
+                    alpha,
+                    beta,
+                    reply,
+                } => {
+                    handle_spmv(
+                        handle, stream, completion, workspace, csr, x, y, alpha, beta, reply,
+                    );
                 }
                 SparseMsg::SpMm {
-                    csr, b, c, b_cols, ldb, ldc, alpha, beta, reply,
+                    csr,
+                    b,
+                    c,
+                    b_cols,
+                    ldb,
+                    ldc,
+                    alpha,
+                    beta,
+                    reply,
                 } => {
                     handle_spmm(
-                        handle, stream, completion, workspace, csr, b, c,
-                        b_cols, ldb, ldc, alpha, beta, reply,
+                        handle, stream, completion, workspace, csr, b, c, b_cols, ldb, ldc, alpha,
+                        beta, reply,
                     );
                 }
             },
@@ -185,11 +204,9 @@ fn ensure_workspace(
     if cur >= needed_bytes {
         return Ok(());
     }
-    *g = Some(
-        stream
-            .alloc_zeros::<u8>(needed_bytes.max(1))
-            .map_err(|e| GpuError::OutOfMemory(format!("cusparse workspace ({needed_bytes}B): {e}")))?,
-    );
+    *g = Some(stream.alloc_zeros::<u8>(needed_bytes.max(1)).map_err(|e| {
+        GpuError::OutOfMemory(format!("cusparse workspace ({needed_bytes}B): {e}"))
+    })?);
     Ok(())
 }
 
@@ -205,14 +222,49 @@ fn handle_spmv(
     beta: f32,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let row_off = match csr.row_offsets.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let col_idx = match csr.col_indices.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let vals = match csr.values.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let x_slice = match x.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let y_slice = match y.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let row_off = match csr.row_offsets.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let col_idx = match csr.col_indices.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let vals = match csr.values.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let x_slice = match x.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let y_slice = match y.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut y_owned = match Arc::try_unwrap(y_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SpMv y has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "SpMv y has multiple live references".into(),
+            )));
+            return;
+        }
     };
 
     // Build descriptors. cusparse{Create,Destroy}{SpMat,DnVec} are sys-level.
@@ -240,7 +292,10 @@ fn handle_spmv(
         )
     };
     if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateCsr: {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateCsr: {s:?}"),
+        }));
         return;
     }
     let mut x_desc: cusparse_sys::cusparseDnVecDescr_t = std::ptr::null_mut();
@@ -253,8 +308,13 @@ fn handle_spmv(
         )
     };
     if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
-        unsafe { let _ = cusparse_sys::cusparseDestroySpMat(mat_desc); }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateDnVec(x): {s:?}") }));
+        unsafe {
+            let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
+        }
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateDnVec(x): {s:?}"),
+        }));
         return;
     }
     let mut y_desc: cusparse_sys::cusparseDnVecDescr_t = std::ptr::null_mut();
@@ -271,7 +331,10 @@ fn handle_spmv(
             let _ = cusparse_sys::cusparseDestroyDnVec(x_desc);
             let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
         }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateDnVec(y): {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateDnVec(y): {s:?}"),
+        }));
         return;
     }
 
@@ -299,7 +362,10 @@ fn handle_spmv(
             let _ = cusparse_sys::cusparseDestroyDnVec(x_desc);
             let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
         }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("SpMV_bufferSize: {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("SpMV_bufferSize: {s:?}"),
+        }));
         return;
     }
     drop((_g0, _g1, _g2, _g3, _g4));
@@ -356,7 +422,10 @@ fn handle_spmv(
                 let _ = cusparse_sys::cusparseDestroyDnVec(xd.0);
                 let _ = cusparse_sys::cusparseDestroySpMat(mat.0);
             }
-            return Err(GpuError::LibraryError { lib: LIB, msg: format!("SpMV: {s:?}") });
+            return Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("SpMV: {s:?}"),
+            });
         }
         // Move owners + descriptors into keep-alive so they live to
         // kernel completion. Drop closure unwinds descriptors via the
@@ -376,7 +445,11 @@ fn handle_spmv(
             }
         }
         unsafe impl Send for DescGuard {}
-        let guard = DescGuard { mat: mat.0, x: xd.0, y: yd.0 };
+        let guard = DescGuard {
+            mat: mat.0,
+            x: xd.0,
+            y: yd.0,
+        };
         Ok((y_owned, row_off, col_idx, vals, x_slice, guard))
     });
 }
@@ -397,14 +470,49 @@ fn handle_spmm(
     beta: f32,
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
-    let row_off = match csr.row_offsets.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let col_idx = match csr.col_indices.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let vals = match csr.values.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let b_slice = match b.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let c_slice = match c.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let row_off = match csr.row_offsets.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let col_idx = match csr.col_indices.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let vals = match csr.values.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let b_slice = match b.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let c_slice = match c.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut c_owned = match Arc::try_unwrap(c_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("SpMm c has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "SpMm c has multiple live references".into(),
+            )));
+            return;
+        }
     };
 
     let h = handle.lock();
@@ -431,7 +539,10 @@ fn handle_spmm(
         )
     };
     if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateCsr: {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateCsr: {s:?}"),
+        }));
         return;
     }
     let mut b_desc: cusparse_sys::cusparseDnMatDescr_t = std::ptr::null_mut();
@@ -447,8 +558,13 @@ fn handle_spmm(
         )
     };
     if s != cusparse_sys::cusparseStatus_t::CUSPARSE_STATUS_SUCCESS {
-        unsafe { let _ = cusparse_sys::cusparseDestroySpMat(mat_desc); }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateDnMat(b): {s:?}") }));
+        unsafe {
+            let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
+        }
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateDnMat(b): {s:?}"),
+        }));
         return;
     }
     let mut c_desc: cusparse_sys::cusparseDnMatDescr_t = std::ptr::null_mut();
@@ -468,7 +584,10 @@ fn handle_spmm(
             let _ = cusparse_sys::cusparseDestroyDnMat(b_desc);
             let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
         }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateDnMat(c): {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("CreateDnMat(c): {s:?}"),
+        }));
         return;
     }
 
@@ -496,7 +615,10 @@ fn handle_spmm(
             let _ = cusparse_sys::cusparseDestroyDnMat(b_desc);
             let _ = cusparse_sys::cusparseDestroySpMat(mat_desc);
         }
-        let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("SpMM_bufferSize: {s:?}") }));
+        let _ = reply.send(Err(GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("SpMM_bufferSize: {s:?}"),
+        }));
         return;
     }
     drop((_g0, _g1, _g2, _g3, _g4));
@@ -551,7 +673,10 @@ fn handle_spmm(
                 let _ = cusparse_sys::cusparseDestroyDnMat(bd.0);
                 let _ = cusparse_sys::cusparseDestroySpMat(mat.0);
             }
-            return Err(GpuError::LibraryError { lib: LIB, msg: format!("SpMM: {s:?}") });
+            return Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("SpMM: {s:?}"),
+            });
         }
         struct DescGuard {
             mat: cusparse_sys::cusparseSpMatDescr_t,
@@ -568,7 +693,11 @@ fn handle_spmm(
             }
         }
         unsafe impl Send for DescGuard {}
-        let guard = DescGuard { mat: mat.0, b: bd.0, c: cd.0 };
+        let guard = DescGuard {
+            mat: mat.0,
+            b: bd.0,
+            c: cd.0,
+        };
         Ok((c_owned, row_off, col_idx, vals, b_slice, guard))
     });
 }

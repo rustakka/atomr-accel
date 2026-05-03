@@ -25,9 +25,7 @@ pub mod prelude {
     //! Canonical re-exports. `use rakka_accel_cuda_realtime::prelude::*;`.
     pub use crate::cloth::{ClothConfig, ClothMsg, ClothSimulationActor};
     pub use crate::fluid::{FluidConfig, FluidMsg, FluidSimulationActor};
-    pub use crate::hashmap::{
-        GpuHashMapActor, GpuHashMapConfig, GpuHashMapMsg, GpuHashMapStats,
-    };
+    pub use crate::hashmap::{GpuHashMapActor, GpuHashMapConfig, GpuHashMapMsg, GpuHashMapStats};
     pub use crate::image_filter::{ImageFilterConfig, ImageFilterMsg, ImageFilterPipeline};
     pub use crate::multi_pass::{MultiPassAnalysisActor, MultiPassConfig, MultiPassMsg};
     pub use crate::particle::{

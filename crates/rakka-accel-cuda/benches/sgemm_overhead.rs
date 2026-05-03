@@ -18,9 +18,9 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use cudarc::cublas::sys::cublasOperation_t;
 use cudarc::cublas::{CudaBlas, Gemm, GemmConfig};
 use cudarc::driver::CudaContext;
+use rakka_accel_cuda::prelude::*;
 use rakka_config::Config;
 use rakka_core::actor::ActorSystem;
-use rakka_accel_cuda::prelude::*;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 
@@ -130,4 +130,6 @@ criterion_main!(benches);
 
 // Silence unused-import warnings when this file is built standalone.
 #[allow(dead_code)]
-fn _arc_unused() -> Arc<()> { Arc::new(()) }
+fn _arc_unused() -> Arc<()> {
+    Arc::new(())
+}

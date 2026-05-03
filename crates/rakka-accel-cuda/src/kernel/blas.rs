@@ -91,7 +91,9 @@ impl BlasActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| BlasActor { inner: BlasInner::Mock })
+        Props::create(|| BlasActor {
+            inner: BlasInner::Mock,
+        })
     }
 }
 
@@ -104,7 +106,12 @@ impl BlasActor {
                         "Sgemm not supported in mock mode".into(),
                     )));
                 }
-                BlasInner::Real { blas, stream, completion, .. } => {
+                BlasInner::Real {
+                    blas,
+                    stream,
+                    completion,
+                    ..
+                } => {
                     enqueue_sgemm(blas, stream, completion, *req);
                 }
             },
@@ -120,7 +127,17 @@ fn enqueue_sgemm(
     completion: &Arc<dyn CompletionStrategy>,
     req: SgemmRequest,
 ) {
-    let SgemmRequest { a, b, c, m, n, k, alpha, beta, reply } = req;
+    let SgemmRequest {
+        a,
+        b,
+        c,
+        m,
+        n,
+        k,
+        alpha,
+        beta,
+        reply,
+    } = req;
 
     // Validate generation tokens (§5.8). Pre-launch failures are
     // reported synchronously through the reply channel so callers
@@ -169,28 +186,21 @@ fn enqueue_sgemm(
     // to the host.
     c.record_write(stream);
 
-    envelope::run_kernel(
-        LIB,
-        stream,
-        completion,
-        (),
-        reply,
-        move || {
-            // SAFETY: cudarc's `gemm` is unsafe because invalid
-            // m/n/k/lda/ldb/ldc can read out of bounds. The caller is
-            // responsible for valid dims.
-            let res = unsafe { blas.gemm(cfg, &*a_slice, &*b_slice, &mut c_owned) };
-            match res {
-                Ok(()) => {
-                    // keep-alive carries everything cudarc needs to
-                    // remain valid until the kernel completes.
-                    Ok((a_slice, b_slice, c_owned))
-                }
-                Err(e) => Err(GpuError::LibraryError {
-                    lib: LIB,
-                    msg: format!("sgemm enqueue: {e}"),
-                }),
+    envelope::run_kernel(LIB, stream, completion, (), reply, move || {
+        // SAFETY: cudarc's `gemm` is unsafe because invalid
+        // m/n/k/lda/ldb/ldc can read out of bounds. The caller is
+        // responsible for valid dims.
+        let res = unsafe { blas.gemm(cfg, &*a_slice, &*b_slice, &mut c_owned) };
+        match res {
+            Ok(()) => {
+                // keep-alive carries everything cudarc needs to
+                // remain valid until the kernel completes.
+                Ok((a_slice, b_slice, c_owned))
             }
-        },
-    );
+            Err(e) => Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("sgemm enqueue: {e}"),
+            }),
+        }
+    });
 }

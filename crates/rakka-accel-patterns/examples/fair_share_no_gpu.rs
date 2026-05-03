@@ -30,25 +30,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cfg = FairShareConfig {
         tenants: vec![
-            TenantConfig { id: TenantId(1), weight: 1 },
-            TenantConfig { id: TenantId(2), weight: 3 },
+            TenantConfig {
+                id: TenantId(1),
+                weight: 1,
+            },
+            TenantConfig {
+                id: TenantId(2),
+                weight: 3,
+            },
         ],
         dispatcher: echo,
         max_in_flight: 1,
     };
 
     let sys = ActorSystem::create("fair-demo", Config::empty()).await?;
-    let sched =
-        sys.actor_of(FairShareScheduler::<u32, u32>::props(cfg), "sched")?;
+    let sched = sys.actor_of(FairShareScheduler::<u32, u32>::props(cfg), "sched")?;
 
     // Submit 6 requests for tenant 1 and 6 for tenant 2 simultaneously.
     let mut rxs = Vec::new();
     for i in 0..6u32 {
         let (tx, rx) = oneshot::channel();
-        sched.tell(FairShareMsg::Submit { tenant: TenantId(1), req: 100 + i, reply: tx });
+        sched.tell(FairShareMsg::Submit {
+            tenant: TenantId(1),
+            req: 100 + i,
+            reply: tx,
+        });
         rxs.push((TenantId(1), 100 + i, rx));
         let (tx, rx) = oneshot::channel();
-        sched.tell(FairShareMsg::Submit { tenant: TenantId(2), req: 200 + i, reply: tx });
+        sched.tell(FairShareMsg::Submit {
+            tenant: TenantId(2),
+            req: 200 + i,
+            reply: tx,
+        });
         rxs.push((TenantId(2), 200 + i, rx));
     }
     for (tid, req, rx) in rxs {

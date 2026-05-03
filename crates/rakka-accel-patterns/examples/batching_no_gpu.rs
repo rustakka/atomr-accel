@@ -54,7 +54,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = oneshot::channel();
     server.tell(BatchingMsg::Stats { reply: tx });
     let stats = tokio::time::timeout(Duration::from_secs(2), rx).await??;
-    println!("stats: flushes={} processed={}", stats.flushes, stats.items_processed);
+    println!(
+        "stats: flushes={} processed={}",
+        stats.flushes, stats.items_processed
+    );
 
     sys.terminate().await;
     Ok(())

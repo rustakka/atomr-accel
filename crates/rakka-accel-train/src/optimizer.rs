@@ -4,7 +4,11 @@
 
 #[derive(Debug, Clone, Copy)]
 pub enum OptimizerKind {
-    Sgd { lr: f32, momentum: f32, weight_decay: f32 },
+    Sgd {
+        lr: f32,
+        momentum: f32,
+        weight_decay: f32,
+    },
     AdamW {
         lr: f32,
         beta1: f32,

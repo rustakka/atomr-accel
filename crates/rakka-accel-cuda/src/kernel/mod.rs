@@ -38,7 +38,7 @@ pub use cudnn_actor::{
 #[cfg(feature = "cufft")]
 mod fft;
 #[cfg(feature = "cufft")]
-pub use fft::{FftActor, FftMsg, FftKind, PlanKey};
+pub use fft::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
 mod rng;

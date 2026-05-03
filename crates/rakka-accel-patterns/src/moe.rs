@@ -12,10 +12,7 @@ use rakka_accel_cuda::error::GpuError;
 
 pub trait ExpertProtocol: Send + 'static {
     type Msg: Send + 'static;
-    fn make_run(
-        input: Vec<f32>,
-        reply: oneshot::Sender<Result<Vec<f32>, GpuError>>,
-    ) -> Self::Msg;
+    fn make_run(input: Vec<f32>, reply: oneshot::Sender<Result<Vec<f32>, GpuError>>) -> Self::Msg;
 }
 
 pub trait GateFn: Send + Sync + 'static {
@@ -107,7 +104,9 @@ impl<P: ExpertProtocol> Actor for MoeRouter<P> {
                     // Top-k selection.
                     let mut idx: Vec<usize> = (0..scores.len()).collect();
                     idx.sort_by(|&a, &b| {
-                        scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal)
+                        scores[b]
+                            .partial_cmp(&scores[a])
+                            .unwrap_or(std::cmp::Ordering::Equal)
                     });
                     let k = cfg.top_k.min(idx.len()).max(1);
                     let chosen: Vec<usize> = idx[..k].to_vec();
@@ -162,7 +161,10 @@ mod tests {
     use std::time::Duration;
 
     enum ExpertMsg {
-        Run { input: Vec<f32>, reply: oneshot::Sender<Result<Vec<f32>, GpuError>> },
+        Run {
+            input: Vec<f32>,
+            reply: oneshot::Sender<Result<Vec<f32>, GpuError>>,
+        },
     }
     struct Constant(f32);
     #[async_trait]
@@ -190,9 +192,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn top1_routes_to_top_expert() {
-        let sys = ActorSystem::create("moe-test", Config::empty()).await.unwrap();
-        let e0 = sys.actor_of(rakka_core::actor::Props::create(|| Constant(10.0)), "e0").unwrap();
-        let e1 = sys.actor_of(rakka_core::actor::Props::create(|| Constant(100.0)), "e1").unwrap();
+        let sys = ActorSystem::create("moe-test", Config::empty())
+            .await
+            .unwrap();
+        let e0 = sys
+            .actor_of(rakka_core::actor::Props::create(|| Constant(10.0)), "e0")
+            .unwrap();
+        let e1 = sys
+            .actor_of(rakka_core::actor::Props::create(|| Constant(100.0)), "e1")
+            .unwrap();
 
         // Gate prefers e1 always.
         let gate: Arc<dyn GateFn> = Arc::new(|_input: &[f32]| Ok(vec![0.0, 10.0]));
@@ -201,10 +209,19 @@ mod tests {
             gate,
             top_k: 1,
         };
-        let router = sys.actor_of(MoeRouter::<ExpertProto>::props(cfg), "router").unwrap();
+        let router = sys
+            .actor_of(MoeRouter::<ExpertProto>::props(cfg), "router")
+            .unwrap();
         let (tx, rx) = oneshot::channel();
-        router.tell(MoeMsg::Run { input: vec![1.0, 2.0], reply: tx });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        router.tell(MoeMsg::Run {
+            input: vec![1.0, 2.0],
+            reply: tx,
+        });
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // Only e1 routed; output = input + 100 = [101, 102] weighted by softmax(top-1)=1.0.
         assert!((v[0] - 101.0).abs() < 1e-3);
         assert!((v[1] - 102.0).abs() < 1e-3);

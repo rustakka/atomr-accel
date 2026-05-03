@@ -16,8 +16,8 @@
 use std::time::Duration;
 
 use rakka_accel_cuda::prelude::*;
-use rakka_core::actor::ActorSystem;
 use rakka_config::Config;
+use rakka_core::actor::ActorSystem;
 use tokio::sync::oneshot;
 
 const N: i32 = 4096;

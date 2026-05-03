@@ -203,7 +203,9 @@ impl Actor for P2pTopology {
                 let mut graph = P2pGraph::new(n as u32);
                 let any_unloadable = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     for i in 0..n {
-                        let Some(ctx_a) = snaps[i].as_ref() else { continue };
+                        let Some(ctx_a) = snaps[i].as_ref() else {
+                            continue;
+                        };
                         for j in 0..n {
                             if i == j {
                                 graph.edges[i][j] = true;
@@ -238,16 +240,16 @@ impl Actor for P2pTopology {
                 // the source context (set current) targeting the peer.
                 let enable_res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     for i in 0..n {
-                        let Some(ctx_a) = snaps[i].as_ref() else { continue };
+                        let Some(ctx_a) = snaps[i].as_ref() else {
+                            continue;
+                        };
                         let _ = ctx_a.bind_to_thread();
                         for j in 0..n {
                             if i == j || !graph.edges[i][j] {
                                 continue;
                             }
                             let peer = snaps[j].as_ref().unwrap();
-                            let s = unsafe {
-                                driver_sys::cuCtxEnablePeerAccess(peer.cu_ctx(), 0)
-                            };
+                            let s = unsafe { driver_sys::cuCtxEnablePeerAccess(peer.cu_ctx(), 0) };
                             // CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED is fine.
                             if s != driver_sys::cudaError_enum::CUDA_SUCCESS
                                 && s
@@ -277,7 +279,13 @@ impl Actor for P2pTopology {
                 };
                 let _ = reply.send(v);
             }
-            P2pMsg::CopyF32 { src, src_device, dst, dst_device, reply } => {
+            P2pMsg::CopyF32 {
+                src,
+                src_device,
+                dst,
+                dst_device,
+                reply,
+            } => {
                 if !self.enabled {
                     let _ = reply.send(Err(GpuError::Unrecoverable(
                         "P2pTopology: call EnableAll first".into(),
@@ -313,11 +321,17 @@ impl Actor for P2pTopology {
 
                 let src_slice = match src.access() {
                     Ok(s) => s.clone(),
-                    Err(e) => { let _ = reply.send(Err(e)); return; }
+                    Err(e) => {
+                        let _ = reply.send(Err(e));
+                        return;
+                    }
                 };
                 let dst_slice = match dst.access() {
                     Ok(s) => s.clone(),
-                    Err(e) => { let _ = reply.send(Err(e)); return; }
+                    Err(e) => {
+                        let _ = reply.send(Err(e));
+                        return;
+                    }
                 };
                 let mut dst_owned = match Arc::try_unwrap(dst_slice) {
                     Ok(s) => s,
@@ -351,12 +365,13 @@ impl Actor for P2pTopology {
                 let last_write_src = src.last_write_stream();
                 let copy_res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     if let Some(src_stream) = last_write_src.as_ref() {
-                        let ev = src_stream.record_event(None).map_err(|e| {
-                            GpuError::LibraryError {
-                                lib: "driver",
-                                msg: format!("p2p: src record_event: {e}"),
-                            }
-                        })?;
+                        let ev =
+                            src_stream
+                                .record_event(None)
+                                .map_err(|e| GpuError::LibraryError {
+                                    lib: "driver",
+                                    msg: format!("p2p: src record_event: {e}"),
+                                })?;
                         // Wait on the destination side. Cross-context
                         // event waits work because cuCtxEnablePeerAccess
                         // was already called in EnableAll.
@@ -388,10 +403,12 @@ impl Actor for P2pTopology {
                     // future improvement (F10) would replace this
                     // with a HostFnCompletion-style callback so the
                     // actor never blocks the OS thread.
-                    dst_stream.synchronize().map_err(|e| GpuError::LibraryError {
-                        lib: "driver",
-                        msg: format!("cudaStreamSynchronize: {e}"),
-                    })?;
+                    dst_stream
+                        .synchronize()
+                        .map_err(|e| GpuError::LibraryError {
+                            lib: "driver",
+                            msg: format!("cudaStreamSynchronize: {e}"),
+                        })?;
                     Ok(())
                 }));
                 let result = match copy_res {
@@ -407,7 +424,10 @@ impl Actor for P2pTopology {
             P2pMsg::Topology { reply } => {
                 let _ = reply.send(self.graph.clone());
             }
-            P2pMsg::RefreshDevice { device_idx, new_generation } => {
+            P2pMsg::RefreshDevice {
+                device_idx,
+                new_generation,
+            } => {
                 info!(
                     device_idx,
                     new_generation,

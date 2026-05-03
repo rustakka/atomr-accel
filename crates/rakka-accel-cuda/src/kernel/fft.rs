@@ -18,8 +18,8 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cudarc::cufft::{CudaFft, FftDirection};
 use cudarc::cufft::sys as cufft_sys;
+use cudarc::cufft::{CudaFft, FftDirection};
 use lru::LruCache;
 use parking_lot::Mutex;
 use rakka_core::actor::{Actor, Context, Props};
@@ -60,9 +60,22 @@ impl FftKind {
 /// `cufftPlan{1,2,3}d` plans.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlanKey {
-    Plan1d { n: i32, kind: FftKind, batch: i32 },
-    Plan2d { nx: i32, ny: i32, kind: FftKind },
-    Plan3d { nx: i32, ny: i32, nz: i32, kind: FftKind },
+    Plan1d {
+        n: i32,
+        kind: FftKind,
+        batch: i32,
+    },
+    Plan2d {
+        nx: i32,
+        ny: i32,
+        kind: FftKind,
+    },
+    Plan3d {
+        nx: i32,
+        ny: i32,
+        nz: i32,
+        kind: FftKind,
+    },
 }
 
 pub enum FftMsg {
@@ -116,7 +129,9 @@ struct PlanCache {
 
 impl PlanCache {
     fn new(cap: NonZeroUsize) -> Self {
-        Self { cache: LruCache::new(cap) }
+        Self {
+            cache: LruCache::new(cap),
+        }
     }
 }
 
@@ -154,15 +169,14 @@ impl FftActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| FftActor { inner: FftInner::Mock })
+        Props::create(|| FftActor {
+            inner: FftInner::Mock,
+        })
     }
 }
 
 impl FftActor {
-    fn get_or_create_plan(
-        &self,
-        key: PlanKey,
-    ) -> Result<Arc<CudaFft>, GpuError> {
+    fn get_or_create_plan(&self, key: PlanKey) -> Result<Arc<CudaFft>, GpuError> {
         let FftInner::Real { stream, plans, .. } = &self.inner else {
             return Err(GpuError::Unrecoverable("fft mock".into()));
         };
@@ -171,12 +185,9 @@ impl FftActor {
             return Ok(plan.clone());
         }
         let plan = match key {
-            PlanKey::Plan1d { n, kind, batch } => CudaFft::plan_1d(
-                n,
-                kind.cufft_type(),
-                batch,
-                stream.clone(),
-            ),
+            PlanKey::Plan1d { n, kind, batch } => {
+                CudaFft::plan_1d(n, kind.cufft_type(), batch, stream.clone())
+            }
             PlanKey::Plan2d { nx, ny, kind } => {
                 CudaFft::plan_2d(nx, ny, kind.cufft_type(), stream.clone())
             }
@@ -204,11 +215,19 @@ impl Actor for FftActor {
                 reply_mock(msg);
                 return;
             }
-            FftInner::Real { stream, completion, .. } => (stream.clone(), completion.clone()),
+            FftInner::Real {
+                stream, completion, ..
+            } => (stream.clone(), completion.clone()),
         };
 
         match msg {
-            FftMsg::Forward1dR2C { n, batch, src, dst, reply } => {
+            FftMsg::Forward1dR2C {
+                n,
+                batch,
+                src,
+                dst,
+                reply,
+            } => {
                 let plan = match self.get_or_create_plan(PlanKey::Plan1d {
                     n,
                     kind: FftKind::R2cF32,
@@ -246,7 +265,13 @@ impl Actor for FftActor {
                         })
                 });
             }
-            FftMsg::Inverse1dC2R { n, batch, src, dst, reply } => {
+            FftMsg::Inverse1dC2R {
+                n,
+                batch,
+                src,
+                dst,
+                reply,
+            } => {
                 let plan = match self.get_or_create_plan(PlanKey::Plan1d {
                     n,
                     kind: FftKind::C2rF32,
@@ -293,7 +318,14 @@ impl Actor for FftActor {
                         })
                 });
             }
-            FftMsg::Exec1dC2C { n, batch, direction, src, dst, reply } => {
+            FftMsg::Exec1dC2C {
+                n,
+                batch,
+                direction,
+                src,
+                dst,
+                reply,
+            } => {
                 let plan = match self.get_or_create_plan(PlanKey::Plan1d {
                     n,
                     kind: FftKind::C2cF32,
@@ -340,7 +372,13 @@ impl Actor for FftActor {
                         })
                 });
             }
-            FftMsg::Forward2dR2C { nx, ny, src, dst, reply } => {
+            FftMsg::Forward2dR2C {
+                nx,
+                ny,
+                src,
+                dst,
+                reply,
+            } => {
                 let plan = match self.get_or_create_plan(PlanKey::Plan2d {
                     nx,
                     ny,
@@ -385,9 +423,17 @@ impl Actor for FftActor {
 fn reply_mock(msg: FftMsg) {
     let err = || GpuError::Unrecoverable("FftActor in mock mode".into());
     match msg {
-        FftMsg::Forward1dR2C { reply, .. } => { let _ = reply.send(Err(err())); }
-        FftMsg::Inverse1dC2R { reply, .. } => { let _ = reply.send(Err(err())); }
-        FftMsg::Exec1dC2C { reply, .. } => { let _ = reply.send(Err(err())); }
-        FftMsg::Forward2dR2C { reply, .. } => { let _ = reply.send(Err(err())); }
+        FftMsg::Forward1dR2C { reply, .. } => {
+            let _ = reply.send(Err(err()));
+        }
+        FftMsg::Inverse1dC2R { reply, .. } => {
+            let _ = reply.send(Err(err()));
+        }
+        FftMsg::Exec1dC2C { reply, .. } => {
+            let _ = reply.send(Err(err()));
+        }
+        FftMsg::Forward2dR2C { reply, .. } => {
+            let _ = reply.send(Err(err()));
+        }
     }
 }

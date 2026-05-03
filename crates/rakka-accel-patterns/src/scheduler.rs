@@ -33,11 +33,7 @@ pub struct TenantConfig {
 /// User-supplied dispatcher: accepts a `Req` plus a reply channel
 /// and forwards to whatever downstream actor handles the work.
 pub trait FairDispatcher<Req, Resp>: Send + Sync + 'static {
-    fn dispatch(
-        &self,
-        req: Req,
-        reply: oneshot::Sender<Result<Resp, GpuError>>,
-    );
+    fn dispatch(&self, req: Req, reply: oneshot::Sender<Result<Resp, GpuError>>);
 }
 
 impl<Req, Resp, F> FairDispatcher<Req, Resp> for F
@@ -74,9 +70,7 @@ pub enum FairShareMsg<Req: Send + 'static, Resp: Send + 'static> {
         reply: oneshot::Sender<Result<Resp, GpuError>>,
     },
     /// Internal: a previously-dispatched request finished.
-    Finished {
-        tenant: TenantId,
-    },
+    Finished { tenant: TenantId },
     Stats {
         reply: oneshot::Sender<FairShareStats>,
     },
@@ -218,13 +212,21 @@ mod tests {
             });
         let cfg = FairShareConfig {
             tenants: vec![
-                TenantConfig { id: TenantId(1), weight: 1 },
-                TenantConfig { id: TenantId(2), weight: 3 },
+                TenantConfig {
+                    id: TenantId(1),
+                    weight: 1,
+                },
+                TenantConfig {
+                    id: TenantId(2),
+                    weight: 3,
+                },
             ],
             dispatcher: echo,
             max_in_flight: 1,
         };
-        let sys = ActorSystem::create("fair-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("fair-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(FairShareScheduler::<u32, u32>::props(cfg), "sched")
             .unwrap();
@@ -233,19 +235,34 @@ mod tests {
         let mut rxs = Vec::new();
         for i in 0..4 {
             let (tx, rx) = oneshot::channel();
-            actor.tell(FairShareMsg::Submit { tenant: TenantId(1), req: 100 + i, reply: tx });
+            actor.tell(FairShareMsg::Submit {
+                tenant: TenantId(1),
+                req: 100 + i,
+                reply: tx,
+            });
             rxs.push(rx);
             let (tx, rx) = oneshot::channel();
-            actor.tell(FairShareMsg::Submit { tenant: TenantId(2), req: 200 + i, reply: tx });
+            actor.tell(FairShareMsg::Submit {
+                tenant: TenantId(2),
+                req: 200 + i,
+                reply: tx,
+            });
             rxs.push(rx);
         }
         for rx in rxs {
-            tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
         }
 
         let (tx, rx) = oneshot::channel();
         actor.tell(FairShareMsg::Stats { reply: tx });
-        let s = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let s = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(s.total_dispatched, 8);
 
         sys.terminate().await;

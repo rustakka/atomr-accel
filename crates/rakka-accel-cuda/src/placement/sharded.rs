@@ -21,9 +21,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use rakka_cluster_sharding::{
-    EntityRef, MessageExtractor, ShardCoordinator, ShardRegion,
-};
+use rakka_cluster_sharding::{EntityRef, MessageExtractor, ShardCoordinator, ShardRegion};
 use rakka_core::actor::ActorRef;
 
 use crate::device::DeviceMsg;
@@ -45,7 +43,9 @@ pub struct DeviceExtractor {
 
 impl DeviceExtractor {
     pub fn new(shard_count: usize) -> Self {
-        Self { shard_count: shard_count.max(1) }
+        Self {
+            shard_count: shard_count.max(1),
+        }
     }
 }
 
@@ -86,7 +86,11 @@ impl PlacementShardingAdapter {
         shard_count: usize,
     ) -> Self {
         let n_devices = devices.len().max(1);
-        let n_shards = if shard_count == 0 { n_devices } else { shard_count };
+        let n_shards = if shard_count == 0 {
+            n_devices
+        } else {
+            shard_count
+        };
         let extractor = Arc::new(DeviceExtractor::new(n_shards));
         let coord = Arc::new(ShardCoordinator::new());
         // Devices captured in a shared Arc so the handler closures
@@ -140,9 +144,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn entity_ref_routes_to_one_of_the_devices() {
-        let sys = ActorSystem::create("sharding-adapter", Config::empty()).await.unwrap();
-        let d0 = sys.actor_of(DeviceActor::props(DeviceConfig::mock(0)), "d0").unwrap();
-        let d1 = sys.actor_of(DeviceActor::props(DeviceConfig::mock(1)), "d1").unwrap();
+        let sys = ActorSystem::create("sharding-adapter", Config::empty())
+            .await
+            .unwrap();
+        let d0 = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "d0")
+            .unwrap();
+        let d1 = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(1)), "d1")
+            .unwrap();
         let adapter = PlacementShardingAdapter::start("gpu", vec![d0, d1], 16);
 
         // Same entity_id should hash to the same device deterministically.
@@ -155,7 +165,8 @@ mod tests {
         // We don't verify which device served it — only that the route
         // delivered (the reply arrives, even if it's an
         // Unrecoverable from mock mode).
-        let _ = tokio::time::timeout(Duration::from_secs(2), rx).await
+        let _ = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
             .expect("Allocate reply should arrive within timeout");
 
         sys.terminate().await;

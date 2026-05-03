@@ -29,9 +29,7 @@ where
     S::Out: From<S::In>, // Stage chain identity helper for trivial through-pipelines.
 {
     if stages.is_empty() {
-        return Err(GpuError::Unrecoverable(
-            "pipeline has zero stages".into(),
-        ));
+        return Err(GpuError::Unrecoverable("pipeline has zero stages".into()));
     }
     if stages.len() != streams.len() {
         return Err(GpuError::Unrecoverable(format!(
@@ -168,7 +166,9 @@ impl PipelineExecutorN {
         O: Send + 'static,
     {
         if self.stages.is_empty() {
-            return Err(GpuError::Unrecoverable("PipelineExecutorN: no stages".into()));
+            return Err(GpuError::Unrecoverable(
+                "PipelineExecutorN: no stages".into(),
+            ));
         }
         if streams.len() != self.stages.len() {
             return Err(GpuError::Unrecoverable(format!(

@@ -11,17 +11,19 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rakka_config::Config;
-use rakka_core::actor::ActorSystem;
 use rakka_accel_cuda::completion::HostFnCompletion;
 use rakka_accel_cuda::device::{DeviceActor, DeviceConfig, DeviceMsg, DeviceState};
 use rakka_accel_cuda::kernel::{CsrMatrix, SparseActor, SparseMsg};
 use rakka_accel_cuda::stream::SingleStreamAllocator;
+use rakka_config::Config;
+use rakka_core::actor::ActorSystem;
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cusparse_spmv_identity_matrix() {
-    let sys = ActorSystem::create("spmv-e2e", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("spmv-e2e", Config::empty())
+        .await
+        .unwrap();
     let dev = sys
         .actor_of(DeviceActor::props(DeviceConfig::new(0)), "dev0")
         .unwrap();
@@ -95,9 +97,15 @@ async fn cusparse_spmv_identity_matrix() {
     sys.terminate().await;
 }
 
-async fn alloc_and_copy_f32(dev: &rakka_core::actor::ActorRef<DeviceMsg>, host: &[f32]) -> rakka_accel_cuda::gpu_ref::GpuRef<f32> {
+async fn alloc_and_copy_f32(
+    dev: &rakka_core::actor::ActorRef<DeviceMsg>,
+    host: &[f32],
+) -> rakka_accel_cuda::gpu_ref::GpuRef<f32> {
     let (tx, rx) = oneshot::channel();
-    dev.tell(DeviceMsg::AllocateF32 { len: host.len(), reply: tx });
+    dev.tell(DeviceMsg::AllocateF32 {
+        len: host.len(),
+        reply: tx,
+    });
     let g = rx.await.unwrap().unwrap();
     let (tx, rx) = oneshot::channel();
     dev.tell(DeviceMsg::CopyFromHostF32 {
@@ -109,9 +117,15 @@ async fn alloc_and_copy_f32(dev: &rakka_core::actor::ActorRef<DeviceMsg>, host: 
     g
 }
 
-async fn alloc_and_copy_i32(dev: &rakka_core::actor::ActorRef<DeviceMsg>, host: &[i32]) -> rakka_accel_cuda::gpu_ref::GpuRef<i32> {
+async fn alloc_and_copy_i32(
+    dev: &rakka_core::actor::ActorRef<DeviceMsg>,
+    host: &[i32],
+) -> rakka_accel_cuda::gpu_ref::GpuRef<i32> {
     let (tx, rx) = oneshot::channel();
-    dev.tell(DeviceMsg::AllocateI32 { len: host.len(), reply: tx });
+    dev.tell(DeviceMsg::AllocateI32 {
+        len: host.len(),
+        reply: tx,
+    });
     let g = rx.await.unwrap().unwrap();
     let (tx, rx) = oneshot::channel();
     dev.tell(DeviceMsg::CopyFromHostI32 {
@@ -123,7 +137,10 @@ async fn alloc_and_copy_i32(dev: &rakka_core::actor::ActorRef<DeviceMsg>, host: 
     g
 }
 
-async fn alloc_zeros_f32(dev: &rakka_core::actor::ActorRef<DeviceMsg>, len: usize) -> rakka_accel_cuda::gpu_ref::GpuRef<f32> {
+async fn alloc_zeros_f32(
+    dev: &rakka_core::actor::ActorRef<DeviceMsg>,
+    len: usize,
+) -> rakka_accel_cuda::gpu_ref::GpuRef<f32> {
     let (tx, rx) = oneshot::channel();
     dev.tell(DeviceMsg::AllocateF32 { len, reply: tx });
     rx.await.unwrap().unwrap()

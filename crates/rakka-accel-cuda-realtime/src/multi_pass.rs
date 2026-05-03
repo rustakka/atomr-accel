@@ -33,7 +33,9 @@ pub struct MultiPassConfig {
 
 impl Clone for MultiPassConfig {
     fn clone(&self) -> Self {
-        Self { passes: self.passes.clone() }
+        Self {
+            passes: self.passes.clone(),
+        }
     }
 }
 
@@ -50,7 +52,9 @@ pub struct MultiPassAnalysisActor {
 
 impl MultiPassAnalysisActor {
     pub fn props(config: MultiPassConfig) -> Props<Self> {
-        Props::create(move || MultiPassAnalysisActor { config: config.clone() })
+        Props::create(move || MultiPassAnalysisActor {
+            config: config.clone(),
+        })
     }
 }
 
@@ -88,17 +92,27 @@ mod tests {
     async fn multi_pass_runs_each_pass() {
         let p1: Arc<dyn Pass> = Arc::new(|f: &[f32]| Ok(f.iter().sum::<f32>()));
         let p2: Arc<dyn Pass> = Arc::new(|f: &[f32]| Ok(f.len() as f32));
-        let cfg = MultiPassConfig { passes: vec![p1, p2] };
+        let cfg = MultiPassConfig {
+            passes: vec![p1, p2],
+        };
 
-        let sys = ActorSystem::create("mp-test", Config::empty()).await.unwrap();
-        let actor = sys.actor_of(MultiPassAnalysisActor::props(cfg), "mp").unwrap();
+        let sys = ActorSystem::create("mp-test", Config::empty())
+            .await
+            .unwrap();
+        let actor = sys
+            .actor_of(MultiPassAnalysisActor::props(cfg), "mp")
+            .unwrap();
 
         let (tx, rx) = oneshot::channel();
         actor.tell(MultiPassMsg::Analyze {
             frame: vec![1.0, 2.0, 3.0, 4.0],
             reply: tx,
         });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(v, vec![10.0, 4.0]);
 
         sys.terminate().await;

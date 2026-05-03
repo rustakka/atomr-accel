@@ -17,7 +17,9 @@ const N: i32 = 64;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn sgemm_64x64_via_actors() {
-    let sys = ActorSystem::create("sgemm-e2e", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("sgemm-e2e", Config::empty())
+        .await
+        .unwrap();
     let device = sys
         .actor_of(DeviceActor::props(DeviceConfig::new(0)), "device-0")
         .unwrap();
@@ -53,11 +55,20 @@ async fn sgemm_64x64_via_actors() {
 
     let (tx, rx) = oneshot::channel();
     device.tell(DeviceMsg::Sgemm(Box::new(SgemmRequest {
-        a, b, c, m: N, n: N, k: N,
-        alpha: 1.0, beta: 0.0,
+        a,
+        b,
+        c,
+        m: N,
+        n: N,
+        k: N,
+        alpha: 1.0,
+        beta: 0.0,
         reply: tx,
     })));
-    let res = tokio::time::timeout(Duration::from_secs(30), rx).await.unwrap().unwrap();
+    let res = tokio::time::timeout(Duration::from_secs(30), rx)
+        .await
+        .unwrap()
+        .unwrap();
     res.unwrap();
 
     sys.terminate().await;

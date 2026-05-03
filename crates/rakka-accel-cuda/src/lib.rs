@@ -31,6 +31,8 @@ pub mod kernel;
 pub mod memory;
 #[cfg(feature = "nccl")]
 pub mod multi_device;
+#[cfg(feature = "telemetry")]
+pub mod observability;
 pub mod p2p;
 pub mod pipeline;
 pub mod placement;
@@ -39,5 +41,3 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
-#[cfg(feature = "telemetry")]
-pub mod observability;

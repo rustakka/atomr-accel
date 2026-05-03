@@ -7,15 +7,17 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use rakka_accel_cuda::replay::{JournalEntry, ReplayHarness, ReplayMode, ReplayMsg};
 use rakka_config::Config;
 use rakka_core::actor::ActorSystem;
-use rakka_accel_cuda::replay::{JournalEntry, ReplayHarness, ReplayMode, ReplayMsg};
 use rakka_persistence::InMemoryJournal;
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn record_roundtrips_through_persistent_journal() {
-    let sys = ActorSystem::create("replay-persistence", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("replay-persistence", Config::empty())
+        .await
+        .unwrap();
     let journal: Arc<dyn rakka_persistence::Journal> = InMemoryJournal::new();
     let pid = "rakka-accel-cuda/replay/test";
 

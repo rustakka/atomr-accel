@@ -73,7 +73,12 @@ impl Actor for ReductionAnalysisActor {
             ReductionMsg::Reduce { kind, data, reply } => {
                 let _ = reply.send(reduce_one(kind, &data));
             }
-            ReductionMsg::ReduceChannels { kind, data, channels, reply } => {
+            ReductionMsg::ReduceChannels {
+                kind,
+                data,
+                channels,
+                reply,
+            } => {
                 if channels == 0 {
                     let _ = reply.send(Err(GpuError::Unrecoverable(
                         "ReduceChannels: channels == 0".into(),
@@ -114,7 +119,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn sum_mean_max() {
-        let sys = ActorSystem::create("reduce-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("reduce-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys.actor_of(ReductionAnalysisActor::props(), "r").unwrap();
 
         for (kind, expected) in [
@@ -130,8 +137,15 @@ mod tests {
                 data: vec![1.0, 2.0, 3.0, 4.0],
                 reply: tx,
             });
-            let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
-            assert!((v - expected).abs() < 1e-5, "{kind:?} expected {expected}, got {v}");
+            let v = tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert!(
+                (v - expected).abs() < 1e-5,
+                "{kind:?} expected {expected}, got {v}"
+            );
         }
         sys.terminate().await;
     }

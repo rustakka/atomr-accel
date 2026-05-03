@@ -32,7 +32,11 @@ impl Default for ClothConfig {
             width: 16,
             height: 16,
             spacing: 0.1,
-            gravity: Vec3 { x: 0.0, y: -9.8, z: 0.0 },
+            gravity: Vec3 {
+                x: 0.0,
+                y: -9.8,
+                z: 0.0,
+            },
             pinned: vec![false; 256],
             stiffness: 0.5,
             iterations: 4,

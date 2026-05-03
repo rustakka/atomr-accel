@@ -13,10 +13,14 @@ const N: usize = 1024;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rng_uniform_fill_e2e() {
-    let sys = ActorSystem::create("rng-e2e", Config::empty()).await.unwrap();
-    let dev_cfg = DeviceConfig::new(0)
-        .with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CURAND);
-    let device = sys.actor_of(DeviceActor::props(dev_cfg), "device-0").unwrap();
+    let sys = ActorSystem::create("rng-e2e", Config::empty())
+        .await
+        .unwrap();
+    let dev_cfg =
+        DeviceConfig::new(0).with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CURAND);
+    let device = sys
+        .actor_of(DeviceActor::props(dev_cfg), "device-0")
+        .unwrap();
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let snap: Option<KernelChildren> = device
@@ -40,7 +44,10 @@ async fn rng_uniform_fill_e2e() {
 
     let r: Result<(), _> = rng
         .ask_with(
-            move |tx| RngMsg::FillUniformF32 { dst: buf, reply: tx },
+            move |tx| RngMsg::FillUniformF32 {
+                dst: buf,
+                reply: tx,
+            },
             Duration::from_secs(10),
         )
         .await

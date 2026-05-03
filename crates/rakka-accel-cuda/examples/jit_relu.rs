@@ -28,15 +28,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
 
     let sys = ActorSystem::create("jit-relu-demo", Config::empty()).await?;
-    let dev_cfg = DeviceConfig::new(0)
-        .with_libraries(EnabledLibraries::BLAS | EnabledLibraries::NVRTC);
+    let dev_cfg =
+        DeviceConfig::new(0).with_libraries(EnabledLibraries::BLAS | EnabledLibraries::NVRTC);
     let _device = sys.actor_of(DeviceActor::props(dev_cfg), "device-0")?;
 
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let _ = KERNEL; // would be passed to NvrtcMsg::Compile via the
                     // plumbed actor ref.
-    println!("NVRTC source ready ({} bytes); compile path requires NvrtcActor ref", KERNEL.len());
+    println!(
+        "NVRTC source ready ({} bytes); compile path requires NvrtcActor ref",
+        KERNEL.len()
+    );
 
     sys.terminate().await;
     Ok(())

@@ -8,24 +8,24 @@ pub use crate::device::{
 pub use crate::dispatcher::GpuDispatcher;
 pub use crate::error::{decider, device_supervisor_strategy, DeviceSupervisor, GpuError};
 pub use crate::gpu_ref::GpuRef;
+pub use crate::graph::{GraphActor, GraphHandle, GraphMsg, GraphOp};
 pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
-pub use crate::kernel::{BlasActor, BlasMsg};
 pub use crate::kernel::envelope;
 pub use crate::kernel::record::RecordMode;
-pub use crate::pipeline::{
-    run_pipeline, spawn_pipeline, BoxedStage, PipelineExecutor, PipelineExecutorN, PipelineSink,
-    PipelineSource, PipelineStage, StageBox,
-};
-pub use crate::graph::{GraphActor, GraphHandle, GraphMsg, GraphOp};
+pub use crate::kernel::{BlasActor, BlasMsg};
 pub use crate::memory::{
     ManagedAllocatorActor, ManagedFlags, ManagedMsg, ManagedRef, ManagedStats,
 };
 pub use crate::p2p::{P2pGraph, P2pMsg, P2pTopology};
+pub use crate::pipeline::{
+    run_pipeline, spawn_pipeline, BoxedStage, PipelineExecutor, PipelineExecutorN, PipelineSink,
+    PipelineSource, PipelineStage, StageBox,
+};
 pub use crate::placement::{
-    DeviceChoice, LeastLoadedPolicy, PlacementActor, PlacementHints, PlacementMsg,
-    PlacementPolicy, RoundRobinPolicy,
+    DeviceChoice, LeastLoadedPolicy, PlacementActor, PlacementHints, PlacementMsg, PlacementPolicy,
+    RoundRobinPolicy,
 };
 pub use crate::replay::{
     replay_via_sink, JournalEntry, ReplayHarness, ReplayMode, ReplayMsg, ReplaySink,

@@ -32,22 +32,14 @@ pub trait VerifierFn: Send + Sync + 'static {
     /// `accepted_prefix_len <= candidates.len()`. If equal to
     /// `candidates.len()`, all draft tokens were accepted; the
     /// caller can keep speculating.
-    fn verify(
-        &self,
-        prefix: &[u32],
-        candidates: &[u32],
-    ) -> Result<(usize, Option<u32>), GpuError>;
+    fn verify(&self, prefix: &[u32], candidates: &[u32]) -> Result<(usize, Option<u32>), GpuError>;
 }
 
 impl<F> VerifierFn for F
 where
     F: Fn(&[u32], &[u32]) -> Result<(usize, Option<u32>), GpuError> + Send + Sync + 'static,
 {
-    fn verify(
-        &self,
-        prefix: &[u32],
-        candidates: &[u32],
-    ) -> Result<(usize, Option<u32>), GpuError> {
+    fn verify(&self, prefix: &[u32], candidates: &[u32]) -> Result<(usize, Option<u32>), GpuError> {
         self(prefix, candidates)
     }
 }
@@ -129,13 +121,14 @@ impl Actor for SpeculativeDecoder {
                         let candidates: Vec<u32> = candidates.into_iter().take(cand_len).collect();
                         stats.iterations += 1;
                         stats.draft_tokens += candidates.len() as u32;
-                        let (accepted, replacement) = match cfg.verifier.verify(&tokens, &candidates) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                let _ = reply.send(Err(e));
-                                return;
-                            }
-                        };
+                        let (accepted, replacement) =
+                            match cfg.verifier.verify(&tokens, &candidates) {
+                                Ok(p) => p,
+                                Err(e) => {
+                                    let _ = reply.send(Err(e));
+                                    return;
+                                }
+                            };
                         let acc = accepted.min(candidates.len());
                         tokens.extend_from_slice(&candidates[..acc]);
                         stats.accepted_tokens += acc as u32;
@@ -184,7 +177,9 @@ mod tests {
             max_total_tokens: 16,
         };
 
-        let sys = ActorSystem::create("spec-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("spec-test", Config::empty())
+            .await
+            .unwrap();
         let dec = sys.actor_of(SpeculativeDecoder::props(cfg), "dec").unwrap();
 
         let (tx, rx) = oneshot::channel();
@@ -192,7 +187,11 @@ mod tests {
             prefix: vec![0],
             reply: tx,
         });
-        let (tokens, stats) = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let (tokens, stats) = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert!(tokens.len() <= 16);
         assert!(stats.iterations >= 1);
 

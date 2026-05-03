@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cudarc::cublaslt::{CudaBlasLT, Matmul, MatmulConfig};
 pub use cudarc::cublaslt::Activation;
+use cudarc::cublaslt::{CudaBlasLT, Matmul, MatmulConfig};
 use rakka_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
@@ -75,7 +75,9 @@ impl BlasLtActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| BlasLtActor { inner: BlasLtInner::Mock })
+        Props::create(|| BlasLtActor {
+            inner: BlasLtInner::Mock,
+        })
     }
 }
 
@@ -92,8 +94,21 @@ impl Actor for BlasLtActor {
                     )));
                 }
             },
-            BlasLtInner::Real { blas_lt, stream, completion, .. } => match msg {
-                BlasLtMsg::MatmulF32 { cfg, a, b, c, bias, activation, reply } => {
+            BlasLtInner::Real {
+                blas_lt,
+                stream,
+                completion,
+                ..
+            } => match msg {
+                BlasLtMsg::MatmulF32 {
+                    cfg,
+                    a,
+                    b,
+                    c,
+                    bias,
+                    activation,
+                    reply,
+                } => {
                     enqueue_matmul_f32(
                         blas_lt.clone(),
                         stream,
@@ -126,13 +141,19 @@ fn enqueue_matmul_f32(
 ) {
     let (a_slice, b_slice, c_slice) = match envelope::access_all_3(&a, &b, &c) {
         Ok(t) => t,
-        Err(e) => { let _ = reply.send(Err(e)); return; }
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
     };
     let bias_slice = match bias.as_ref() {
         None => None,
         Some(g) => match g.access() {
             Ok(s) => Some(s.clone()),
-            Err(e) => { let _ = reply.send(Err(e)); return; }
+            Err(e) => {
+                let _ = reply.send(Err(e));
+                return;
+            }
         },
     };
     let mut c_owned = match Arc::try_unwrap(c_slice) {
@@ -149,9 +170,8 @@ fn enqueue_matmul_f32(
         let bias_ref = bias_slice.as_ref().map(|s| &**s);
         let act_ref = activation.as_ref();
         // SAFETY: matmul is unsafe due to dim-validity contract.
-        let res = unsafe {
-            blas_lt.matmul(cfg, &*a_slice, &*b_slice, &mut c_owned, bias_ref, act_ref)
-        };
+        let res =
+            unsafe { blas_lt.matmul(cfg, &*a_slice, &*b_slice, &mut c_owned, bias_ref, act_ref) };
         match res {
             Ok(()) => Ok((a_slice, b_slice, c_owned, bias_slice, blas_lt)),
             Err(e) => Err(GpuError::LibraryError {

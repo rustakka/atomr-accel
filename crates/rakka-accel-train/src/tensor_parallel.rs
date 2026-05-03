@@ -140,7 +140,11 @@ impl<P: ShardProtocol> Actor for TensorParallelTrainer<P> {
                     }
                     let out = summed.unwrap_or_default();
                     let stats = StepStats {
-                        loss: if total_samples > 0 { total_loss / total_samples as f32 } else { 0.0 },
+                        loss: if total_samples > 0 {
+                            total_loss / total_samples as f32
+                        } else {
+                            0.0
+                        },
                         grad_norm: if total_samples > 0 {
                             total_grad / total_samples as f32
                         } else {

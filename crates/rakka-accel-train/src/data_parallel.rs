@@ -60,9 +60,7 @@ pub enum TrainerMsg<P: ReplicaProtocol> {
     /// Set the replica refs after construction. Allows a
     /// late-binding pattern when replicas are spawned by another
     /// actor.
-    SetReplicas {
-        replicas: Vec<ActorRef<P::Msg>>,
-    },
+    SetReplicas { replicas: Vec<ActorRef<P::Msg>> },
 }
 
 pub struct DataParallelTrainer<P: ReplicaProtocol> {
@@ -137,9 +135,8 @@ impl<P: ReplicaProtocol> Actor for DataParallelTrainer<P> {
                         }
                     }
                     if total_samples == 0 {
-                        let _ = reply.send(Err(GpuError::Unrecoverable(
-                            "trainer: zero samples".into(),
-                        )));
+                        let _ = reply
+                            .send(Err(GpuError::Unrecoverable("trainer: zero samples".into())));
                         return;
                     }
                     let stats = StepStats {
@@ -204,7 +201,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn step_aggregates_across_replicas() {
-        let sys = ActorSystem::create("trainer-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("trainer-test", Config::empty())
+            .await
+            .unwrap();
         let r1 = sys
             .actor_of(rakka_core::actor::Props::create(|| EchoReplicaActor), "r1")
             .unwrap();
@@ -217,7 +216,11 @@ mod tests {
                     TrainerConfig {
                         batch_size_per_device: 1,
                         gradient_clip: None,
-                        optimizer: OptimizerKind::Sgd { lr: 0.1, momentum: 0.0, weight_decay: 0.0 },
+                        optimizer: OptimizerKind::Sgd {
+                            lr: 0.1,
+                            momentum: 0.0,
+                            weight_decay: 0.0,
+                        },
                         loss: LossKind::Mse,
                     },
                     vec![r1, r2],
@@ -229,12 +232,22 @@ mod tests {
         let (tx, rx) = oneshot::channel();
         trainer.tell(TrainerMsg::Step {
             batch: vec![
-                TrainSample { features: vec![1.0, 2.0], label: vec![] },
-                TrainSample { features: vec![3.0, 4.0], label: vec![] },
+                TrainSample {
+                    features: vec![1.0, 2.0],
+                    label: vec![],
+                },
+                TrainSample {
+                    features: vec![3.0, 4.0],
+                    label: vec![],
+                },
             ],
             reply: tx,
         });
-        let stats = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let stats = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // Replica 0 sees [1.0, 2.0] → loss 3; replica 1 sees [3.0, 4.0] → loss 7.
         // Weighted avg = (3*1 + 7*1) / 2 = 5.
         assert!((stats.loss - 5.0).abs() < 1e-5);

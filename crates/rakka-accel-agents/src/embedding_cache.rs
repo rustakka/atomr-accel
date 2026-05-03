@@ -73,7 +73,10 @@ impl EmbeddingCache {
             },
             cache: HashMap::with_capacity(config.capacity_entries),
             order: VecDeque::with_capacity(config.capacity_entries),
-            stats: CacheStats { capacity: config.capacity_entries, ..Default::default() },
+            stats: CacheStats {
+                capacity: config.capacity_entries,
+                ..Default::default()
+            },
         })
     }
 
@@ -103,7 +106,8 @@ impl EmbeddingCache {
             }
             EmbeddingCacheMsg::Insert { key, value, reply } => {
                 let h = hash_key(&key);
-                if self.cache.len() >= self.config.capacity_entries && !self.cache.contains_key(&h) {
+                if self.cache.len() >= self.config.capacity_entries && !self.cache.contains_key(&h)
+                {
                     if let Some(victim) = self.order.pop_front() {
                         self.cache.remove(&victim);
                     }
@@ -140,7 +144,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cache_hit_miss() {
-        let sys = ActorSystem::create("embed-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("embed-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(
                 EmbeddingCache::props(EmbeddingCacheConfig {
@@ -154,8 +160,14 @@ mod tests {
         let key = b"hello".to_vec();
         // Miss
         let (tx, rx) = oneshot::channel();
-        actor.tell(EmbeddingCacheMsg::Get { key: key.clone(), reply: tx });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(EmbeddingCacheMsg::Get {
+            key: key.clone(),
+            reply: tx,
+        });
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(v.is_none());
 
         // Insert
@@ -165,12 +177,21 @@ mod tests {
             value: vec![1.0; 8],
             reply: tx,
         });
-        tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Hit
         let (tx, rx) = oneshot::channel();
-        actor.tell(EmbeddingCacheMsg::Get { key: key.clone(), reply: tx });
-        let v = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        actor.tell(EmbeddingCacheMsg::Get {
+            key: key.clone(),
+            reply: tx,
+        });
+        let v = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(v, Some(vec![1.0; 8]));
 
         sys.terminate().await;

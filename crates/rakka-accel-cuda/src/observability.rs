@@ -124,7 +124,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn install_returns_handle_and_from_system_finds_it() {
-        let sys = ActorSystem::create("obs-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("obs-test", Config::empty())
+            .await
+            .unwrap();
         let handle = install(&sys, "obs-test");
         assert_eq!(handle.node, "obs-test");
         let from_sys = TelemetryExtension::from_system(&sys).expect("installed");

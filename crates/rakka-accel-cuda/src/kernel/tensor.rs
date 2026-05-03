@@ -122,7 +122,9 @@ impl TensorActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| TensorActor { inner: TensorInner::Mock })
+        Props::create(|| TensorActor {
+            inner: TensorInner::Mock,
+        })
     }
 }
 
@@ -133,9 +135,24 @@ impl Actor for TensorActor {
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: TensorMsg) {
         match &self.inner {
             TensorInner::Mock => mock_reply(msg),
-            TensorInner::Real { handle, stream, completion, workspace, .. } => match msg {
-                TensorMsg::Contract { a, b, c, alpha, beta, reply } => {
-                    handle_contract(handle, stream, completion, workspace, a, b, c, alpha, beta, reply);
+            TensorInner::Real {
+                handle,
+                stream,
+                completion,
+                workspace,
+                ..
+            } => match msg {
+                TensorMsg::Contract {
+                    a,
+                    b,
+                    c,
+                    alpha,
+                    beta,
+                    reply,
+                } => {
+                    handle_contract(
+                        handle, stream, completion, workspace, a, b, c, alpha, beta, reply,
+                    );
                 }
             },
         }
@@ -145,7 +162,9 @@ impl Actor for TensorActor {
 fn mock_reply(msg: TensorMsg) {
     let err = || GpuError::Unrecoverable("TensorActor in mock mode".into());
     match msg {
-        TensorMsg::Contract { reply, .. } => { let _ = reply.send(Err(err())); }
+        TensorMsg::Contract { reply, .. } => {
+            let _ = reply.send(Err(err()));
+        }
     }
 }
 
@@ -159,11 +178,9 @@ fn ensure_workspace(
     if cur >= needed_bytes {
         return Ok(());
     }
-    *g = Some(
-        stream
-            .alloc_zeros::<u8>(needed_bytes.max(1))
-            .map_err(|e| GpuError::OutOfMemory(format!("cutensor workspace ({needed_bytes}B): {e}")))?,
-    );
+    *g = Some(stream.alloc_zeros::<u8>(needed_bytes.max(1)).map_err(|e| {
+        GpuError::OutOfMemory(format!("cutensor workspace ({needed_bytes}B): {e}"))
+    })?);
     Ok(())
 }
 
@@ -181,23 +198,52 @@ fn handle_contract(
     reply: oneshot::Sender<Result<(), GpuError>>,
 ) {
     if a.extent.len() != a.modes.len() {
-        let _ = reply.send(Err(GpuError::Unrecoverable("Contract: a.extent.len != a.modes.len".into())));
+        let _ = reply.send(Err(GpuError::Unrecoverable(
+            "Contract: a.extent.len != a.modes.len".into(),
+        )));
         return;
     }
     if b.extent.len() != b.modes.len() {
-        let _ = reply.send(Err(GpuError::Unrecoverable("Contract: b.extent.len != b.modes.len".into())));
+        let _ = reply.send(Err(GpuError::Unrecoverable(
+            "Contract: b.extent.len != b.modes.len".into(),
+        )));
         return;
     }
     if c.extent.len() != c.modes.len() {
-        let _ = reply.send(Err(GpuError::Unrecoverable("Contract: c.extent.len != c.modes.len".into())));
+        let _ = reply.send(Err(GpuError::Unrecoverable(
+            "Contract: c.extent.len != c.modes.len".into(),
+        )));
         return;
     }
-    let a_slice = match a.buf.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let b_slice = match b.buf.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
-    let c_slice = match c.buf.access() { Ok(s) => s.clone(), Err(e) => { let _ = reply.send(Err(e)); return; } };
+    let a_slice = match a.buf.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let b_slice = match b.buf.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
+    let c_slice = match c.buf.access() {
+        Ok(s) => s.clone(),
+        Err(e) => {
+            let _ = reply.send(Err(e));
+            return;
+        }
+    };
     let mut c_owned = match Arc::try_unwrap(c_slice) {
         Ok(s) => s,
-        Err(_) => { let _ = reply.send(Err(GpuError::Unrecoverable("Contract c has multiple live references".into()))); return; }
+        Err(_) => {
+            let _ = reply.send(Err(GpuError::Unrecoverable(
+                "Contract c has multiple live references".into(),
+            )));
+            return;
+        }
     };
 
     let h = handle.lock();
@@ -208,9 +254,21 @@ fn handle_contract(
     let (_c_ptr, _gc) = c_owned.device_ptr_mut(stream);
 
     // Build tensor descriptors.
-    let a_stride = if a.stride.is_empty() { std::ptr::null() } else { a.stride.as_ptr() };
-    let b_stride = if b.stride.is_empty() { std::ptr::null() } else { b.stride.as_ptr() };
-    let c_stride = if c.stride.is_empty() { std::ptr::null() } else { c.stride.as_ptr() };
+    let a_stride = if a.stride.is_empty() {
+        std::ptr::null()
+    } else {
+        a.stride.as_ptr()
+    };
+    let b_stride = if b.stride.is_empty() {
+        std::ptr::null()
+    } else {
+        b.stride.as_ptr()
+    };
+    let c_stride = if c.stride.is_empty() {
+        std::ptr::null()
+    } else {
+        c.stride.as_ptr()
+    };
 
     let desc_a = match unsafe {
         ct_result::create_tensor_descriptor(
@@ -223,7 +281,13 @@ fn handle_contract(
         )
     } {
         Ok(d) => d,
-        Err(e) => { let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateTensorDescriptor(A): {e}") })); return; }
+        Err(e) => {
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreateTensorDescriptor(A): {e}"),
+            }));
+            return;
+        }
     };
     let desc_b = match unsafe {
         ct_result::create_tensor_descriptor(
@@ -237,8 +301,13 @@ fn handle_contract(
     } {
         Ok(d) => d,
         Err(e) => {
-            unsafe { let _ = ct_result::destroy_tensor_descriptor(desc_a); }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateTensorDescriptor(B): {e}") }));
+            unsafe {
+                let _ = ct_result::destroy_tensor_descriptor(desc_a);
+            }
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreateTensorDescriptor(B): {e}"),
+            }));
             return;
         }
     };
@@ -258,7 +327,10 @@ fn handle_contract(
                 let _ = ct_result::destroy_tensor_descriptor(desc_b);
                 let _ = ct_result::destroy_tensor_descriptor(desc_a);
             }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateTensorDescriptor(C): {e}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreateTensorDescriptor(C): {e}"),
+            }));
             return;
         }
     };
@@ -266,10 +338,17 @@ fn handle_contract(
     let op_desc = match unsafe {
         ct_result::create_contraction(
             h.0,
-            desc_a, a.modes.as_ptr(), ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
-            desc_b, b.modes.as_ptr(), ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
-            desc_c, c.modes.as_ptr(), ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
-            desc_c, c.modes.as_ptr(),
+            desc_a,
+            a.modes.as_ptr(),
+            ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
+            desc_b,
+            b.modes.as_ptr(),
+            ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
+            desc_c,
+            c.modes.as_ptr(),
+            ct_sys::cutensorOperator_t::CUTENSOR_OP_IDENTITY,
+            desc_c,
+            c.modes.as_ptr(),
             r_min_32f(),
         )
     } {
@@ -280,7 +359,10 @@ fn handle_contract(
                 let _ = ct_result::destroy_tensor_descriptor(desc_b);
                 let _ = ct_result::destroy_tensor_descriptor(desc_a);
             }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreateContraction: {e}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreateContraction: {e}"),
+            }));
             return;
         }
     };
@@ -300,7 +382,10 @@ fn handle_contract(
                 let _ = ct_result::destroy_tensor_descriptor(desc_b);
                 let _ = ct_result::destroy_tensor_descriptor(desc_a);
             }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreatePlanPreference: {e}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreatePlanPreference: {e}"),
+            }));
             return;
         }
     };
@@ -322,7 +407,10 @@ fn handle_contract(
                 let _ = ct_result::destroy_tensor_descriptor(desc_b);
                 let _ = ct_result::destroy_tensor_descriptor(desc_a);
             }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("EstimateWorkspaceSize: {e}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("EstimateWorkspaceSize: {e}"),
+            }));
             return;
         }
     };
@@ -337,7 +425,10 @@ fn handle_contract(
                 let _ = ct_result::destroy_tensor_descriptor(desc_b);
                 let _ = ct_result::destroy_tensor_descriptor(desc_a);
             }
-            let _ = reply.send(Err(GpuError::LibraryError { lib: LIB, msg: format!("CreatePlan: {e}") }));
+            let _ = reply.send(Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("CreatePlan: {e}"),
+            }));
             return;
         }
     };
@@ -385,7 +476,14 @@ fn handle_contract(
         }
     }
     unsafe impl Send for OpGuard {}
-    let guard = OpGuard { plan, pref, op: op_desc, a: desc_a, b: desc_b, c: desc_c };
+    let guard = OpGuard {
+        plan,
+        pref,
+        op: op_desc,
+        a: desc_a,
+        b: desc_b,
+        c: desc_c,
+    };
 
     envelope::run_kernel(LIB, stream, completion, (), reply, move || {
         let h = handle_clone.lock();
@@ -415,7 +513,10 @@ fn handle_contract(
         drop((_ga, _gb, _gc, _gws));
         match res {
             Ok(()) => Ok((c_owned, a_slice, b_slice, guard)),
-            Err(e) => Err(GpuError::LibraryError { lib: LIB, msg: format!("Contract: {e}") }),
+            Err(e) => Err(GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("Contract: {e}"),
+            }),
         }
     });
 }

@@ -16,11 +16,11 @@ use tokio::sync::oneshot;
 use rakka_accel_cuda::error::GpuError;
 
 #[cfg(feature = "nvrtc")]
-use std::sync::Arc;
+use rakka_accel_cuda::kernel::{KernelHandle, NvrtcMsg, NvrtcOpts};
 #[cfg(feature = "nvrtc")]
 use rakka_core::actor::ActorRef;
 #[cfg(feature = "nvrtc")]
-use rakka_accel_cuda::kernel::{KernelHandle, NvrtcMsg, NvrtcOpts};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CooEntry {
@@ -192,7 +192,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn spmv_identity() {
-        let sys = ActorSystem::create("sparse-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("sparse-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(
                 GpuSparseStructureActor::props(SparseConfig { rows: 3, cols: 3 }),
@@ -202,18 +204,40 @@ mod tests {
 
         // Identity matrix.
         let entries = vec![
-            CooEntry { row: 0, col: 0, value: 1.0 },
-            CooEntry { row: 1, col: 1, value: 1.0 },
-            CooEntry { row: 2, col: 2, value: 1.0 },
+            CooEntry {
+                row: 0,
+                col: 0,
+                value: 1.0,
+            },
+            CooEntry {
+                row: 1,
+                col: 1,
+                value: 1.0,
+            },
+            CooEntry {
+                row: 2,
+                col: 2,
+                value: 1.0,
+            },
         ];
         let (tx, rx) = oneshot::channel();
         actor.tell(SparseMsg::SetEntries { entries, reply: tx });
-        let n = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap();
+        let n = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(n, 3);
 
         let (tx, rx) = oneshot::channel();
-        actor.tell(SparseMsg::SpMv { x: vec![10.0, 20.0, 30.0], reply: tx });
-        let y = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        actor.tell(SparseMsg::SpMv {
+            x: vec![10.0, 20.0, 30.0],
+            reply: tx,
+        });
+        let y = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(y, vec![10.0, 20.0, 30.0]);
 
         sys.terminate().await;

@@ -44,7 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         prefix: vec![0],
         reply: tx,
     });
-    let (tokens, stats) = tokio::time::timeout(Duration::from_secs(2), rx).await??.map_err(|e: GpuError| -> Box<dyn std::error::Error> { Box::new(e) })?;
+    let (tokens, stats) = tokio::time::timeout(Duration::from_secs(2), rx)
+        .await??
+        .map_err(|e: GpuError| -> Box<dyn std::error::Error> { Box::new(e) })?;
     println!("tokens: {tokens:?}");
     println!(
         "iters={} draft={} accepted={} final_len={}",

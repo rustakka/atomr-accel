@@ -37,31 +37,101 @@ pub enum ContextMsg {
     Init,
 
     // --- Per-dtype allocations (forwarded from DeviceMsg::Allocate*).
-    AllocateF32 { len: usize, reply: oneshot::Sender<Result<GpuRef<f32>, GpuError>> },
-    AllocateF64 { len: usize, reply: oneshot::Sender<Result<GpuRef<f64>, GpuError>> },
-    AllocateI8  { len: usize, reply: oneshot::Sender<Result<GpuRef<i8>,  GpuError>> },
-    AllocateI32 { len: usize, reply: oneshot::Sender<Result<GpuRef<i32>, GpuError>> },
-    AllocateI64 { len: usize, reply: oneshot::Sender<Result<GpuRef<i64>, GpuError>> },
-    AllocateU8  { len: usize, reply: oneshot::Sender<Result<GpuRef<u8>,  GpuError>> },
-    AllocateU32 { len: usize, reply: oneshot::Sender<Result<GpuRef<u32>, GpuError>> },
-    AllocateU64 { len: usize, reply: oneshot::Sender<Result<GpuRef<u64>, GpuError>> },
+    AllocateF32 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<f32>, GpuError>>,
+    },
+    AllocateF64 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<f64>, GpuError>>,
+    },
+    AllocateI8 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<i8>, GpuError>>,
+    },
+    AllocateI32 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<i32>, GpuError>>,
+    },
+    AllocateI64 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<i64>, GpuError>>,
+    },
+    AllocateU8 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<u8>, GpuError>>,
+    },
+    AllocateU32 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<u32>, GpuError>>,
+    },
+    AllocateU64 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<u64>, GpuError>>,
+    },
     #[cfg(feature = "f16")]
-    AllocateF16  { len: usize, reply: oneshot::Sender<Result<GpuRef<half::f16>, GpuError>> },
+    AllocateF16 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<half::f16>, GpuError>>,
+    },
     #[cfg(feature = "f16")]
-    AllocateBf16 { len: usize, reply: oneshot::Sender<Result<GpuRef<half::bf16>, GpuError>> },
+    AllocateBf16 {
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<half::bf16>, GpuError>>,
+    },
 
     // --- Memcpy variants. The `dst` round-trips back via the reply
     // so a pinned buffer can return to its pool.
-    CopyToHostF32   { src: GpuRef<f32>, dst: HostBuf<f32>, reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>> },
-    CopyFromHostF32 { src: HostBuf<f32>, dst: GpuRef<f32>, reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>> },
-    CopyToHostF64   { src: GpuRef<f64>, dst: HostBuf<f64>, reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>> },
-    CopyFromHostF64 { src: HostBuf<f64>, dst: GpuRef<f64>, reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>> },
-    CopyToHostI32   { src: GpuRef<i32>, dst: HostBuf<i32>, reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>> },
-    CopyFromHostI32 { src: HostBuf<i32>, dst: GpuRef<i32>, reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>> },
-    CopyToHostU32   { src: GpuRef<u32>, dst: HostBuf<u32>, reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>> },
-    CopyFromHostU32 { src: HostBuf<u32>, dst: GpuRef<u32>, reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>> },
-    CopyToHostU8    { src: GpuRef<u8>,  dst: HostBuf<u8>,  reply: oneshot::Sender<Result<HostBuf<u8>,  GpuError>> },
-    CopyFromHostU8  { src: HostBuf<u8>, dst: GpuRef<u8>,   reply: oneshot::Sender<Result<HostBuf<u8>,  GpuError>> },
+    CopyToHostF32 {
+        src: GpuRef<f32>,
+        dst: HostBuf<f32>,
+        reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>>,
+    },
+    CopyFromHostF32 {
+        src: HostBuf<f32>,
+        dst: GpuRef<f32>,
+        reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>>,
+    },
+    CopyToHostF64 {
+        src: GpuRef<f64>,
+        dst: HostBuf<f64>,
+        reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>>,
+    },
+    CopyFromHostF64 {
+        src: HostBuf<f64>,
+        dst: GpuRef<f64>,
+        reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>>,
+    },
+    CopyToHostI32 {
+        src: GpuRef<i32>,
+        dst: HostBuf<i32>,
+        reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>>,
+    },
+    CopyFromHostI32 {
+        src: HostBuf<i32>,
+        dst: GpuRef<i32>,
+        reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>>,
+    },
+    CopyToHostU32 {
+        src: GpuRef<u32>,
+        dst: HostBuf<u32>,
+        reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>>,
+    },
+    CopyFromHostU32 {
+        src: HostBuf<u32>,
+        dst: GpuRef<u32>,
+        reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>>,
+    },
+    CopyToHostU8 {
+        src: GpuRef<u8>,
+        dst: HostBuf<u8>,
+        reply: oneshot::Sender<Result<HostBuf<u8>, GpuError>>,
+    },
+    CopyFromHostU8 {
+        src: HostBuf<u8>,
+        dst: GpuRef<u8>,
+        reply: oneshot::Sender<Result<HostBuf<u8>, GpuError>>,
+    },
 }
 
 pub struct ContextActor {
@@ -250,17 +320,20 @@ impl ContextActor {
         };
         self.children = Some(children.clone());
         self.parent.tell(DeviceMsg::ContextReady { children });
-        info!(device_id, generation = self.state.generation(), "ContextActor ready");
+        info!(
+            device_id,
+            generation = self.state.generation(),
+            "ContextActor ready"
+        );
     }
 
     /// Allocate a typed buffer on the actor's stream. Bound to the
     /// `Allocate*` ContextMsg variants via the macro below.
-    fn alloc<T: DeviceRepr + ValidAsZeroBits>(
-        &self,
-        len: usize,
-    ) -> Result<GpuRef<T>, GpuError> {
+    fn alloc<T: DeviceRepr + ValidAsZeroBits>(&self, len: usize) -> Result<GpuRef<T>, GpuError> {
         if self.config.mock_mode {
-            return Err(GpuError::Unrecoverable("alloc not supported in mock mode".into()));
+            return Err(GpuError::Unrecoverable(
+                "alloc not supported in mock mode".into(),
+            ));
         }
         let Some(stream) = self.stream.clone() else {
             return Err(GpuError::GpuRefStale("context not ready"));
@@ -314,14 +387,9 @@ fn run_copy_to_host<T: DeviceRepr + 'static>(
     }
 
     // Spawn completion-await; on success return dst back to caller.
-    envelope::run_kernel(
-        "driver",
-        &stream,
-        &completion,
-        dst,
-        reply,
-        move || Ok::<_, GpuError>((src_slice,)),
-    );
+    envelope::run_kernel("driver", &stream, &completion, dst, reply, move || {
+        Ok::<_, GpuError>((src_slice,))
+    });
 }
 
 fn run_copy_from_host<T: DeviceRepr + 'static>(
@@ -369,14 +437,9 @@ fn run_copy_from_host<T: DeviceRepr + 'static>(
         return;
     }
     dst.record_write(&stream);
-    envelope::run_kernel(
-        "driver",
-        &stream,
-        &completion,
-        src,
-        reply,
-        move || Ok::<_, GpuError>((dst_owned,)),
-    );
+    envelope::run_kernel("driver", &stream, &completion, src, reply, move || {
+        Ok::<_, GpuError>((dst_owned,))
+    });
 }
 
 #[async_trait]
@@ -391,18 +454,38 @@ impl Actor for ContextActor {
         match msg {
             ContextMsg::Init => self.run_init(ctx).await,
 
-            ContextMsg::AllocateF32 { len, reply } => { let _ = reply.send(self.alloc::<f32>(len)); }
-            ContextMsg::AllocateF64 { len, reply } => { let _ = reply.send(self.alloc::<f64>(len)); }
-            ContextMsg::AllocateI8  { len, reply } => { let _ = reply.send(self.alloc::<i8>(len)); }
-            ContextMsg::AllocateI32 { len, reply } => { let _ = reply.send(self.alloc::<i32>(len)); }
-            ContextMsg::AllocateI64 { len, reply } => { let _ = reply.send(self.alloc::<i64>(len)); }
-            ContextMsg::AllocateU8  { len, reply } => { let _ = reply.send(self.alloc::<u8>(len)); }
-            ContextMsg::AllocateU32 { len, reply } => { let _ = reply.send(self.alloc::<u32>(len)); }
-            ContextMsg::AllocateU64 { len, reply } => { let _ = reply.send(self.alloc::<u64>(len)); }
+            ContextMsg::AllocateF32 { len, reply } => {
+                let _ = reply.send(self.alloc::<f32>(len));
+            }
+            ContextMsg::AllocateF64 { len, reply } => {
+                let _ = reply.send(self.alloc::<f64>(len));
+            }
+            ContextMsg::AllocateI8 { len, reply } => {
+                let _ = reply.send(self.alloc::<i8>(len));
+            }
+            ContextMsg::AllocateI32 { len, reply } => {
+                let _ = reply.send(self.alloc::<i32>(len));
+            }
+            ContextMsg::AllocateI64 { len, reply } => {
+                let _ = reply.send(self.alloc::<i64>(len));
+            }
+            ContextMsg::AllocateU8 { len, reply } => {
+                let _ = reply.send(self.alloc::<u8>(len));
+            }
+            ContextMsg::AllocateU32 { len, reply } => {
+                let _ = reply.send(self.alloc::<u32>(len));
+            }
+            ContextMsg::AllocateU64 { len, reply } => {
+                let _ = reply.send(self.alloc::<u64>(len));
+            }
             #[cfg(feature = "f16")]
-            ContextMsg::AllocateF16  { len, reply } => { let _ = reply.send(self.alloc::<half::f16>(len)); }
+            ContextMsg::AllocateF16 { len, reply } => {
+                let _ = reply.send(self.alloc::<half::f16>(len));
+            }
             #[cfg(feature = "f16")]
-            ContextMsg::AllocateBf16 { len, reply } => { let _ = reply.send(self.alloc::<half::bf16>(len)); }
+            ContextMsg::AllocateBf16 { len, reply } => {
+                let _ = reply.send(self.alloc::<half::bf16>(len));
+            }
 
             ContextMsg::CopyToHostF32 { src, dst, reply } => {
                 let stream = self.stream.clone().expect("ctx not ready");

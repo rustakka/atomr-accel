@@ -34,11 +34,7 @@ pub struct DeviceChoice {
 }
 
 pub trait PlacementPolicy: Send + Sync + 'static {
-    fn choose(
-        &self,
-        hints: &PlacementHints,
-        candidates: &[(u32, &DeviceLoad)],
-    ) -> Option<u32>;
+    fn choose(&self, hints: &PlacementHints, candidates: &[(u32, &DeviceLoad)]) -> Option<u32>;
 }
 
 /// Round-robin policy. Ignores `hints`.
@@ -48,16 +44,14 @@ pub struct RoundRobinPolicy {
 
 impl Default for RoundRobinPolicy {
     fn default() -> Self {
-        Self { cursor: Mutex::new(0) }
+        Self {
+            cursor: Mutex::new(0),
+        }
     }
 }
 
 impl PlacementPolicy for RoundRobinPolicy {
-    fn choose(
-        &self,
-        _hints: &PlacementHints,
-        candidates: &[(u32, &DeviceLoad)],
-    ) -> Option<u32> {
+    fn choose(&self, _hints: &PlacementHints, candidates: &[(u32, &DeviceLoad)]) -> Option<u32> {
         if candidates.is_empty() {
             return None;
         }
@@ -73,11 +67,7 @@ impl PlacementPolicy for RoundRobinPolicy {
 pub struct LeastLoadedPolicy;
 
 impl PlacementPolicy for LeastLoadedPolicy {
-    fn choose(
-        &self,
-        hints: &PlacementHints,
-        candidates: &[(u32, &DeviceLoad)],
-    ) -> Option<u32> {
+    fn choose(&self, hints: &PlacementHints, candidates: &[(u32, &DeviceLoad)]) -> Option<u32> {
         let mut best: Option<(u32, u64)> = None;
         for (id, load) in candidates {
             if load.free_bytes < hints.min_free_bytes {
@@ -109,10 +99,7 @@ pub enum PlacementMsg {
     PollStats,
     /// Internal: a single device's stats reply arrived, update the
     /// cached load snapshot.
-    StatsUpdate {
-        slot: usize,
-        load: DeviceLoad,
-    },
+    StatsUpdate { slot: usize, load: DeviceLoad },
 }
 
 pub struct PlacementActor {
@@ -226,9 +213,15 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn round_robin_picks_alternates() {
-        let sys = ActorSystem::create("placement-rr", Config::empty()).await.unwrap();
-        let d0 = sys.actor_of(DeviceActor::props(DeviceConfig::mock(0)), "d0").unwrap();
-        let d1 = sys.actor_of(DeviceActor::props(DeviceConfig::mock(1)), "d1").unwrap();
+        let sys = ActorSystem::create("placement-rr", Config::empty())
+            .await
+            .unwrap();
+        let d0 = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "d0")
+            .unwrap();
+        let d1 = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(1)), "d1")
+            .unwrap();
         let actor = sys
             .actor_of(
                 PlacementActor::props(
@@ -246,7 +239,11 @@ mod tests {
                 hints: PlacementHints::default(),
                 reply: tx,
             });
-            let c = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+            let c = tokio::time::timeout(Duration::from_secs(2), rx)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
             picks.push(c.device_id);
         }
         // Round-robin alternates: 0,1,0,1.

@@ -18,8 +18,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
 
     let sys = ActorSystem::create("fft-demo", Config::empty()).await?;
-    let dev_cfg = DeviceConfig::new(0)
-        .with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CUFFT);
+    let dev_cfg =
+        DeviceConfig::new(0).with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CUFFT);
     let device = sys.actor_of(DeviceActor::props(dev_cfg), "device-0")?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -34,7 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let real_buf: GpuRef<f32> = device
         .ask_with(
-            move |tx| DeviceMsg::AllocateF32 { len: N as usize, reply: tx },
+            move |tx| DeviceMsg::AllocateF32 {
+                len: N as usize,
+                reply: tx,
+            },
             Duration::from_secs(5),
         )
         .await??;

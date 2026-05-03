@@ -27,7 +27,10 @@ pub struct ActorHints {
 
 impl Default for ActorHints {
     fn default() -> Self {
-        Self { priority: Priority::Normal, workload: WorkloadKind::ShortLatencyBound }
+        Self {
+            priority: Priority::Normal,
+            workload: WorkloadKind::ShortLatencyBound,
+        }
     }
 }
 

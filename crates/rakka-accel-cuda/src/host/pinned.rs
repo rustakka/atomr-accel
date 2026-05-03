@@ -78,7 +78,11 @@ impl PinnedSlot {
         // standard async memcpy.
         let ptr = unsafe { cudarc::driver::result::malloc_host(capacity_bytes, 0) }
             .map_err(|e| GpuError::OutOfMemory(format!("pinned alloc {capacity_bytes}B: {e}")))?;
-        Ok(Self { ptr, capacity_bytes, oversize })
+        Ok(Self {
+            ptr,
+            capacity_bytes,
+            oversize,
+        })
     }
 
     fn free(self) {
@@ -149,7 +153,12 @@ impl PinnedBufHandle {
         let slot = self.slot.take().expect("PinnedBufHandle slot was None");
         let ptr = slot.ptr as *mut T;
         Ok(PinnedBuf {
-            inner: Some(PinnedBufInner { slot, len, return_tx: self.return_tx.clone(), generation: self.generation }),
+            inner: Some(PinnedBufInner {
+                slot,
+                len,
+                return_tx: self.return_tx.clone(),
+                generation: self.generation,
+            }),
             ptr,
             len,
             _marker: PhantomData,
@@ -290,10 +299,7 @@ impl PinnedBufferPool {
         }
     }
 
-    fn try_acquire(
-        &mut self,
-        len_bytes: usize,
-    ) -> Result<PinnedBufHandle, GpuError> {
+    fn try_acquire(&mut self, len_bytes: usize) -> Result<PinnedBufHandle, GpuError> {
         let cap = self.config.buffer_capacity_bytes;
         let oversize = len_bytes > cap;
 

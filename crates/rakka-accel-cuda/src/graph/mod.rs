@@ -28,10 +28,10 @@ use crate::completion::CompletionStrategy;
 use crate::device::DeviceState;
 use crate::error::GpuError;
 use crate::kernel::record::{BlasRecorder, BlasSgemmOp, MemcpyOp, MemcpyRecorder, RecordMode};
-#[cfg(feature = "curand")]
-use crate::kernel::record::{RngFillUniformOp, RngRecorder};
 #[cfg(feature = "cufft")]
 use crate::kernel::record::{FftR2COp, FftRecorder};
+#[cfg(feature = "curand")]
+use crate::kernel::record::{RngFillUniformOp, RngRecorder};
 
 const LIB: &str = "graph";
 
@@ -43,7 +43,9 @@ unsafe impl Send for SendGraph {}
 unsafe impl Sync for SendGraph {}
 
 impl Clone for SendGraph {
-    fn clone(&self) -> Self { Self(self.0.clone()) }
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 
 #[derive(Clone)]
@@ -62,7 +64,9 @@ impl GraphHandle {
         }
     }
 
-    pub fn generation(&self) -> u64 { self.generation }
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
 }
 
 /// Operation-script entry. Each variant mirrors a kernel-actor op
@@ -179,7 +183,9 @@ impl GraphActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| GraphActor { inner: GraphInner::Mock })
+        Props::create(|| GraphActor {
+            inner: GraphInner::Mock,
+        })
     }
 }
 
@@ -327,9 +333,14 @@ impl Actor for GraphActor {
                 }
             },
             GraphInner::Real {
-                stream, completion, state, blas,
-                #[cfg(feature = "curand")] rng,
-                #[cfg(feature = "cufft")] fft,
+                stream,
+                completion,
+                state,
+                blas,
+                #[cfg(feature = "curand")]
+                rng,
+                #[cfg(feature = "cufft")]
+                fft,
             } => match msg {
                 GraphMsg::Record { script, reply } => {
                     let res = run_record(

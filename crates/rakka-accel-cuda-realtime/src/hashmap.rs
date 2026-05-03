@@ -62,7 +62,9 @@ impl GpuHashMapActor {
 
     fn split_keys(&self, keys: &[u8]) -> Result<Vec<Vec<u8>>, GpuError> {
         if self.config.key_size_bytes == 0 {
-            return Err(GpuError::Unrecoverable("GpuHashMap: key_size_bytes == 0".into()));
+            return Err(GpuError::Unrecoverable(
+                "GpuHashMap: key_size_bytes == 0".into(),
+            ));
         }
         if keys.len() % self.config.key_size_bytes != 0 {
             return Err(GpuError::Unrecoverable(format!(
@@ -81,10 +83,17 @@ impl GpuHashMapActor {
 impl GpuHashMapActor {
     async fn handle_msg(&mut self, _ctx: &mut Context<Self>, msg: GpuHashMapMsg) {
         match msg {
-            GpuHashMapMsg::Insert { keys, values, reply } => {
+            GpuHashMapMsg::Insert {
+                keys,
+                values,
+                reply,
+            } => {
                 let key_chunks = match self.split_keys(&keys) {
                     Ok(v) => v,
-                    Err(e) => { let _ = reply.send(Err(e)); return; }
+                    Err(e) => {
+                        let _ = reply.send(Err(e));
+                        return;
+                    }
                 };
                 let n = key_chunks.len();
                 if values.len() != n * self.config.value_size_bytes {
@@ -110,13 +119,18 @@ impl GpuHashMapActor {
             GpuHashMapMsg::Lookup { keys, reply } => {
                 let key_chunks = match self.split_keys(&keys) {
                     Ok(v) => v,
-                    Err(e) => { let _ = reply.send(Err(e)); return; }
+                    Err(e) => {
+                        let _ = reply.send(Err(e));
+                        return;
+                    }
                 };
                 let mut out = Vec::with_capacity(key_chunks.len() * self.config.value_size_bytes);
                 for k in key_chunks {
                     match self.table.get(&k) {
                         Some(v) => out.extend_from_slice(v),
-                        None => out.extend(std::iter::repeat(0u8).take(self.config.value_size_bytes)),
+                        None => {
+                            out.extend(std::iter::repeat(0u8).take(self.config.value_size_bytes))
+                        }
                     }
                 }
                 let _ = reply.send(Ok(out));
@@ -149,27 +163,48 @@ mod tests {
             key_size_bytes: 4,
             value_size_bytes: 4,
         };
-        let sys = ActorSystem::create("hm-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("hm-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys.actor_of(GpuHashMapActor::props(cfg), "hm").unwrap();
 
         // Two keys: [1,0,0,0] -> [42,0,0,0], [2,0,0,0] -> [99,0,0,0].
         let keys = vec![1u8, 0, 0, 0, 2, 0, 0, 0];
         let values = vec![42u8, 0, 0, 0, 99, 0, 0, 0];
         let (tx, rx) = oneshot::channel();
-        actor.tell(GpuHashMapMsg::Insert { keys: keys.clone(), values, reply: tx });
-        let inserted = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        actor.tell(GpuHashMapMsg::Insert {
+            keys: keys.clone(),
+            values,
+            reply: tx,
+        });
+        let inserted = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(inserted, 2);
 
         let (tx, rx) = oneshot::channel();
         actor.tell(GpuHashMapMsg::Lookup { keys, reply: tx });
-        let out = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let out = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(out[0], 42);
         assert_eq!(out[4], 99);
 
         // Lookup missing key — returns zeros.
         let (tx, rx) = oneshot::channel();
-        actor.tell(GpuHashMapMsg::Lookup { keys: vec![7, 0, 0, 0], reply: tx });
-        let out = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        actor.tell(GpuHashMapMsg::Lookup {
+            keys: vec![7, 0, 0, 0],
+            reply: tx,
+        });
+        let out = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(out, vec![0, 0, 0, 0]);
 
         sys.terminate().await;

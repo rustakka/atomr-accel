@@ -93,9 +93,8 @@ impl RecordMode for MemcpyRecorder {
         let MemcpyOp { src, dst } = op;
         let src_slice = src.access()?.clone();
         let dst_slice = dst.access()?.clone();
-        let mut dst_owned = Arc::try_unwrap(dst_slice).map_err(|_| {
-            GpuError::Unrecoverable("MemcpyRecorder: dst has multiple refs".into())
-        })?;
+        let mut dst_owned = Arc::try_unwrap(dst_slice)
+            .map_err(|_| GpuError::Unrecoverable("MemcpyRecorder: dst has multiple refs".into()))?;
         stream
             .memcpy_dtod(&*src_slice, &mut dst_owned)
             .map_err(|e| GpuError::LibraryError {
@@ -135,9 +134,8 @@ impl<'a> RecordMode for FftRecorder<'a> {
         let FftR2COp { src, dst } = op;
         let src_slice = src.access()?.clone();
         let dst_slice = dst.access()?.clone();
-        let mut dst_owned = Arc::try_unwrap(dst_slice).map_err(|_| {
-            GpuError::Unrecoverable("FftRecorder: dst has multiple refs".into())
-        })?;
+        let mut dst_owned = Arc::try_unwrap(dst_slice)
+            .map_err(|_| GpuError::Unrecoverable("FftRecorder: dst has multiple refs".into()))?;
         self.plan
             .exec_r2c(&*src_slice, &mut dst_owned)
             .map_err(|e| GpuError::LibraryError {
@@ -160,9 +158,8 @@ impl<'a> RecordMode for RngRecorder<'a> {
     ) -> Result<(), GpuError> {
         let RngFillUniformOp { dst } = op;
         let dst_slice = dst.access()?.clone();
-        let mut owned = Arc::try_unwrap(dst_slice).map_err(|_| {
-            GpuError::Unrecoverable("RngRecorder: dst has multiple refs".into())
-        })?;
+        let mut owned = Arc::try_unwrap(dst_slice)
+            .map_err(|_| GpuError::Unrecoverable("RngRecorder: dst has multiple refs".into()))?;
         self.rng
             .fill_with_uniform(&mut owned)
             .map_err(|e| GpuError::LibraryError {
@@ -183,22 +180,34 @@ impl<'a> RecordMode for BlasRecorder<'a> {
         stream: &Arc<cudarc::driver::CudaStream>,
         op: Self::Op,
     ) -> Result<(), GpuError> {
-        let BlasSgemmOp { a, b, c, m, n, k, alpha, beta } = op;
+        let BlasSgemmOp {
+            a,
+            b,
+            c,
+            m,
+            n,
+            k,
+            alpha,
+            beta,
+        } = op;
         let a_slice = a.access()?.clone();
         let b_slice = b.access()?.clone();
         let c_slice = c.access()?.clone();
         let mut c_owned = Arc::try_unwrap(c_slice).map_err(|_| {
-            GpuError::Unrecoverable(
-                "BlasRecorder: C has multiple live references".into(),
-            )
+            GpuError::Unrecoverable("BlasRecorder: C has multiple live references".into())
         })?;
 
         let cfg = GemmConfig::<f32> {
             transa: cublasOperation_t::CUBLAS_OP_N,
             transb: cublasOperation_t::CUBLAS_OP_N,
-            m, n, k,
+            m,
+            n,
+            k,
             alpha,
-            lda: m, ldb: k, beta, ldc: m,
+            lda: m,
+            ldb: k,
+            beta,
+            ldc: m,
         };
         // SAFETY: m/n/k validity is the caller's contract.
         unsafe {

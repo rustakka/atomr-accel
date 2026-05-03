@@ -18,7 +18,9 @@ const N: usize = 1024;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn pinned_h2d_d2h_roundtrip() {
-    let sys = ActorSystem::create("pinned-e2e", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("pinned-e2e", Config::empty())
+        .await
+        .unwrap();
     let device = sys
         .actor_of(DeviceActor::props(DeviceConfig::new(0)), "device-0")
         .unwrap();
@@ -39,7 +41,10 @@ async fn pinned_h2d_d2h_roundtrip() {
     let bytes = N * std::mem::size_of::<f32>();
     let handle = pool
         .ask_with(
-            move |tx| PinnedPoolMsg::Acquire { len_bytes: bytes, reply: tx },
+            move |tx| PinnedPoolMsg::Acquire {
+                len_bytes: bytes,
+                reply: tx,
+            },
             Duration::from_secs(5),
         )
         .await
@@ -67,12 +72,19 @@ async fn pinned_h2d_d2h_roundtrip() {
         dst: gpu.clone(),
         reply: tx,
     });
-    let _ = tokio::time::timeout(Duration::from_secs(10), rx).await.unwrap().unwrap().unwrap();
+    let _ = tokio::time::timeout(Duration::from_secs(10), rx)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
 
     // D2H into a fresh pinned buffer.
     let dst_handle = pool
         .ask_with(
-            move |tx| PinnedPoolMsg::Acquire { len_bytes: bytes, reply: tx },
+            move |tx| PinnedPoolMsg::Acquire {
+                len_bytes: bytes,
+                reply: tx,
+            },
             Duration::from_secs(5),
         )
         .await
@@ -85,7 +97,11 @@ async fn pinned_h2d_d2h_roundtrip() {
         dst: HostBuf::Pinned(dst_pinned),
         reply: tx,
     });
-    let returned = tokio::time::timeout(Duration::from_secs(10), rx).await.unwrap().unwrap().unwrap();
+    let returned = tokio::time::timeout(Duration::from_secs(10), rx)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
     let pinned = match returned {
         HostBuf::Pinned(p) => p,
         HostBuf::Owned(_) => panic!("expected pinned dst back"),

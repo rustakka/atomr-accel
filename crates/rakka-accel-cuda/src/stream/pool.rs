@@ -20,8 +20,14 @@ impl PooledAllocator {
     /// Construct a pool from a vector of pre-existing streams. All
     /// streams must belong to the same context.
     pub fn new(streams: Vec<Arc<CudaStream>>) -> Self {
-        assert!(!streams.is_empty(), "PooledAllocator requires at least one stream");
-        Self { pool: streams, cursor: parking_lot::Mutex::new(0) }
+        assert!(
+            !streams.is_empty(),
+            "PooledAllocator requires at least one stream"
+        );
+        Self {
+            pool: streams,
+            cursor: parking_lot::Mutex::new(0),
+        }
     }
 
     /// Construct a pool by minting `count` fresh streams on `ctx`.

@@ -7,15 +7,17 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rakka_config::Config;
-use rakka_core::actor::ActorSystem;
 use rakka_accel_cuda::device::{DeviceActor, DeviceConfig, DeviceMsg, DeviceState};
 use rakka_accel_cuda::p2p::{P2pMsg, P2pTopology};
+use rakka_config::Config;
+use rakka_core::actor::ActorSystem;
 use tokio::sync::oneshot;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn watch_generation_delivers_a_receiver() {
-    let sys = ActorSystem::create("watch-gen-receiver", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("watch-gen-receiver", Config::empty())
+        .await
+        .unwrap();
     let dev = sys
         .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "dev0")
         .unwrap();
@@ -35,7 +37,9 @@ async fn watch_generation_delivers_a_receiver() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn p2p_topology_receives_generation_tick() {
-    let sys = ActorSystem::create("watch-gen-p2p", Config::empty()).await.unwrap();
+    let sys = ActorSystem::create("watch-gen-p2p", Config::empty())
+        .await
+        .unwrap();
     let dev = sys
         .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "dev0")
         .unwrap();

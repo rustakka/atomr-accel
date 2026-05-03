@@ -41,9 +41,13 @@ fn print_help() {
     println!("  cargo xtask <subcommand>");
     println!();
     println!("SUBCOMMANDS:");
-    println!("  bump <patch|minor|major>      bump workspace version + python version + Cargo.lock");
+    println!(
+        "  bump <patch|minor|major>      bump workspace version + python version + Cargo.lock"
+    );
     println!("  bump --pre <id>               append a pre-release identifier (e.g. rc.1)");
-    println!("  bump --set <version>          set an exact version (used by Release-As: overrides)");
+    println!(
+        "  bump --set <version>          set an exact version (used by Release-As: overrides)"
+    );
     println!("  verify                        run fmt + clippy + test (release-pipeline gate)");
     println!("  help                          print this help");
 }
@@ -66,7 +70,9 @@ fn bump(args: Vec<String>) -> Result<()> {
             let id = iter.next().ok_or_else(|| anyhow!("--pre requires <id>"))?;
             semver_bump(&current, BumpKind::Pre(id))?
         }
-        "--set" => iter.next().ok_or_else(|| anyhow!("--set requires <version>"))?,
+        "--set" => iter
+            .next()
+            .ok_or_else(|| anyhow!("--set requires <version>"))?,
         other => return Err(anyhow!("unknown bump arg: {other}")),
     };
     println!("{} -> {}", current, next);
@@ -76,7 +82,9 @@ fn bump(args: Vec<String>) -> Result<()> {
         write_pyproject_version(pyproject, &next)?;
     }
     // Refresh Cargo.lock so the workspace builds against the new version.
-    let _ = Command::new(env!("CARGO")).args(["update", "--workspace"]).status();
+    let _ = Command::new(env!("CARGO"))
+        .args(["update", "--workspace"])
+        .status();
     println!("RAKKA_CUDA_NEW_VERSION={next}");
     Ok(())
 }
@@ -127,7 +135,10 @@ fn read_workspace_version(path: &Path) -> Result<String> {
     let block_start = text
         .find("[workspace.package]")
         .ok_or_else(|| anyhow!("no [workspace.package] block in {}", path.display()))?;
-    let block_end = text[block_start..].find("\n[").map(|i| block_start + i).unwrap_or(text.len());
+    let block_end = text[block_start..]
+        .find("\n[")
+        .map(|i| block_start + i)
+        .unwrap_or(text.len());
     let block = &text[block_start..block_end];
     for line in block.lines() {
         let trimmed = line.trim_start();
@@ -142,12 +153,18 @@ fn read_workspace_version(path: &Path) -> Result<String> {
 
 fn write_workspace_version(path: &Path, version: &str) -> Result<()> {
     let text = std::fs::read_to_string(path)?;
-    let block_start =
-        text.find("[workspace.package]").ok_or_else(|| anyhow!("no [workspace.package] block"))?;
+    let block_start = text
+        .find("[workspace.package]")
+        .ok_or_else(|| anyhow!("no [workspace.package] block"))?;
     let after_block = &text[block_start..];
-    let local_idx = after_block.find("version = ").ok_or_else(|| anyhow!("no version line"))?;
+    let local_idx = after_block
+        .find("version = ")
+        .ok_or_else(|| anyhow!("no version line"))?;
     let abs = block_start + local_idx;
-    let line_end = text[abs..].find('\n').map(|i| abs + i).unwrap_or(text.len());
+    let line_end = text[abs..]
+        .find('\n')
+        .map(|i| abs + i)
+        .unwrap_or(text.len());
     let new_line = format!("version = \"{version}\"");
     let mut out = String::with_capacity(text.len() + new_line.len());
     out.push_str(&text[..abs]);
@@ -259,24 +276,74 @@ fn verify() -> Result<()> {
                 "warnings",
             ],
         ),
-        ("test (no-default-features)", &["test", "--workspace", "--no-default-features"]),
+        (
+            "test (no-default-features)",
+            &["test", "--workspace", "--no-default-features"],
+        ),
         (
             "check (training-libs)",
-            &["check", "--workspace", "--features", "rakka-accel-cuda/training-libs"],
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/training-libs",
+            ],
         ),
-        ("check (full-cuda)", &["check", "--workspace", "--features", "rakka-accel-cuda/full-cuda"]),
-        ("check (replay)", &["check", "--workspace", "--features", "rakka-accel-cuda/replay"]),
-        ("check (cluster)", &["check", "--workspace", "--features", "rakka-accel-cuda/cluster"]),
-        ("check (streams)", &["check", "--workspace", "--features", "rakka-accel-cuda/streams"]),
-        ("check (telemetry)", &["check", "--workspace", "--features", "rakka-accel-cuda/telemetry"]),
+        (
+            "check (full-cuda)",
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/full-cuda",
+            ],
+        ),
+        (
+            "check (replay)",
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/replay",
+            ],
+        ),
+        (
+            "check (cluster)",
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/cluster",
+            ],
+        ),
+        (
+            "check (streams)",
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/streams",
+            ],
+        ),
+        (
+            "check (telemetry)",
+            &[
+                "check",
+                "--workspace",
+                "--features",
+                "rakka-accel-cuda/telemetry",
+            ],
+        ),
         ("doc", &["doc", "--workspace", "--no-deps"]),
     ];
     for (label, args) in steps {
         println!("==> verify: {label}");
-        let status = Command::new(cargo)
-            .args(args)
-            .status()
-            .with_context(|| format!("spawning cargo {} for verify step `{label}`", args.join(" ")))?;
+        let status = Command::new(cargo).args(args).status().with_context(|| {
+            format!(
+                "spawning cargo {} for verify step `{label}`",
+                args.join(" ")
+            )
+        })?;
         if !status.success() {
             return Err(anyhow!("verify step `{label}` failed ({status})"));
         }

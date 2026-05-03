@@ -56,10 +56,7 @@ pub enum GpuError {
     /// `"cublaslt"`, `"nvrtc"`, `"nccl"`). Callers that need to
     /// discriminate library failures match on `lib`.
     #[error("cudarc {lib} error: {msg}")]
-    LibraryError {
-        lib: &'static str,
-        msg: String,
-    },
+    LibraryError { lib: &'static str, msg: String },
 
     #[error("ask timed out before GPU completion")]
     Timeout,
@@ -68,7 +65,10 @@ pub enum GpuError {
 impl GpuError {
     /// Construct a tagged library error.
     pub fn lib(lib: &'static str, msg: impl Into<String>) -> Self {
-        Self::LibraryError { lib, msg: msg.into() }
+        Self::LibraryError {
+            lib,
+            msg: msg.into(),
+        }
     }
 }
 

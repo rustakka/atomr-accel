@@ -129,30 +129,47 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn fifo_token_handoff() {
-        let sys = ActorSystem::create("shared-state-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("shared-state-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(SharedGpuStateCoordinator::props(), "coord")
             .unwrap();
 
         // Agent 1 acquires.
         let (tx1, rx1) = oneshot::channel();
-        actor.tell(SharedStateMsg::AcquireWrite { agent_id: 1, reply: tx1 });
-        let t1 = tokio::time::timeout(Duration::from_secs(2), rx1).await.unwrap().unwrap();
+        actor.tell(SharedStateMsg::AcquireWrite {
+            agent_id: 1,
+            reply: tx1,
+        });
+        let t1 = tokio::time::timeout(Duration::from_secs(2), rx1)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Agent 2 queues.
         let (tx2, rx2) = oneshot::channel();
-        actor.tell(SharedStateMsg::AcquireWrite { agent_id: 2, reply: tx2 });
+        actor.tell(SharedStateMsg::AcquireWrite {
+            agent_id: 2,
+            reply: tx2,
+        });
         // Stats: holder=1, waiting=1.
         tokio::time::sleep(Duration::from_millis(50)).await;
         let (sx, sr) = oneshot::channel();
         actor.tell(SharedStateMsg::Stats { reply: sx });
-        let stats = tokio::time::timeout(Duration::from_secs(2), sr).await.unwrap().unwrap();
+        let stats = tokio::time::timeout(Duration::from_secs(2), sr)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(stats.current_holder, Some(1));
         assert_eq!(stats.waiting, 1);
 
         // Agent 1 releases. Agent 2 should receive its token.
         actor.tell(SharedStateMsg::ReleaseWrite { token: t1 });
-        let t2 = tokio::time::timeout(Duration::from_secs(2), rx2).await.unwrap().unwrap();
+        let t2 = tokio::time::timeout(Duration::from_secs(2), rx2)
+            .await
+            .unwrap()
+            .unwrap();
         assert_ne!(t1, t2);
 
         sys.terminate().await;

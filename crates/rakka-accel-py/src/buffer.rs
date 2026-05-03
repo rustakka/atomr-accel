@@ -19,7 +19,9 @@ pub struct PyGpuBuffer {
 
 impl PyGpuBuffer {
     pub fn new(g: GpuRef<f32>) -> Self {
-        Self { inner: Mutex::new(Some(g)) }
+        Self {
+            inner: Mutex::new(Some(g)),
+        }
     }
 
     /// Borrow the underlying GpuRef. Returns None if the buffer was
@@ -58,11 +60,7 @@ impl PyGpuBuffer {
     fn __repr__(&self) -> String {
         let g = self.inner.lock();
         match g.as_ref() {
-            Some(r) => format!(
-                "GpuBuffer(len={}, device={:?})",
-                r.len(),
-                r.device_id()
-            ),
+            Some(r) => format!("GpuBuffer(len={}, device={:?})", r.len(), r.device_id()),
             None => "GpuBuffer(consumed)".to_string(),
         }
     }

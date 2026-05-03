@@ -236,15 +236,11 @@ pub enum DeviceMsg {
     },
 
     /// F5: Per-device load snapshot for placement scheduling.
-    Stats {
-        reply: oneshot::Sender<DeviceLoad>,
-    },
+    Stats { reply: oneshot::Sender<DeviceLoad> },
 
     /// Internal: `ContextActor` has finished initialising and the
     /// kernel actors are live.
-    ContextReady {
-        children: KernelChildren,
-    },
+    ContextReady { children: KernelChildren },
     /// Internal: `ContextActor` notifies that the context was torn
     /// down (e.g. on poisoning); pending work should be re-stashed
     /// until a new `ContextReady` arrives.
@@ -308,7 +304,13 @@ pub struct DeviceActor {
 impl DeviceActor {
     pub fn new(config: DeviceConfig) -> Self {
         let state = Arc::new(DeviceState::new(config.device_id));
-        Self { config, state, context_ref: None, children: None, pending: VecDeque::new() }
+        Self {
+            config,
+            state,
+            context_ref: None,
+            children: None,
+            pending: VecDeque::new(),
+        }
     }
 
     /// Construct a `Props<DeviceActor>` with the given configuration.
@@ -379,11 +381,7 @@ impl Actor for DeviceActor {
     async fn pre_start(&mut self, ctx: &mut Context<Self>) {
         debug!(device_id = self.config.device_id, "DeviceActor pre_start");
         let parent_ref = ctx.self_ref().clone();
-        let props = ContextActor::props(
-            self.state.clone(),
-            self.config.clone(),
-            parent_ref,
-        );
+        let props = ContextActor::props(self.state.clone(), self.config.clone(), parent_ref);
         match ctx.spawn::<ContextActor>(props, "ctx") {
             Ok(r) => {
                 self.context_ref = Some(r);
@@ -407,136 +405,246 @@ impl Actor for DeviceActor {
         match msg {
             DeviceMsg::Allocate { len, reply } | DeviceMsg::AllocateF32 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateF32 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateF32 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateF32 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateF32 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateF64 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateF64 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateF64 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateF64 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateF64 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateI8 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateI8 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateI8 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateI8 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateI8 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateI32 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateI32 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateI32 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateI32 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateI32 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateI64 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateI64 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateI64 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateI64 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateI64 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateU8 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateU8 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateU8 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateU8 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateU8 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateU32 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateU32 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateU32 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateU32 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateU32 { len, reply })
+                    })));
                 }
             }
             DeviceMsg::AllocateU64 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateU64 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateU64 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateU64 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateU64 { len, reply })
+                    })));
                 }
             }
             #[cfg(feature = "f16")]
             DeviceMsg::AllocateF16 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateF16 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateF16 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateF16 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateF16 { len, reply })
+                    })));
                 }
             }
             #[cfg(feature = "f16")]
             DeviceMsg::AllocateBf16 { len, reply } => {
                 if ready {
-                    self.context_ref.as_ref().unwrap().tell(ContextMsg::AllocateBf16 { len, reply });
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::AllocateBf16 { len, reply });
                 } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(
-                        move |c, _b| c.tell(ContextMsg::AllocateBf16 { len, reply }),
-                    )));
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
+                        c.tell(ContextMsg::AllocateBf16 { len, reply })
+                    })));
                 }
             }
 
             DeviceMsg::CopyToHostF32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyToHostF32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyToHostF32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyToHostF32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyToHostF32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyFromHostF32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyFromHostF32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyFromHostF32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyFromHostF32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyFromHostF32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyToHostF64 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyToHostF64 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyToHostF64 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyToHostF64 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyToHostF64 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyFromHostF64 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyFromHostF64 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyFromHostF64 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyFromHostF64 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyFromHostF64 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyToHostI32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyToHostI32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyToHostI32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyToHostI32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyToHostI32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyFromHostI32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyFromHostI32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyFromHostI32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyFromHostI32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyFromHostI32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyToHostU32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyToHostU32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyToHostU32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyToHostU32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyToHostU32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyFromHostU32 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyFromHostU32 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyFromHostU32 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyFromHostU32 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyFromHostU32 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyToHostU8 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyToHostU8 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyToHostU8 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyToHostU8 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyToHostU8 { src, dst, reply })
+                    })));
+                }
             }
             DeviceMsg::CopyFromHostU8 { src, dst, reply } => {
-                if ready { self.context_ref.as_ref().unwrap().tell(ContextMsg::CopyFromHostU8 { src, dst, reply }); }
-                else { self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| c.tell(ContextMsg::CopyFromHostU8 { src, dst, reply })))); }
+                if ready {
+                    self.context_ref
+                        .as_ref()
+                        .unwrap()
+                        .tell(ContextMsg::CopyFromHostU8 { src, dst, reply });
+                } else {
+                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
+                        c.tell(ContextMsg::CopyFromHostU8 { src, dst, reply })
+                    })));
+                }
             }
 
             DeviceMsg::Sgemm(req) => match &self.children {
@@ -577,7 +685,9 @@ impl Actor for DeviceActor {
             match work {
                 WorkRequest::Boxed(_) => { /* reply drops with closure */ }
                 WorkRequest::Sgemm(req) => {
-                    let _ = req.reply.send(Err(GpuError::GpuRefStale("device shutting down")));
+                    let _ = req
+                        .reply
+                        .send(Err(GpuError::GpuRefStale("device shutting down")));
                 }
                 WorkRequest::SnapshotContext { reply } => {
                     let _ = reply.send(None);
@@ -602,8 +712,8 @@ impl DeviceActor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rakka_core::actor::ActorSystem;
     use rakka_config::Config;
+    use rakka_core::actor::ActorSystem;
     use std::time::Duration;
 
     /// Smoke test — DeviceActor in mock mode should accept Allocate

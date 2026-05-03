@@ -75,7 +75,9 @@ impl CompletionStrategy for HostFnCompletion {
             // drops the oneshot, so `rx.await` returns a closed-channel
             // error that we map to a typed failure.
             unsafe {
-                drop(Box::from_raw(arg as *mut oneshot::Sender<Result<(), GpuError>>));
+                drop(Box::from_raw(
+                    arg as *mut oneshot::Sender<Result<(), GpuError>>,
+                ));
             }
             let msg = format!("cuLaunchHostFunc failed: {e}");
             return async move { Err(GpuError::Driver(msg)) }.boxed();

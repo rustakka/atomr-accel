@@ -76,7 +76,9 @@ pub struct InferenceCascade<Req: Send + 'static, Resp: Send + 'static> {
 
 impl<Req: Send + 'static, Resp: Send + 'static> InferenceCascade<Req, Resp> {
     pub fn props(config: CascadeConfig<Req, Resp>) -> Props<Self> {
-        Props::create(move || InferenceCascade { config: config.clone() })
+        Props::create(move || InferenceCascade {
+            config: config.clone(),
+        })
     }
 }
 
@@ -142,25 +144,35 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cascade_returns_first_confident_stage() {
         // Stage 0: low confidence (0.3). Stage 1: high (0.9).
-        let s0: Arc<dyn CascadeStage<u32, u32>> =
-            Arc::new(|x: &u32| Ok((*x + 1, 0.3)));
-        let s1: Arc<dyn CascadeStage<u32, u32>> =
-            Arc::new(|x: &u32| Ok((*x + 100, 0.9)));
+        let s0: Arc<dyn CascadeStage<u32, u32>> = Arc::new(|x: &u32| Ok((*x + 1, 0.3)));
+        let s1: Arc<dyn CascadeStage<u32, u32>> = Arc::new(|x: &u32| Ok((*x + 100, 0.9)));
         let cfg = CascadeConfig {
             stages: vec![
-                CascadeStageEntry { stage: s0, confidence_threshold: 0.5 },
-                CascadeStageEntry { stage: s1, confidence_threshold: 0.5 },
+                CascadeStageEntry {
+                    stage: s0,
+                    confidence_threshold: 0.5,
+                },
+                CascadeStageEntry {
+                    stage: s1,
+                    confidence_threshold: 0.5,
+                },
             ],
         };
 
-        let sys = ActorSystem::create("cascade-test", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("cascade-test", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(InferenceCascade::<u32, u32>::props(cfg), "cascade")
             .unwrap();
 
         let (tx, rx) = oneshot::channel();
         actor.tell(CascadeMsg::Predict { req: 5, reply: tx });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         // Stage 1's threshold met first.
         assert_eq!(r.response, 105);
         assert_eq!(r.stage_index, 1);
@@ -171,25 +183,35 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cascade_falls_through_to_last_stage() {
         // Both stages below threshold; cascade returns last.
-        let s0: Arc<dyn CascadeStage<u32, u32>> =
-            Arc::new(|x: &u32| Ok((*x + 1, 0.1)));
-        let s1: Arc<dyn CascadeStage<u32, u32>> =
-            Arc::new(|x: &u32| Ok((*x + 2, 0.2)));
+        let s0: Arc<dyn CascadeStage<u32, u32>> = Arc::new(|x: &u32| Ok((*x + 1, 0.1)));
+        let s1: Arc<dyn CascadeStage<u32, u32>> = Arc::new(|x: &u32| Ok((*x + 2, 0.2)));
         let cfg = CascadeConfig {
             stages: vec![
-                CascadeStageEntry { stage: s0, confidence_threshold: 0.99 },
-                CascadeStageEntry { stage: s1, confidence_threshold: 0.99 },
+                CascadeStageEntry {
+                    stage: s0,
+                    confidence_threshold: 0.99,
+                },
+                CascadeStageEntry {
+                    stage: s1,
+                    confidence_threshold: 0.99,
+                },
             ],
         };
 
-        let sys = ActorSystem::create("cascade-fall", Config::empty()).await.unwrap();
+        let sys = ActorSystem::create("cascade-fall", Config::empty())
+            .await
+            .unwrap();
         let actor = sys
             .actor_of(InferenceCascade::<u32, u32>::props(cfg), "cascade")
             .unwrap();
 
         let (tx, rx) = oneshot::channel();
         actor.tell(CascadeMsg::Predict { req: 0, reply: tx });
-        let r = tokio::time::timeout(Duration::from_secs(2), rx).await.unwrap().unwrap().unwrap();
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
         assert_eq!(r.response, 2);
         assert_eq!(r.stage_index, 1);
 

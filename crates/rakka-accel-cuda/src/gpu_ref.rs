@@ -46,7 +46,9 @@ struct GpuRefInner<T> {
 
 impl<T> Clone for GpuRef<T> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 

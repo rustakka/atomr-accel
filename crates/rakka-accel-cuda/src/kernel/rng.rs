@@ -116,7 +116,9 @@ impl RngActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| RngActor { inner: RngInner::Mock })
+        Props::create(|| RngActor {
+            inner: RngInner::Mock,
+        })
     }
 }
 
@@ -130,7 +132,12 @@ impl Actor for RngActor {
                 reply_mock(msg);
                 return;
             }
-            RngInner::Real { rng, stream, completion, .. } => (rng, stream, completion),
+            RngInner::Real {
+                rng,
+                stream,
+                completion,
+                ..
+            } => (rng, stream, completion),
         };
 
         match msg {
@@ -143,22 +150,35 @@ impl Actor for RngActor {
             RngMsg::FillUniformU32 { dst, reply } => {
                 fill_uniform::<u32>(rng_lock, stream, completion, dst, reply);
             }
-            RngMsg::FillNormalF32 { dst, mean, std, reply } => {
+            RngMsg::FillNormalF32 {
+                dst,
+                mean,
+                std,
+                reply,
+            } => {
                 fill_normal::<f32>(rng_lock, stream, completion, dst, mean, std, reply);
             }
-            RngMsg::FillNormalF64 { dst, mean, std, reply } => {
+            RngMsg::FillNormalF64 {
+                dst,
+                mean,
+                std,
+                reply,
+            } => {
                 fill_normal::<f64>(rng_lock, stream, completion, dst, mean, std, reply);
             }
-            RngMsg::FillLogNormalF32 { dst, mean, std, reply } => {
+            RngMsg::FillLogNormalF32 {
+                dst,
+                mean,
+                std,
+                reply,
+            } => {
                 fill_log_normal::<f32>(rng_lock, stream, completion, dst, mean, std, reply);
             }
             RngMsg::Reseed { seed, reply } => {
                 let mut g = rng_lock.lock();
-                let _ = reply.send(g.0.set_seed(seed).map_err(|e| {
-                    GpuError::LibraryError {
-                        lib: LIB,
-                        msg: format!("set_seed: {e}"),
-                    }
+                let _ = reply.send(g.0.set_seed(seed).map_err(|e| GpuError::LibraryError {
+                    lib: LIB,
+                    msg: format!("set_seed: {e}"),
                 }));
             }
         }
@@ -213,22 +233,15 @@ fn fill_uniform<T>(
     };
     let lib_lock = rng_lock;
     dst.record_write(stream);
-    envelope::run_kernel(
-        LIB,
-        stream,
-        completion,
-        (),
-        reply,
-        move || {
-            let g = lib_lock.lock();
-            g.0.fill_with_uniform(&mut owned)
-                .map(|_| (owned,))
-                .map_err(|e| GpuError::LibraryError {
-                    lib: LIB,
-                    msg: format!("fill_uniform: {e}"),
-                })
-        },
-    );
+    envelope::run_kernel(LIB, stream, completion, (), reply, move || {
+        let g = lib_lock.lock();
+        g.0.fill_with_uniform(&mut owned)
+            .map(|_| (owned,))
+            .map_err(|e| GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("fill_uniform: {e}"),
+            })
+    });
 }
 
 fn fill_normal<T>(
@@ -261,22 +274,15 @@ fn fill_normal<T>(
     };
     let lib_lock = rng_lock;
     dst.record_write(stream);
-    envelope::run_kernel(
-        LIB,
-        stream,
-        completion,
-        (),
-        reply,
-        move || {
-            let g = lib_lock.lock();
-            g.0.fill_with_normal(&mut owned, mean, std)
-                .map(|_| (owned,))
-                .map_err(|e| GpuError::LibraryError {
-                    lib: LIB,
-                    msg: format!("fill_normal: {e}"),
-                })
-        },
-    );
+    envelope::run_kernel(LIB, stream, completion, (), reply, move || {
+        let g = lib_lock.lock();
+        g.0.fill_with_normal(&mut owned, mean, std)
+            .map(|_| (owned,))
+            .map_err(|e| GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("fill_normal: {e}"),
+            })
+    });
 }
 
 fn fill_log_normal<T>(
@@ -309,20 +315,13 @@ fn fill_log_normal<T>(
     };
     let lib_lock = rng_lock;
     dst.record_write(stream);
-    envelope::run_kernel(
-        LIB,
-        stream,
-        completion,
-        (),
-        reply,
-        move || {
-            let g = lib_lock.lock();
-            g.0.fill_with_log_normal(&mut owned, mean, std)
-                .map(|_| (owned,))
-                .map_err(|e| GpuError::LibraryError {
-                    lib: LIB,
-                    msg: format!("fill_log_normal: {e}"),
-                })
-        },
-    );
+    envelope::run_kernel(LIB, stream, completion, (), reply, move || {
+        let g = lib_lock.lock();
+        g.0.fill_with_log_normal(&mut owned, mean, std)
+            .map(|_| (owned,))
+            .map_err(|e| GpuError::LibraryError {
+                lib: LIB,
+                msg: format!("fill_log_normal: {e}"),
+            })
+    });
 }

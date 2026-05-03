@@ -7,9 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use rakka_accel_cuda::prelude::*;
 use rakka_config::Config;
 use rakka_core::actor::{Actor, ActorSystem, Context, Props};
-use rakka_accel_cuda::prelude::*;
 
 /// A test actor that panics with `ContextPoisoned: ...` on its first
 /// message and succeeds afterwards. Used to confirm the supervisor
@@ -39,10 +39,14 @@ impl Actor for Crasher {
 async fn context_poisoned_panic_triggers_restart() {
     let starts = Arc::new(AtomicU32::new(0));
     let starts2 = starts.clone();
-    let props = Props::create(move || Crasher { starts: starts2.clone() })
-        .with_supervisor_strategy(device_supervisor_strategy());
+    let props = Props::create(move || Crasher {
+        starts: starts2.clone(),
+    })
+    .with_supervisor_strategy(device_supervisor_strategy());
 
-    let system = ActorSystem::create("supervision-test", Config::empty()).await.unwrap();
+    let system = ActorSystem::create("supervision-test", Config::empty())
+        .await
+        .unwrap();
     let actor = system.actor_of(props, "crasher").unwrap();
 
     actor.tell(());

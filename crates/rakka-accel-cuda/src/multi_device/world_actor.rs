@@ -34,7 +34,10 @@ pub struct NcclWorldConfig {
 
 impl NcclWorldConfig {
     pub fn new(device_ids: Vec<u32>) -> Self {
-        Self { device_ids, root: 0 }
+        Self {
+            device_ids,
+            root: 0,
+        }
     }
 }
 
@@ -148,9 +151,7 @@ impl NcclWorldActor {
             // F4.x we pass a fresh DeviceState per rank — the
             // device-id matches the request's device-id which is
             // what cross-validation needs.
-            let state = Arc::new(crate::device::DeviceState::new(
-                self.config.device_ids[i],
-            ));
+            let state = Arc::new(crate::device::DeviceState::new(self.config.device_ids[i]));
             let comp: Arc<dyn CompletionStrategy> = Arc::new(HostFnCompletion::new());
             let props = CollectiveActor::props_for_rank(comm, state, comp);
             match ctx.spawn::<CollectiveActor>(props, &format!("nccl-{i}")) {
@@ -274,7 +275,10 @@ impl Actor for NcclWorldActor {
 
     async fn handle(&mut self, ctx: &mut Context<Self>, msg: NcclWorldMsg) {
         match msg {
-            NcclWorldMsg::ChildReady { device_idx, device_ref } => {
+            NcclWorldMsg::ChildReady {
+                device_idx,
+                device_ref,
+            } => {
                 self.devices[device_idx] = Some(device_ref.clone());
 
                 // Subscribe to this device's generation watch and
@@ -308,7 +312,10 @@ impl Actor for NcclWorldActor {
 
                 self.try_build_world(ctx).await;
             }
-            NcclWorldMsg::DeviceContextChanged { device_idx, new_generation } => {
+            NcclWorldMsg::DeviceContextChanged {
+                device_idx,
+                new_generation,
+            } => {
                 let prev = self.last_generation.get(device_idx).copied().unwrap_or(0);
                 if new_generation <= prev {
                     return;

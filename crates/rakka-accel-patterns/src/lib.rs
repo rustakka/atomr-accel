@@ -37,11 +37,11 @@ pub mod prelude {
         CascadeConfig, CascadeMsg, CascadeReply, CascadeStageEntry, InferenceCascade,
     };
     pub use crate::hot_swap::{HotSwapMsg, HotSwapStats, ModelHotSwapServer};
-    pub use crate::mock::{
-        GpuMockActor, GpuMockMsg, MockConv, MockFftR2C, MockRngFill, MockSgemm,
-    };
+    pub use crate::mock::{GpuMockActor, GpuMockMsg, MockConv, MockFftR2C, MockRngFill, MockSgemm};
     pub use crate::moe::{MoeConfig, MoeMsg, MoeRouter};
-    pub use crate::replica_pool::{ModelReplicaPool, ReplicaPoolConfig, ReplicaPoolMsg, RoutingPolicy};
+    pub use crate::replica_pool::{
+        ModelReplicaPool, ReplicaPoolConfig, ReplicaPoolMsg, RoutingPolicy,
+    };
     pub use crate::scheduler::{
         FairShareConfig, FairShareMsg, FairShareScheduler, FairShareStats, TenantConfig, TenantId,
     };

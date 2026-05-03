@@ -113,7 +113,9 @@ struct SendModule(Arc<CudaModule>);
 unsafe impl Send for SendModule {}
 unsafe impl Sync for SendModule {}
 impl Clone for SendModule {
-    fn clone(&self) -> Self { Self(self.0.clone()) }
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 
 enum NvrtcInner {
@@ -147,7 +149,9 @@ impl NvrtcActor {
     }
 
     pub fn mock_props() -> Props<Self> {
-        Props::create(|| NvrtcActor { inner: NvrtcInner::Mock })
+        Props::create(|| NvrtcActor {
+            inner: NvrtcInner::Mock,
+        })
     }
 }
 
@@ -169,11 +173,27 @@ impl Actor for NvrtcActor {
                     )));
                 }
             },
-            NvrtcInner::Real { ctx, stream, completion, state, modules } => match msg {
-                NvrtcMsg::Compile { src, kernel_name, opts, reply } => {
+            NvrtcInner::Real {
+                ctx,
+                stream,
+                completion,
+                state,
+                modules,
+            } => match msg {
+                NvrtcMsg::Compile {
+                    src,
+                    kernel_name,
+                    opts,
+                    reply,
+                } => {
                     let _ = reply.send(handle_compile(ctx, state, modules, src, kernel_name, opts));
                 }
-                NvrtcMsg::Launch { kernel, args, cfg, reply } => {
+                NvrtcMsg::Launch {
+                    kernel,
+                    args,
+                    cfg,
+                    reply,
+                } => {
                     handle_launch(stream, completion, state, kernel, args, cfg, reply);
                 }
             },
@@ -252,11 +272,41 @@ fn handle_launch(
     let mut gpu_owners: Vec<Box<dyn std::any::Any + Send>> = Vec::new();
     for arg in &args {
         match arg {
-            KernelArg::DevSliceF32(g) => match g.access() { Ok(s) => gpu_owners.push(Box::new(s.clone())), Err(e) => { let _ = reply.send(Err(e)); return; } }
-            KernelArg::DevSliceF64(g) => match g.access() { Ok(s) => gpu_owners.push(Box::new(s.clone())), Err(e) => { let _ = reply.send(Err(e)); return; } }
-            KernelArg::DevSliceI32(g) => match g.access() { Ok(s) => gpu_owners.push(Box::new(s.clone())), Err(e) => { let _ = reply.send(Err(e)); return; } }
-            KernelArg::DevSliceU32(g) => match g.access() { Ok(s) => gpu_owners.push(Box::new(s.clone())), Err(e) => { let _ = reply.send(Err(e)); return; } }
-            KernelArg::DevSliceU8(g) => match g.access() { Ok(s) => gpu_owners.push(Box::new(s.clone())), Err(e) => { let _ = reply.send(Err(e)); return; } }
+            KernelArg::DevSliceF32(g) => match g.access() {
+                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+            },
+            KernelArg::DevSliceF64(g) => match g.access() {
+                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+            },
+            KernelArg::DevSliceI32(g) => match g.access() {
+                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+            },
+            KernelArg::DevSliceU32(g) => match g.access() {
+                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+            },
+            KernelArg::DevSliceU8(g) => match g.access() {
+                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+                Err(e) => {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+            },
             _ => {}
         }
     }
@@ -292,12 +342,24 @@ fn handle_launch(
                     let s = g.access().expect("re-validated above");
                     builder.arg(&**s);
                 }
-                KernelArg::ScalarF32(v) => { builder.arg(v); }
-                KernelArg::ScalarF64(v) => { builder.arg(v); }
-                KernelArg::ScalarI32(v) => { builder.arg(v); }
-                KernelArg::ScalarU32(v) => { builder.arg(v); }
-                KernelArg::ScalarU64(v) => { builder.arg(v); }
-                KernelArg::Usize(v) => { builder.arg(v); }
+                KernelArg::ScalarF32(v) => {
+                    builder.arg(v);
+                }
+                KernelArg::ScalarF64(v) => {
+                    builder.arg(v);
+                }
+                KernelArg::ScalarI32(v) => {
+                    builder.arg(v);
+                }
+                KernelArg::ScalarU32(v) => {
+                    builder.arg(v);
+                }
+                KernelArg::ScalarU64(v) => {
+                    builder.arg(v);
+                }
+                KernelArg::Usize(v) => {
+                    builder.arg(v);
+                }
             }
         }
         let res = unsafe { builder.launch(cfg) };

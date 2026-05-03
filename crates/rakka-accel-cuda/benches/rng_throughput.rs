@@ -38,7 +38,9 @@ fn bench_actor(c: &mut Criterion) {
     for &n in SIZES {
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |bencher, &n| {
             let (sys, device, rng) = rt.block_on(async {
-                let sys = ActorSystem::create("bench-rng", Config::empty()).await.unwrap();
+                let sys = ActorSystem::create("bench-rng", Config::empty())
+                    .await
+                    .unwrap();
                 let dev_cfg = DeviceConfig::new(0)
                     .with_libraries(EnabledLibraries::BLAS | EnabledLibraries::CURAND);
                 let device = sys.actor_of(DeviceActor::props(dev_cfg), "dev").unwrap();
@@ -65,7 +67,10 @@ fn bench_actor(c: &mut Criterion) {
                         .unwrap();
                     let r: Result<(), _> = rng
                         .ask_with(
-                            move |tx| RngMsg::FillUniformF32 { dst: buf, reply: tx },
+                            move |tx| RngMsg::FillUniformF32 {
+                                dst: buf,
+                                reply: tx,
+                            },
                             Duration::from_secs(2),
                         )
                         .await

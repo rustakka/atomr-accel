@@ -126,7 +126,11 @@ mod tests {
             ids.push(rx.recv_timeout(Duration::from_secs(2)).unwrap());
         }
         // All tasks ran on the same dispatcher thread...
-        assert!(ids.windows(2).all(|w| w[0] == w[1]), "tasks ran on different threads: {:?}", ids);
+        assert!(
+            ids.windows(2).all(|w| w[0] == w[1]),
+            "tasks ran on different threads: {:?}",
+            ids
+        );
         // ...and not the calling test thread.
         assert_ne!(ids[0], thread::current().id());
     }
