@@ -21,12 +21,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, ActorRef, Context, Props};
 use cudarc::driver::sys as driver_sys;
 use cudarc::driver::CudaContext;
 use cudarc::driver::DevicePtr;
 use cudarc::driver::DevicePtrMut;
 use parking_lot::Mutex;
-use atomr_core::actor::{Actor, ActorRef, Context, Props};
 use tokio::sync::oneshot;
 use tracing::info;
 

@@ -12,8 +12,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bitflags::bitflags;
 use atomr_core::actor::{Actor, ActorRef, Context, Props};
+use bitflags::bitflags;
 use tokio::sync::oneshot;
 use tracing::{debug, warn};
 

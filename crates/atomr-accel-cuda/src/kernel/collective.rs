@@ -10,9 +10,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, Context, Props};
 pub use cudarc::nccl::ReduceOp;
 use cudarc::nccl::{group_end, group_start, Comm};
-use atomr_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use crate::completion::CompletionStrategy;

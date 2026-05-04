@@ -15,9 +15,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, ActorRef, Context, Props};
 use cudarc::driver::DeviceRepr;
 use cudarc::driver::ValidAsZeroBits;
-use atomr_core::actor::{Actor, ActorRef, Context, Props};
 use tokio::sync::oneshot;
 use tracing::{debug, info, warn};
 

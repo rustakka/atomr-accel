@@ -18,11 +18,11 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, Context, Props};
 use cudarc::cufft::sys as cufft_sys;
 use cudarc::cufft::{CudaFft, FftDirection};
 use lru::LruCache;
 use parking_lot::Mutex;
-use atomr_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use crate::completion::CompletionStrategy;

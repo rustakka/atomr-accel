@@ -15,8 +15,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cudarc::nccl::Comm;
 use atomr_core::actor::{Actor, ActorRef, Context, Props};
+use cudarc::nccl::Comm;
 use tokio::sync::oneshot;
 use tracing::{info, warn};
 

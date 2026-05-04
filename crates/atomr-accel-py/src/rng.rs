@@ -7,9 +7,9 @@
 //! we ship a typed Python class so downstream code can already
 //! reference `atomr_accel.RngGenerator` via the facade.
 
-use pyo3::prelude::*;
 use atomr_accel_cuda::kernel::RngMsg;
 use atomr_core::actor::ActorRef;
+use pyo3::prelude::*;
 
 #[pyclass(name = "RngGenerator", module = "atomr_accel._native")]
 pub struct PyRngGenerator {

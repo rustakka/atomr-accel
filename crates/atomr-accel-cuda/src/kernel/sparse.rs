@@ -15,10 +15,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, Context, Props};
 use cudarc::cusparse::sys as cusparse_sys;
 use cudarc::driver::{CudaSlice, DevicePtr, DevicePtrMut};
 use parking_lot::Mutex;
-use atomr_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use crate::completion::CompletionStrategy;

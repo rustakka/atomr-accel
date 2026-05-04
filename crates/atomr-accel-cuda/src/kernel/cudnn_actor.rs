@@ -23,6 +23,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, Context, Props};
 use cudarc::cudnn::{
     sys as cudnn_sys, ActivationDescriptor, ActivationForward, ConvDescriptor, ConvForward, Cudnn,
     FilterDescriptor, Softmax, SoftmaxForward, TensorDescriptor,
@@ -30,7 +31,6 @@ use cudarc::cudnn::{
 use cudarc::driver::CudaSlice;
 use lru::LruCache;
 use parking_lot::Mutex;
-use atomr_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use crate::completion::CompletionStrategy;

@@ -17,8 +17,8 @@
 use std::sync::Arc;
 use std::thread;
 
-use futures_util::future::BoxFuture;
 use atomr_core::dispatch::{DefaultDispatcher, Dispatcher, DispatcherHandle};
+use futures_util::future::BoxFuture;
 use tokio::sync::oneshot;
 
 pub struct GpuDispatcher {

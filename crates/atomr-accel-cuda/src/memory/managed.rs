@@ -17,8 +17,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cudarc::runtime::sys as runtime_sys;
 use atomr_core::actor::{Actor, Context, Props};
+use cudarc::runtime::sys as runtime_sys;
 use tokio::sync::oneshot;
 
 use crate::error::GpuError;

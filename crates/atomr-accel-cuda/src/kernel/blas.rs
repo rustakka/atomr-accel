@@ -9,10 +9,10 @@
 
 use std::sync::Arc;
 
-use cudarc::cublas::sys::cublasOperation_t;
-use cudarc::cublas::{CudaBlas, Gemm, GemmConfig};
 use atomr_core::actor::{Context, Props};
 use atomr_macros::Actor;
+use cudarc::cublas::sys::cublasOperation_t;
+use cudarc::cublas::{CudaBlas, Gemm, GemmConfig};
 
 use crate::completion::{CompletionStrategy, HostFnCompletion};
 use crate::device::{DeviceState, SgemmRequest};

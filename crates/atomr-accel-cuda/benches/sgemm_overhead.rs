@@ -14,13 +14,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use atomr_accel_cuda::prelude::*;
+use atomr_config::Config;
+use atomr_core::actor::ActorSystem;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use cudarc::cublas::sys::cublasOperation_t;
 use cudarc::cublas::{CudaBlas, Gemm, GemmConfig};
 use cudarc::driver::CudaContext;
-use atomr_accel_cuda::prelude::*;
-use atomr_config::Config;
-use atomr_core::actor::ActorSystem;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 

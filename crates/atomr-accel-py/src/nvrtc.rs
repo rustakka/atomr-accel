@@ -6,8 +6,8 @@
 //! `ContextActor::SnapshotChildren` through the Python facade); the
 //! resulting `NvrtcKernel` is launchable via `device.launch_kernel`.
 
-use pyo3::prelude::*;
 use atomr_accel_cuda::kernel::KernelHandle;
+use pyo3::prelude::*;
 
 #[pyclass(name = "NvrtcKernel", module = "atomr_accel._native")]
 pub struct PyNvrtcKernel {

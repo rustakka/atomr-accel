@@ -4,11 +4,11 @@
 
 use std::time::Duration;
 
+use atomr_config::Config;
+use atomr_core::actor::ActorSystem;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use cudarc::curand::CudaRng;
 use cudarc::driver::CudaContext;
-use atomr_config::Config;
-use atomr_core::actor::ActorSystem;
 use tokio::runtime::Runtime;
 
 use atomr_accel_cuda::prelude::*;

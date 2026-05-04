@@ -8,9 +8,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use atomr_core::actor::{Actor, Context, Props};
 pub use cudarc::cublaslt::Activation;
 use cudarc::cublaslt::{CudaBlasLT, Matmul, MatmulConfig};
-use atomr_core::actor::{Actor, Context, Props};
 use tokio::sync::oneshot;
 
 use crate::completion::CompletionStrategy;

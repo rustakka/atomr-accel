@@ -22,8 +22,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
-use parking_lot::Mutex;
 use atomr_core::actor::{Actor, ActorRef, Context, Props};
+use parking_lot::Mutex;
 use tokio::sync::oneshot;
 
 #[cfg(feature = "replay")]

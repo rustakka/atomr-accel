@@ -16,9 +16,9 @@
 
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use atomr_core::actor::ActorSystem;
 use atomr_telemetry::TelemetryExtension;
+use parking_lot::Mutex;
 
 /// Convenience helper: construct + install a telemetry extension with
 /// sensible defaults (1024-deep broadcast bus). Returns the shared
