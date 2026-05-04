@@ -330,7 +330,7 @@ crates/
 
 ## Status & roadmap
 
-`F2 – F9 implemented + atomr 0.2 adoption complete.` The project's
+`F2 – F9 implemented + atomr adoption complete.` The project's
 internal phase plan is "F"-numbered (foundation phases F1 through
 F10):
 

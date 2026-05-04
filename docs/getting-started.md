@@ -12,7 +12,7 @@ A ten-minute tour. By the end you'll have:
 
 - Rust **1.78+** (workspace toolchain in `rust-toolchain.toml`).
 - A sibling clone of [atomr](../../atomr) at `../atomr` (path
-  dependency, version 0.2.x).
+  dependency, version 0.1.x).
 - Optional but recommended: an NVIDIA GPU plus the
   [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) (driver
   + libraries). Without these, the workspace still builds and unit

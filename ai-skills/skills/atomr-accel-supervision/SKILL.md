@@ -71,7 +71,7 @@ panic!("ContextPoisoned: cublasCreate returned {status:?}");
 The application **never writes its own decider** unless it's
 running its own non-CUDA actor next to the device. For
 that, [`atomr-accel-cuda::error::DeviceSupervisor`](../../../crates/atomr-accel-cuda/src/error.rs)
-implements atomr 0.2's typed `SupervisorOf<ContextActor>` trait
+implements atomr's typed `SupervisorOf<ContextActor>` trait
 over `GpuError`, so you can pattern-match on the typed enum
 directly:
 

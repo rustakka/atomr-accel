@@ -88,8 +88,8 @@ TestPyPI for wheel uploads.
 
 ```bash
 # crates.io
-cargo yank --vers 0.0.2 atomr-accel
-cargo yank --vers 0.0.2 atomr-accel-patterns
+cargo yank --vers 0.1.0 atomr-accel
+cargo yank --vers 0.1.0 atomr-accel-patterns
 # ...etc
 
 # PyPI: open the project page → Manage → Releases → Yank.

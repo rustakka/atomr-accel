@@ -38,7 +38,7 @@ workspace**. Reach for one without inheriting the others.
 
 ```toml
 [dependencies]
-atomr-accel = "0.0"
+atomr-accel = "0.1"
 ```
 
 Runtime cost: atomr-core + atomr-config + atomr-macros + cudarc +
@@ -48,8 +48,8 @@ tokio. cuBLAS is the always-on library; everything else is gated.
 
 ```toml
 [dependencies]
-atomr-accel          = "0.0"
-atomr-accel-patterns = "0.0"
+atomr-accel          = "0.1"
+atomr-accel-patterns = "0.1"
 ```
 
 Adds: nothing beyond the patterns crate itself.
@@ -58,7 +58,7 @@ Adds: nothing beyond the patterns crate itself.
 
 ```toml
 [dependencies]
-atomr-accel = { version = "0.0", features = ["nvrtc"] }
+atomr-accel = { version = "0.1", features = ["nvrtc"] }
 ```
 
 Adds: cudarc nvrtc bindings (zero new transitive deps; just unlocks
@@ -68,8 +68,8 @@ Adds: cudarc nvrtc bindings (zero new transitive deps; just unlocks
 
 ```toml
 [dependencies]
-atomr-accel       = { version = "0.0", features = ["full-cuda"] }
-atomr-accel-train = "0.0"
+atomr-accel       = { version = "0.1", features = ["full-cuda"] }
+atomr-accel-train = "0.1"
 ```
 
 `full-cuda` aggregate bundles cuDNN + cuFFT + cuRAND + cuSPARSE +
@@ -79,7 +79,7 @@ cuSOLVER + cuBLASLt + NVRTC + cuTENSOR + NCCL.
 
 ```toml
 [dependencies]
-atomr-accel = { version = "0.0", features = ["replay"] }
+atomr-accel = { version = "0.1", features = ["replay"] }
 ```
 
 Adds: atomr-persistence (Journal trait), serde, serde_json. The
@@ -91,7 +91,7 @@ on where you want events to land.
 
 ```toml
 [dependencies]
-atomr-accel = { version = "0.0", features = ["telemetry"] }
+atomr-accel = { version = "0.1", features = ["telemetry"] }
 ```
 
 Adds: atomr-telemetry. Run `atomr-dashboard` as a sidecar to
@@ -101,11 +101,11 @@ visualize.
 
 ```toml
 [dependencies]
-atomr-accel          = { version = "0.0", features = ["full-cuda", "replay", "cluster", "streams", "telemetry"] }
-atomr-accel-patterns = "0.0"
-atomr-accel-train    = "0.0"
-atomr-accel-agents   = "0.0"
-atomr-accel-cuda-realtime = { version = "0.0", features = ["nvrtc"] }
+atomr-accel          = { version = "0.1", features = ["full-cuda", "replay", "cluster", "streams", "telemetry"] }
+atomr-accel-patterns = "0.1"
+atomr-accel-train    = "0.1"
+atomr-accel-agents   = "0.1"
+atomr-accel-cuda-realtime = { version = "0.1", features = ["nvrtc"] }
 ```
 
 ## Feature reference

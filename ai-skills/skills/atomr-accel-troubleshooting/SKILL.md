@@ -36,7 +36,7 @@ are gated:
 | `observability::install`, `GpuProbes` | `telemetry` |
 
 ```toml
-atomr-accel-cuda = { version = "0.2", features = ["cudnn", "nvrtc", "replay"] }
+atomr-accel-cuda = { version = "0.1", features = ["cudnn", "nvrtc", "replay"] }
 ```
 
 For the by-goal picker with transitive dep impact, see
@@ -44,7 +44,7 @@ For the by-goal picker with transitive dep impact, see
 
 ### "trait `Actor` is not implemented"
 
-You're using atomr 0.2 — the trait lives in `atomr_core::actor`.
+You're using atomr — the trait lives in `atomr_core::actor`.
 The cleanest import is the atomr-accel-cuda prelude, which
 re-exports the relevant traits:
 

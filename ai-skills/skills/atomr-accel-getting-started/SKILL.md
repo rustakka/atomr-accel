@@ -50,7 +50,7 @@ pulls of the other blueprints.
 
 ```toml
 [dependencies]
-atomr-accel-cuda = "0.2"
+atomr-accel-cuda = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -72,7 +72,7 @@ no-op when it's missing.
 | TelemetryExtension probes | `atomr-accel-cuda = { features = ["telemetry"] }` |
 
 Aggregates compose: `core-libs` ⊂ `training-libs` ⊂ `full-cuda`.
-The four atomr-0.2 integration features (`replay`, `cluster`,
+The four atomr integration features (`replay`, `cluster`,
 `streams`, `telemetry`) are independent of the library aggregates.
 
 For a goal-by-goal picker with explicit transitive-deps tables, see
@@ -82,8 +82,8 @@ For a goal-by-goal picker with explicit transitive-deps tables, see
 
 ```toml
 [dependencies]
-atomr-accel-cuda     = "0.2"
-atomr-accel-patterns = "0.2"  # adds DynamicBatchingServer, etc.
+atomr-accel-cuda     = "0.1"
+atomr-accel-patterns = "0.1"  # adds DynamicBatchingServer, etc.
 ```
 
 Only adds the patterns crate; `train` / `agents` / `realtime`
@@ -173,7 +173,7 @@ plumbing" checks.
   `DeviceActor::pre_start` spawns child actors and uses
   `tokio::spawn` internally — the runtime needs a multi-threaded
   scheduler.
-- **Pinning to `atomr-accel = "0.2"` with no `features = ["cuda"]`.**
+- **Pinning to `atomr-accel = "0.1"` with no `features = ["cuda"]`.**
   The umbrella crate ships only the trait surface by default; you
   also need `cuda` to get the concrete `DeviceActor`. Most projects
   should depend on `atomr-accel-cuda` directly instead.

@@ -130,7 +130,7 @@ exists for code that genuinely benefits from it.
 
 | Backend | Status | Notes |
 |---|---|---|
-| **CUDA (NVIDIA)** | **Shipping** in `atomr-accel-cuda` | Full F2-F9 + atomr 0.2 integration. |
+| **CUDA (NVIDIA)** | **Shipping** in `atomr-accel-cuda` | Full F2-F9 + atomr integration. |
 | ROCm (AMD) | Designed for | hipBLAS / hipFFT / rocSPARSE / rocSOLVER map cleanly. RCCL ≈ NCCL. |
 | Metal (Apple) | Designed for | MPS + Metal command queues fit `AccelStream` directly. No NVRTC equivalent (use Metal compute shaders compiled at build time). |
 | oneAPI (Intel) | Designed for | SYCL + oneMKL libraries. |
