@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
-description = "Developer tooling for the rakka-accel workspace (bump, verify)."
+description = "Developer tooling for the atomr-accel workspace (bump, verify)."
 
 [dependencies]
 anyhow = "1"

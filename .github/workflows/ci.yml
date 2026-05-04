@@ -1,6 +1,6 @@
 # PR + push gate. Fmt → clippy → test → doc → Python bindings build.
 #
-# rakka-accel has a path dependency on a sibling rakka workspace; CI
+# atomr-accel has a path dependency on a sibling atomr workspace; CI
 # checks out both repos side-by-side before building.
 
 name: CI
@@ -22,33 +22,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { path: rakka-accel }
+        with: { path: atomr-accel }
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
       - run: cargo fmt --all -- --check
-        working-directory: rakka-accel
+        working-directory: atomr-accel
 
   clippy:
     runs-on: ubuntu-latest
     needs: fmt
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-        working-directory: rakka-accel
-      - run: cargo clippy --workspace --all-targets --features rakka-accel-cuda/core-libs -- -D warnings
-        working-directory: rakka-accel
+        working-directory: atomr-accel
+      - run: cargo clippy --workspace --all-targets --features atomr-accel-cuda/core-libs -- -D warnings
+        working-directory: atomr-accel
 
   test:
     runs-on: ubuntu-latest
@@ -58,32 +58,32 @@ jobs:
       matrix:
         features:
           - "--no-default-features"
-          - "--features rakka-accel-cuda/core-libs"
-          - "--features rakka-accel-cuda/training-libs"
-          - "--features rakka-accel-cuda/full-cuda"
-          - "--features rakka-accel-cuda/replay"
-          - "--features rakka-accel-cuda/cluster"
-          - "--features rakka-accel-cuda/streams"
-          - "--features rakka-accel-cuda/telemetry"
+          - "--features atomr-accel-cuda/core-libs"
+          - "--features atomr-accel-cuda/training-libs"
+          - "--features atomr-accel-cuda/full-cuda"
+          - "--features atomr-accel-cuda/replay"
+          - "--features atomr-accel-cuda/cluster"
+          - "--features atomr-accel-cuda/streams"
+          - "--features atomr-accel-cuda/telemetry"
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: cargo check ${{ matrix.features }}
         run: cargo check --workspace ${{ matrix.features }}
-        working-directory: rakka-accel
+        working-directory: atomr-accel
       - name: cargo test ${{ matrix.features }}
         run: cargo test --workspace ${{ matrix.features }}
-        working-directory: rakka-accel
+        working-directory: atomr-accel
 
   docs:
     runs-on: ubuntu-latest
@@ -93,25 +93,25 @@ jobs:
     # link sites that are tracked separately. Promote to `-D
     # warnings` once those sites are cleaned up.
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: cargo doc --workspace --no-deps --all-features
-        run: cargo doc --workspace --no-deps --features rakka-accel-cuda/full-cuda,rakka-accel-cuda/replay,rakka-accel-cuda/cluster,rakka-accel-cuda/streams,rakka-accel-cuda/telemetry
-        working-directory: rakka-accel
+        run: cargo doc --workspace --no-deps --features atomr-accel-cuda/full-cuda,atomr-accel-cuda/replay,atomr-accel-cuda/cluster,atomr-accel-cuda/streams,atomr-accel-cuda/telemetry
+        working-directory: atomr-accel
       - uses: actions/upload-artifact@v4
         with:
           name: rustdoc
-          path: rakka-accel/target/doc
+          path: atomr-accel/target/doc
 
   # ─── SemVer gate (PR only) ──────────────────────────────────────────
   semver-checks:
@@ -124,27 +124,27 @@ jobs:
     # crate hits 1.0.
     continue-on-error: true
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: Install cargo-semver-checks
         run: cargo install cargo-semver-checks --locked
       - name: Check public-API SemVer for every published crate
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           set -e
           fails=0
-          for crate in rakka-accel rakka-accel-patterns rakka-accel-train \
-                       rakka-accel-agents rakka-accel-cuda-realtime; do
+          for crate in atomr-accel atomr-accel-patterns atomr-accel-train \
+                       atomr-accel-agents atomr-accel-cuda-realtime; do
             echo "==> $crate"
             cargo semver-checks check-release --package "$crate" || fails=$((fails+1))
           done
@@ -159,22 +159,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: [fmt, clippy, test]
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy, rustfmt }
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: cargo xtask verify
         run: cargo xtask verify
-        working-directory: rakka-accel
+        working-directory: atomr-accel
 
   # ─── Python bridge gate ──────────────────────────────────────────────
   python:
@@ -185,29 +185,29 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: Install build tools
         run: pip install maturin pytest numpy
       - name: maturin develop
         run: maturin develop --release --no-default-features --features extension-module
-        working-directory: rakka-accel/crates/rakka-accel-py
+        working-directory: atomr-accel/crates/atomr-accel-py
       - name: pytest
         run: pytest tests/ -v
-        working-directory: rakka-accel/crates/rakka-accel-py
+        working-directory: atomr-accel/crates/atomr-accel-py
 
   # ─── Aggregate gate (required for branch protection) ─────────────────
   ci-pass:

@@ -1,6 +1,6 @@
 # Python bridge architecture
 
-`rakka-accel-py` exposes the rakka-accel actor system to Python so
+`atomr-accel-py` exposes the atomr-accel actor system to Python so
 downstream libraries (PyTorch-adjacent runtimes, data pipelines,
 research notebooks) can drive CUDA through the same supervision /
 generation / completion machinery the Rust API gets.
@@ -8,12 +8,12 @@ generation / completion machinery the Rust API gets.
 ```
                 ┌─────────────────────── Python process ───────────────────────┐
                 │                                                              │
-                │  ┌── rakka_accel (pure Python facade) ──┐                     │
-                │  │ from rakka_accel import System, ...  │                     │
+                │  ┌── atomr_accel (pure Python facade) ──┐                     │
+                │  │ from atomr_accel import System, ...  │                     │
                 │  └────────────────┬────────────────────┘                     │
                 │                   │                                          │
                 │                   ▼                                          │
-                │  ┌── rakka_accel._native (PyO3 cdylib) ─────────────────────┐ │
+                │  ┌── atomr_accel._native (PyO3 cdylib) ─────────────────────┐ │
                 │  │ class System  ─── ActorSystem                           │ │
                 │  │ class Device  ─── ActorRef<DeviceMsg>                   │ │
                 │  │ class GpuBuffer ─ Mutex<Option<GpuRef<f32>>>            │ │
@@ -29,7 +29,7 @@ generation / completion machinery the Rust API gets.
                 │  └─────────────────────────────────────────────────────────┘ │
                 │                   │                                          │
                 │                   ▼                                          │
-                │  ┌── rakka-accel actor tree ────────────────────────────────┐ │
+                │  ┌── atomr-accel actor tree ────────────────────────────────┐ │
                 │  │ DeviceActor → ContextActor → BlasActor / CudnnActor /   │ │
                 │  │ FftActor / RngActor / NvrtcActor / ...                  │ │
                 │  └─────────────────────────────────────────────────────────┘ │
@@ -53,7 +53,7 @@ replies. The implementation:
    typed Python exception or a Python value.
 
 This keeps Python code straight-line ("I called allocate, I got a
-buffer back") while preserving rakka's async semantics inside.
+buffer back") while preserving atomr's async semantics inside.
 Futures-based wrappers can be added later via
 `pyo3_async_runtimes::tokio::future_into_py`; the underlying actor
 machinery doesn't change.
@@ -63,7 +63,7 @@ machinery doesn't change.
 `src/runtime.rs` initializes a multi-threaded tokio runtime the first
 time anyone calls `System.open(...)`. Every subsequent `System`
 shares it. This is the documented `pyo3-async-runtimes` pattern and
-matches the rakka-pycore extension exactly.
+matches the atomr-pycore extension exactly.
 
 You **cannot** create multiple runtimes per process — pyo3-async-runtimes
 panics on double-init. If you need isolated systems for testing, use
@@ -105,7 +105,7 @@ and writes go through `Device.copy_{to,from}_numpy`.
 
 `PyReadonlyArray1<'_, f32>` (input) and `PyArray1<f32>` (output) come
 from the `numpy` crate. The bridge currently supports `f32`
-1D contiguous arrays; broader dtype/shape coverage follows the rakka-accel
+1D contiguous arrays; broader dtype/shape coverage follows the atomr-accel
 typed-allocate matrix (`f64`, `i32`, `u32`, `u8`, plus `f16` / `bf16`
 under the `f16` feature).
 
@@ -122,13 +122,13 @@ stays the same; the implementation chooses the path.
 ### Feature-gated optional surfaces
 
 `RngGenerator` requires `curand`; `NvrtcKernel` requires `nvrtc`. The
-crate's `Cargo.toml` mirrors `rakka-accel-cuda`'s feature flags so a wheel
+crate's `Cargo.toml` mirrors `atomr-accel-cuda`'s feature flags so a wheel
 built with `--features curand,nvrtc` exposes those classes; a minimal
 build doesn't. The Python facade gracefully handles either case:
 
 ```python
 try:
-    from rakka_accel._native import RngGenerator
+    from atomr_accel._native import RngGenerator
 except ImportError:
     RngGenerator = None
 ```
@@ -156,10 +156,10 @@ Two reasons.
 
 1. **Supervision and recovery.** Direct cudarc bindings give you the
    raw API but no story for context poisoning, sticky errors, or
-   handle restart. rakka-accel packages those concerns behind the
+   handle restart. atomr-accel packages those concerns behind the
    actor surface, and the Python bridge inherits them for free.
 2. **One async runtime to rule them all.** Pyo3-async-runtimes plus
-   tokio plus rakka actors plus cudarc add up to a single integrated
+   tokio plus atomr actors plus cudarc add up to a single integrated
    stack. Rolling your own `Mutex<CublasHandle>` across `cffi` /
    `ctypes` / `pycuda` is the kind of thing that works fine in a
    notebook and crashes at scale.

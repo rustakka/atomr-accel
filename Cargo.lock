@@ -65,6 +65,313 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomr-accel"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-config",
+ "atomr-core",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atomr-accel-agents"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-accel-cuda"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "async-trait",
+ "atomr-cluster-sharding",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "atomr-persistence",
+ "atomr-streams",
+ "atomr-telemetry",
+ "atomr-testkit",
+ "bitflags",
+ "criterion",
+ "cudarc",
+ "futures",
+ "futures-util",
+ "half",
+ "lru",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "atomr-accel-cuda-realtime"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-accel-patterns"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "atomr-accel-py"
+version = "0.1.0"
+dependencies = [
+ "atomr-accel-cuda",
+ "atomr-config",
+ "atomr-core",
+ "numpy",
+ "once_cell",
+ "parking_lot",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-accel-train"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-accel-patterns",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-cluster"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-config",
+ "atomr-core",
+ "atomr-remote",
+ "bincode",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-cluster-metrics"
+version = "0.1.0"
+dependencies = [
+ "atomr-cluster",
+ "atomr-core",
+ "bincode",
+ "parking_lot",
+ "serde",
+]
+
+[[package]]
+name = "atomr-cluster-sharding"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-cluster",
+ "atomr-core",
+ "atomr-distributed-data",
+ "atomr-persistence",
+ "bincode",
+ "parking_lot",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
+name = "atomr-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-config",
+ "bincode",
+ "bytes",
+ "dashmap",
+ "flume",
+ "futures",
+ "futures-util",
+ "once_cell",
+ "parking_lot",
+ "pin-project-lite",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "atomr-distributed-data"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-cluster",
+ "atomr-core",
+ "parking_lot",
+ "serde",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atomr-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "atomr-persistence"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-core",
+ "parking_lot",
+ "serde",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atomr-remote"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-config",
+ "atomr-core",
+ "bincode",
+ "bytes",
+ "dashmap",
+ "futures",
+ "futures-util",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-streams"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-core",
+ "bytes",
+ "futures",
+ "futures-util",
+ "parking_lot",
+ "pin-project-lite",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "atomr-telemetry"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-cluster",
+ "atomr-cluster-metrics",
+ "atomr-cluster-sharding",
+ "atomr-config",
+ "atomr-core",
+ "atomr-distributed-data",
+ "atomr-persistence",
+ "atomr-remote",
+ "atomr-streams",
+ "chrono",
+ "dashmap",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-testkit"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-config",
+ "atomr-core",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -939,313 +1246,6 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
-
-[[package]]
-name = "rakka-accel"
-version = "0.2.9"
-dependencies = [
- "async-trait",
- "rakka-accel-cuda",
- "rakka-config",
- "rakka-core",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rakka-accel-agents"
-version = "0.2.9"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-accel-cuda",
- "rakka-config",
- "rakka-core",
- "rakka-macros",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-accel-cuda"
-version = "0.2.9"
-dependencies = [
- "arc-swap",
- "async-trait",
- "bitflags",
- "criterion",
- "cudarc",
- "futures",
- "futures-util",
- "half",
- "lru",
- "parking_lot",
- "rakka-cluster-sharding",
- "rakka-config",
- "rakka-core",
- "rakka-macros",
- "rakka-persistence",
- "rakka-streams",
- "rakka-telemetry",
- "rakka-testkit",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "rakka-accel-cuda-realtime"
-version = "0.2.9"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-accel-cuda",
- "rakka-config",
- "rakka-core",
- "rakka-macros",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-accel-patterns"
-version = "0.2.9"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-accel-cuda",
- "rakka-config",
- "rakka-core",
- "rakka-macros",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "rakka-accel-py"
-version = "0.2.9"
-dependencies = [
- "numpy",
- "once_cell",
- "parking_lot",
- "pyo3",
- "pyo3-async-runtimes",
- "rakka-accel-cuda",
- "rakka-config",
- "rakka-core",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-accel-train"
-version = "0.2.9"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-accel-cuda",
- "rakka-accel-patterns",
- "rakka-config",
- "rakka-core",
- "rakka-macros",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-cluster"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "bincode",
- "parking_lot",
- "rakka-config",
- "rakka-core",
- "rakka-remote",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-cluster-metrics"
-version = "0.2.2"
-dependencies = [
- "bincode",
- "parking_lot",
- "rakka-cluster",
- "rakka-core",
- "serde",
-]
-
-[[package]]
-name = "rakka-cluster-sharding"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "bincode",
- "parking_lot",
- "rakka-cluster",
- "rakka-core",
- "rakka-distributed-data",
- "rakka-persistence",
- "serde",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-config"
-version = "0.2.2"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror",
- "toml",
-]
-
-[[package]]
-name = "rakka-core"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "bincode",
- "bytes",
- "dashmap",
- "flume",
- "futures",
- "futures-util",
- "once_cell",
- "parking_lot",
- "pin-project-lite",
- "rakka-config",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "rakka-distributed-data"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-cluster",
- "rakka-core",
- "serde",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rakka-macros"
-version = "0.2.2"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rakka-persistence"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-core",
- "serde",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rakka-remote"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "bincode",
- "bytes",
- "dashmap",
- "futures",
- "futures-util",
- "parking_lot",
- "rakka-config",
- "rakka-core",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "rakka-streams"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "bytes",
- "futures",
- "futures-util",
- "parking_lot",
- "pin-project-lite",
- "rakka-core",
- "thiserror",
- "tokio",
-]
-
-[[package]]
-name = "rakka-telemetry"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "chrono",
- "dashmap",
- "parking_lot",
- "rakka-cluster",
- "rakka-cluster-metrics",
- "rakka-cluster-sharding",
- "rakka-config",
- "rakka-core",
- "rakka-distributed-data",
- "rakka-persistence",
- "rakka-remote",
- "rakka-streams",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rakka-testkit"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "parking_lot",
- "rakka-config",
- "rakka-core",
- "thiserror",
- "tokio",
- "tracing",
-]
 
 [[package]]
 name = "rand"

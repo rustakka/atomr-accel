@@ -1,6 +1,6 @@
 # Backends
 
-`rakka-accel` is the actor-shaped face of compute acceleration —
+`atomr-accel` is the actor-shaped face of compute acceleration —
 **generally**. NVIDIA CUDA is the first shipping implementation; the
 abstraction layer is designed so AMD ROCm, Apple Metal, Intel oneAPI,
 and Vulkan compute can plug into the same actor surface without
@@ -8,7 +8,7 @@ rewriting application code.
 
 ## The abstraction layer
 
-The core crate (`rakka-accel`) defines five primitives that every
+The core crate (`atomr-accel`) defines five primitives that every
 backend implements:
 
 | Trait / type            | What it names                                       |
@@ -22,15 +22,15 @@ backend implements:
 | `KernelOp`              | Marker for typed op envelopes (`GemmShape`, `FftKind`, …). |
 
 The core ships **no concrete actors**. Each backend crate
-(`rakka-accel-cuda` today; `rakka-accel-rocm`, `-metal`, `-oneapi`,
+(`atomr-accel-cuda` today; `atomr-accel-rocm`, `-metal`, `-oneapi`,
 `-vulkan` future) provides its own `DeviceActor`, library-specific
 kernel actors, and stream allocators. The umbrella re-exports the
 active backend at a stable path:
 
 ```rust
-use rakka_accel::cuda;          // when feature `cuda` is on
-// use rakka_accel::rocm;        // future
-// use rakka_accel::metal;       // future
+use atomr_accel::cuda;          // when feature `cuda` is on
+// use atomr_accel::rocm;        // future
+// use atomr_accel::metal;       // future
 ```
 
 ## What's *not* in the abstraction
@@ -46,7 +46,7 @@ contract. They don't try to:
   perfect MPS equivalent. The trait surface is for *portable*
   code; backend-specific work uses the concrete crate directly:
   ```rust
-  use rakka_accel::cuda::kernel::{CudnnActor, ConvForwardRequest};
+  use atomr_accel::cuda::kernel::{CudnnActor, ConvForwardRequest};
   ```
 - **Abstract over kernel launch shapes.** A CUDA kernel has
   blocks/threads; a Metal kernel has threadgroups; a Vulkan
@@ -63,8 +63,8 @@ Three reasons:
    replay + telemetry stack. The actor tree, the typed messages,
    the fault model — all the same. Only the kernel actor crate
    changes.
-2. **Code reuse for blueprints.** `rakka-accel-patterns`,
-   `rakka-accel-train`, and `rakka-accel-agents` are
+2. **Code reuse for blueprints.** `atomr-accel-patterns`,
+   `atomr-accel-train`, and `atomr-accel-agents` are
    backend-generic by design. Their `DynamicBatchingServer`,
    `DataParallelTrainer`, `RagPipeline`, etc. don't care which
    backend is underneath; they parameterize over the message
@@ -77,7 +77,7 @@ Three reasons:
 
 | Backend           | Status                                  | Tracking |
 |-------------------|-----------------------------------------|----------|
-| **CUDA (NVIDIA)** | **Shipping** in `rakka-accel-cuda`.     | F2–F9 implemented. |
+| **CUDA (NVIDIA)** | **Shipping** in `atomr-accel-cuda`.     | F2–F9 implemented. |
 | ROCm (AMD)        | Designed for. Crate skeleton not yet up. | hipBLAS / hipFFT / rocSPARSE / rocSOLVER all map cleanly to the existing kernel-actor pattern. |
 | Metal (Apple)     | Designed for.                           | MPS + Metal command queues fit the `AccelStream` trait directly. |
 | oneAPI (Intel)    | Designed for.                           | SYCL queue + oneMKL libraries. |
@@ -86,7 +86,7 @@ Three reasons:
 
 ## Adding a backend
 
-1. New crate `rakka-accel-<name>` in the workspace.
+1. New crate `atomr-accel-<name>` in the workspace.
 2. `pub struct Backend;` + `impl AccelBackend for Backend { … }`.
 3. Concrete `Device` / `Stream` / `Event` / `Error` types
    wrapping the vendor SDK's handles.
@@ -97,8 +97,8 @@ Three reasons:
    the standard `"ContextPoisoned: …"` / `"OutOfMemory: …"` /
    `"Unrecoverable: …"` tags so the supervisor decider routes
    directives correctly.
-6. (Optional) feature-flag in the umbrella `rakka-accel/Cargo.toml`
-   re-exporting the new crate at `rakka_accel::<name>`.
+6. (Optional) feature-flag in the umbrella `atomr-accel/Cargo.toml`
+   re-exporting the new crate at `atomr_accel::<name>`.
 
 The blueprint sub-crates (`patterns`, `train`, `agents`) are
 backend-agnostic; they don't need any change to support a new

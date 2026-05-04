@@ -1,0 +1,46 @@
+[package]
+name = "atomr-accel-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["cuda", "gpu", "python", "pyo3"]
+categories = ["concurrency", "asynchronous", "api-bindings"]
+description = "Python bindings for atomr-accel. Drives an actor-supervised CUDA pipeline from Python without juggling streams or contexts."
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+# Pass-through to feature-gate the corresponding atomr-accel-cuda kernel actors.
+cudnn    = ["atomr-accel-cuda/cudnn"]
+cufft    = ["atomr-accel-cuda/cufft"]
+curand   = ["atomr-accel-cuda/curand"]
+cusolver = ["atomr-accel-cuda/cusolver"]
+cublaslt = ["atomr-accel-cuda/cublaslt"]
+nvrtc    = ["atomr-accel-cuda/nvrtc"]
+nccl     = ["atomr-accel-cuda/nccl"]
+core-libs     = ["atomr-accel-cuda/core-libs"]
+training-libs = ["atomr-accel-cuda/training-libs"]
+full-cuda     = ["atomr-accel-cuda/full-cuda"]
+
+[dependencies]
+atomr-core   = { workspace = true }
+atomr-config = { workspace = true }
+atomr-accel-cuda   = { path = "../atomr-accel-cuda", version = "0.1.0" }
+
+pyo3                = { workspace = true, features = ["abi3-py310", "macros"] }
+pyo3-async-runtimes = { workspace = true }
+numpy               = { workspace = true }
+tokio        = { workspace = true }
+parking_lot  = { workspace = true }
+tracing      = { workspace = true }
+once_cell    = { workspace = true }

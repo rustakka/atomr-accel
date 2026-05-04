@@ -1,20 +1,20 @@
-//! `xtask` — developer tooling for the rakka-accel workspace.
+//! `xtask` — developer tooling for the atomr-accel workspace.
 //!
 //! Subcommands:
 //! * `bump <patch|minor|major>` — bump the workspace version, refresh
-//!   `Cargo.lock`, mirror to `crates/rakka-accel-py/pyproject.toml`,
+//!   `Cargo.lock`, mirror to `crates/atomr-accel-py/pyproject.toml`,
 //!   rewrite internal-path-dep version pins inside
 //!   `[workspace.dependencies]`, and rewrite per-crate inline
-//!   `path = "../rakka-accel-*"`-with-`version = "..."` pins so
+//!   `path = "../atomr-accel-*"`-with-`version = "..."` pins so
 //!   sibling-crate deps don't drift.
 //! * `bump --pre <id>` / `bump --set <ver>` — variants for
 //!   pre-release tags and exact-version overrides.
 //! * `verify` — local mirror of the release-pipeline gate:
 //!   `cargo fmt --check` → `cargo clippy -D warnings` →
 //!   `cargo test --workspace --no-default-features` →
-//!   `cargo check --workspace --features rakka-accel-cuda/full-cuda`.
+//!   `cargo check --workspace --features atomr-accel-cuda/full-cuda`.
 //!
-//! The pattern is borrowed from the sibling rakka workspace's xtask.
+//! The pattern is borrowed from the sibling atomr workspace's xtask.
 
 use std::env;
 use std::path::Path;
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
 }
 
 fn print_help() {
-    println!("rakka-accel xtask");
+    println!("atomr-accel xtask");
     println!();
     println!("USAGE:");
     println!("  cargo xtask <subcommand>");
@@ -62,7 +62,7 @@ fn bump(args: Vec<String>) -> Result<()> {
         anyhow!("usage: bump <patch|minor|major> | bump --pre <id> | bump --set <version>")
     })?;
     let cargo_toml = Path::new("Cargo.toml");
-    let pyproject = Path::new("crates/rakka-accel-py/pyproject.toml");
+    let pyproject = Path::new("crates/atomr-accel-py/pyproject.toml");
     let current = read_workspace_version(cargo_toml)?;
     let next = match arg.as_str() {
         "patch" => semver_bump(&current, BumpKind::Patch)?,
@@ -88,7 +88,7 @@ fn bump(args: Vec<String>) -> Result<()> {
     let _ = Command::new(env!("CARGO"))
         .args(["update", "--workspace"])
         .status();
-    println!("RAKKA_CUDA_NEW_VERSION={next}");
+    println!("ATOMR_ACCEL_NEW_VERSION={next}");
     Ok(())
 }
 
@@ -179,8 +179,8 @@ fn write_workspace_version(path: &Path, version: &str) -> Result<()> {
 
 /// Bump every internal-path-dep `version = "<prev>"` pin inside
 /// `[workspace.dependencies]`. Sub-crates that path-depend on
-/// `rakka-accel-cuda` (e.g. patterns / train / agents / realtime / py)
-/// declare `rakka-accel-cuda = { path = "...", version = "..." }` and
+/// `atomr-accel-cuda` (e.g. patterns / train / agents / realtime / py)
+/// declare `atomr-accel-cuda = { path = "...", version = "..." }` and
 /// crates.io resolves against the version pin on publish — they
 /// must move in lockstep with the workspace version.
 fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<()> {
@@ -202,7 +202,7 @@ fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<
         // Only rewrite intra-workspace path-deps. Don't touch external
         // deps that happen to share the previous version string.
         let is_internal_path =
-            line.contains("path = \"crates/") || line.contains("path = \"../rakka/crates/");
+            line.contains("path = \"crates/") || line.contains("path = \"../atomr/crates/");
         if is_internal_path && line.contains(&needle) {
             new_block.push_str(&line.replace(&needle, &replacement));
         } else {
@@ -217,11 +217,11 @@ fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<
     Ok(())
 }
 
-/// Bump every per-crate inline `path = "../rakka-accel-*"`-with-`version = "<prev>"`
+/// Bump every per-crate inline `path = "../atomr-accel-*"`-with-`version = "<prev>"`
 /// pin in member Cargo.tomls. xtask's workspace-deps rewrite covers
 /// `[workspace.dependencies]` only; sibling-crate deps that the
 /// member crates declare directly (e.g. patterns/train/agents/realtime/py
-/// → rakka-accel-cuda) drift on every bump otherwise, breaking
+/// → atomr-accel-cuda) drift on every bump otherwise, breaking
 /// `cargo publish` with "no matching package" errors.
 fn write_member_inline_deps_versions(prev: &str, next: &str) -> Result<()> {
     let crates_dir = Path::new("crates");
@@ -240,9 +240,9 @@ fn write_member_inline_deps_versions(prev: &str, next: &str) -> Result<()> {
         let mut out = String::with_capacity(text.len());
         let mut changed = false;
         for line in text.split_inclusive('\n') {
-            // Only rewrite lines that pin a sibling rakka-accel-* path
+            // Only rewrite lines that pin a sibling atomr-accel-* path
             // dep at the previous workspace version.
-            let is_sibling_path = line.contains("path = \"../rakka-accel");
+            let is_sibling_path = line.contains("path = \"../atomr-accel");
             if is_sibling_path && line.contains(&needle) {
                 out.push_str(&line.replace(&needle, &replacement));
                 changed = true;
@@ -313,7 +313,7 @@ fn verify() -> Result<()> {
                 "--workspace",
                 "--all-targets",
                 "--features",
-                "rakka-accel-cuda/core-libs",
+                "atomr-accel-cuda/core-libs",
                 "--",
                 "-D",
                 "warnings",
@@ -329,7 +329,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/training-libs",
+                "atomr-accel-cuda/training-libs",
             ],
         ),
         (
@@ -338,7 +338,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/full-cuda",
+                "atomr-accel-cuda/full-cuda",
             ],
         ),
         (
@@ -347,7 +347,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/replay",
+                "atomr-accel-cuda/replay",
             ],
         ),
         (
@@ -356,7 +356,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/cluster",
+                "atomr-accel-cuda/cluster",
             ],
         ),
         (
@@ -365,7 +365,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/streams",
+                "atomr-accel-cuda/streams",
             ],
         ),
         (
@@ -374,7 +374,7 @@ fn verify() -> Result<()> {
                 "check",
                 "--workspace",
                 "--features",
-                "rakka-accel-cuda/telemetry",
+                "atomr-accel-cuda/telemetry",
             ],
         ),
         ("doc", &["doc", "--workspace", "--no-deps"]),

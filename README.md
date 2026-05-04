@@ -1,24 +1,24 @@
-# rakka-accel
+# atomr-accel
 
 **An actor-shaped face for compute acceleration.** NVIDIA CUDA ships
-today through [`rakka-accel-cuda`](crates/rakka-accel-cuda); the
+today through [`atomr-accel-cuda`](crates/atomr-accel-cuda); the
 backend trait surface accommodates AMD ROCm, Apple Metal, Intel
 oneAPI, and Vulkan compute when those crates land. Each backend
 library ([cuBLAS][cublas], [cuDNN][cudnn], [cuFFT][cufft],
 [cuRAND][curand], [cuSOLVER][cusolver], [cuSPARSE][cusparse],
 [cuTENSOR][cutensor], [cuBLASLt][cublaslt], [NVRTC][nvrtc],
-[NCCL][nccl]) becomes a typed [rakka](../rakka) actor with stable
+[NCCL][nccl]) becomes a typed [atomr](../atomr) actor with stable
 supervision, generation-validated buffers, and a single async
 surface. Drop GPU work into a Rust service without juggling streams,
 contexts, or hand-rolled retry loops.
 
 ```toml
 [dependencies]
-rakka-accel = { version = "0.0", features = ["cuda"] }
+atomr-accel = { version = "0.0", features = ["cuda"] }
 ```
 
 ```rust
-use rakka_accel::cuda::prelude::*;   // active backend re-exported here
+use atomr_accel::cuda::prelude::*;   // active backend re-exported here
 ```
 
 ```rust
@@ -45,7 +45,7 @@ That's the whole shape. The same envelope wires up convolutions
 Writing CUDA from Rust today means owning a long list of invariants
 yourself:
 
-| You'd otherwise hand-roll                                       | rakka-accel gives you             |
+| You'd otherwise hand-roll                                       | atomr-accel gives you             |
 | --------------------------------------------------------------- | -------------------------------- |
 | One [`CUcontext`][cuda-ctx] per device, restarted on poisoning  | `DeviceActor ↔ ContextActor` two-tier supervision |
 | [Sticky-error][cuda-sticky] detection and graceful recovery     | `OneForOneStrategy` + `GpuError::ContextPoisoned` decider |
@@ -94,12 +94,12 @@ and the supervisor decides Restart / Resume / Stop / Escalate.
 
 ## Quick start
 
-You need a sibling clone of the [rakka](../rakka) workspace:
+You need a sibling clone of the [atomr](../atomr) workspace:
 
 ```
 your-workspace/
-├── rakka/         # the rakka actor runtime (v0.2.x)
-└── rakka-accel/   # this repo
+├── atomr/         # the atomr actor runtime (v0.2.x)
+└── atomr-accel/   # this repo
 ```
 
 cudarc loads CUDA dynamically, so the workspace **builds and
@@ -110,12 +110,12 @@ behind `--features cuda-runtime-tests`.
 # No GPU needed:
 cargo check --workspace --no-default-features
 cargo test  --workspace --no-default-features
-cargo run   -p rakka-accel --example echo_no_gpu
+cargo run   -p atomr-accel --example echo_no_gpu
 
 # With GPU + CUDA toolkit:
-cargo run   -p rakka-accel --example sgemm     --features cuda-runtime-tests
-cargo run   -p rakka-accel --example fft_1d    --features cuda-runtime-tests,cufft
-cargo run   -p rakka-accel --example jit_relu  --features cuda-runtime-tests,nvrtc
+cargo run   -p atomr-accel --example sgemm     --features cuda-runtime-tests
+cargo run   -p atomr-accel --example fft_1d    --features cuda-runtime-tests,cufft
+cargo run   -p atomr-accel --example jit_relu  --features cuda-runtime-tests,nvrtc
 ```
 
 Read [`docs/getting-started.md`](docs/getting-started.md) for a
@@ -130,7 +130,7 @@ for the by-goal dependency picker.
 
 If you're using an AI coding assistant (Claude Code, Cursor, etc.),
 [`ai-skills/`](ai-skills/) ships seven `SKILL.md` files your tool
-can pick up so the assistant gives you idiomatic rakka-accel
+can pick up so the assistant gives you idiomatic atomr-accel
 guidance instead of guessing.
 
 ## Library coverage
@@ -158,30 +158,30 @@ Aggregate features:
 - `training-libs` = `core-libs` + `cusolver` + `cublaslt` + `nvrtc` + `cutensor`
 - `full-cuda` = `training-libs` + `nccl`
 
-## rakka 0.2 integrations
+## atomr 0.2 integrations
 
-rakka-accel is feature-gated for each rakka subsystem so you only pay
+atomr-accel is feature-gated for each atomr subsystem so you only pay
 for what you use:
 
 - `replay` — persists replay-journal entries through any
-  [`rakka_persistence::Journal`](../rakka/crates/rakka-persistence)
+  [`atomr_persistence::Journal`](../atomr/crates/atomr-persistence)
   (in-memory, SQL, Redis, MongoDB, Cassandra, Dynamo). Build a deterministic
   replay harness with one constructor: `ReplayHarness::with_journal(journal, "pid")`.
 - `cluster` — `placement::sharded::PlacementShardingAdapter` exposes
-  a typed [`EntityRef<DeviceExtractor>`][rakka-sharding] over
-  rakka-cluster-sharding, so device routing follows consistent-hash
+  a typed [`EntityRef<DeviceExtractor>`][atomr-sharding] over
+  atomr-cluster-sharding, so device routing follows consistent-hash
   placement across a cluster.
 - `streams` — `streams_pipeline::{source_from_unbounded, gpu_stage,
-  run_collect}` build GPU pipelines with rakka-streams Source / Sink
+  run_collect}` build GPU pipelines with atomr-streams Source / Sink
   alongside the actor-based `pipeline::PipelineExecutor`.
 - `telemetry` — `observability::install(system, "node-1")` wires up a
   `TelemetryExtension` plus GPU-specific probes (allocations, OOM
   count, generation, VRAM, in-flight kernels). Visualize live in
-  [`rakka-dashboard`](../rakka/crates/rakka-dashboard).
+  [`atomr-dashboard`](../atomr/crates/atomr-dashboard).
 - Typed supervision — `error::DeviceSupervisor` implements
   `SupervisorOf<C>` over `GpuError`. Pattern-match the error type
   instead of parsing panic strings.
-- `#[derive(Actor)]` from `rakka-macros` — eliminates async-trait
+- `#[derive(Actor)]` from `atomr-macros` — eliminates async-trait
   boilerplate. Used by `BlasActor`, `EmbeddingCache`, `GpuMockActor`,
   `GpuHashMapActor`; opt-in for the rest.
 
@@ -189,36 +189,36 @@ for what you use:
 
 These ride on top of the foundation and demonstrate concrete patterns:
 
-- **`rakka-accel-patterns`** — `DynamicBatchingServer`,
+- **`atomr-accel-patterns`** — `DynamicBatchingServer`,
   `InferenceCascade`, `ModelReplicaPool`, `FairShareScheduler` (WFQ),
   `ModelHotSwapServer`, `SpeculativeDecoder`, `MoeRouter`, plus a CPU
   `GpuMockActor` for tests.
-- **`rakka-accel-train`** — `DataParallelTrainer`,
+- **`atomr-accel-train`** — `DataParallelTrainer`,
   `PipelineParallelTrainer`, `TensorParallelTrainer`,
   `AsyncParameterServer`, optimizer + loss enums.
-- **`rakka-accel-agents`** — `RagPipeline` (with `EmbeddingCache` LRU
+- **`atomr-accel-agents`** — `RagPipeline` (with `EmbeddingCache` LRU
   + `CpuVectorIndex`), `SharedGpuStateCoordinator`,
   `LangGraphGpuActor` (DAG executor with cycle detection).
-- **`rakka-accel-py`** — Python bindings via PyO3. `pip install
-  maturin && maturin develop` from `crates/rakka-accel-py/`. Exposes
-  `rakka_accel.{System, Device, GpuBuffer}` plus typed exceptions; see
+- **`atomr-accel-py`** — Python bindings via PyO3. `pip install
+  maturin && maturin develop` from `crates/atomr-accel-py/`. Exposes
+  `atomr_accel.{System, Device, GpuBuffer}` plus typed exceptions; see
   [`docs/python-bridge.md`](docs/python-bridge.md).
-- **`rakka-accel-cuda-realtime`** — `ImageFilterPipeline`,
+- **`atomr-accel-cuda-realtime`** — `ImageFilterPipeline`,
   `ParticleSystemActor`, `ClothSimulationActor`,
   `FluidSimulationActor`, `SpatialIndexActor`,
   `GpuHashMapActor`, `GpuSparseStructureActor`,
   `MultiPassAnalysisActor`, `VideoEffectsGraph`. Real CUDA-C kernel
   sources for these actors live under
-  `crates/rakka-accel-cuda-realtime/kernels/`.
+  `crates/atomr-accel-cuda-realtime/kernels/`.
 
 Every pattern ships a `*_no_gpu` example you can run today:
 
 ```bash
-cargo run -p rakka-accel-patterns --example batching_no_gpu
-cargo run -p rakka-accel-patterns --example cascade_no_gpu
-cargo run -p rakka-accel-patterns --example fair_share_no_gpu
-cargo run -p rakka-accel-patterns --example moe_no_gpu
-cargo run -p rakka-accel-patterns --example speculative_no_gpu
+cargo run -p atomr-accel-patterns --example batching_no_gpu
+cargo run -p atomr-accel-patterns --example cascade_no_gpu
+cargo run -p atomr-accel-patterns --example fair_share_no_gpu
+cargo run -p atomr-accel-patterns --example moe_no_gpu
+cargo run -p atomr-accel-patterns --example speculative_no_gpu
 ```
 
 ## What you don't have to think about
@@ -245,52 +245,52 @@ cargo run -p rakka-accel-patterns --example speculative_no_gpu
 ```bash
 # No-GPU dev box:
 cargo check --workspace --no-default-features
-cargo check --workspace --features rakka-accel-cuda/core-libs
-cargo check --workspace --features rakka-accel-cuda/training-libs
-cargo check --workspace --features rakka-accel-cuda/full-cuda
+cargo check --workspace --features atomr-accel-cuda/core-libs
+cargo check --workspace --features atomr-accel-cuda/training-libs
+cargo check --workspace --features atomr-accel-cuda/full-cuda
 
-# rakka 0.2 subsystem integrations:
-cargo check --workspace --features rakka-accel-cuda/replay
-cargo check --workspace --features rakka-accel-cuda/cluster
-cargo check --workspace --features rakka-accel-cuda/streams
-cargo check --workspace --features rakka-accel-cuda/telemetry
+# atomr 0.2 subsystem integrations:
+cargo check --workspace --features atomr-accel-cuda/replay
+cargo check --workspace --features atomr-accel-cuda/cluster
+cargo check --workspace --features atomr-accel-cuda/streams
+cargo check --workspace --features atomr-accel-cuda/telemetry
 
-cargo test  -p rakka-accel --features replay --test replay_persistence
+cargo test  -p atomr-accel --features replay --test replay_persistence
 
 # GPU host (requires CUDA toolkit):
-cargo run   -p rakka-accel --example sgemm        --features cuda-runtime-tests
-cargo run   -p rakka-accel --example rng_uniform  --features cuda-runtime-tests,curand
-cargo run   -p rakka-accel --example fft_1d       --features cuda-runtime-tests,cufft
-cargo run   -p rakka-accel --example jit_relu     --features cuda-runtime-tests,nvrtc
+cargo run   -p atomr-accel --example sgemm        --features cuda-runtime-tests
+cargo run   -p atomr-accel --example rng_uniform  --features cuda-runtime-tests,curand
+cargo run   -p atomr-accel --example fft_1d       --features cuda-runtime-tests,cufft
+cargo run   -p atomr-accel --example jit_relu     --features cuda-runtime-tests,nvrtc
 
-cargo bench -p rakka-accel --bench sgemm_overhead --features cuda-runtime-tests
-cargo bench -p rakka-accel --bench rng_throughput --features cuda-runtime-tests,curand
+cargo bench -p atomr-accel --bench sgemm_overhead --features cuda-runtime-tests
+cargo bench -p atomr-accel --bench rng_throughput --features cuda-runtime-tests,curand
 
-cargo test  -p rakka-accel --test sgemm_e2e          --features cuda-runtime-tests
-cargo test  -p rakka-accel --test pinned_memcpy_e2e  --features cuda-runtime-tests
-cargo test  -p rakka-accel --test end_to_end_e2e     --features cuda-runtime-tests
-cargo test  -p rakka-accel --test spmv_e2e           --features cuda-runtime-tests,cusparse
-cargo test  -p rakka-accel --test contract_e2e       --features cuda-runtime-tests,cutensor
-cargo test  -p rakka-accel --test svd_e2e            --features cuda-runtime-tests,cusolver
+cargo test  -p atomr-accel --test sgemm_e2e          --features cuda-runtime-tests
+cargo test  -p atomr-accel --test pinned_memcpy_e2e  --features cuda-runtime-tests
+cargo test  -p atomr-accel --test end_to_end_e2e     --features cuda-runtime-tests
+cargo test  -p atomr-accel --test spmv_e2e           --features cuda-runtime-tests,cusparse
+cargo test  -p atomr-accel --test contract_e2e       --features cuda-runtime-tests,cutensor
+cargo test  -p atomr-accel --test svd_e2e            --features cuda-runtime-tests,cusolver
 ```
 
 ## Picking the right deps
 
-Each sub-crate path-depends only on `rakka-accel-cuda` (the foundation) —
+Each sub-crate path-depends only on `atomr-accel-cuda` (the foundation) —
 no implicit pulls of the other blueprints. Add what you need:
 
 ```toml
 # Just batching:
-rakka-accel          = "0.0"
-rakka-accel-patterns = "0.0"
+atomr-accel          = "0.0"
+atomr-accel-patterns = "0.0"
 
 # Training pipeline with NCCL + replay journal:
-rakka-accel       = { version = "0.0", features = ["full-cuda", "replay"] }
-rakka-accel-train = "0.0"
+atomr-accel       = { version = "0.0", features = ["full-cuda", "replay"] }
+atomr-accel-train = "0.0"
 
 # Realtime sims with JIT kernels:
-rakka-accel          = { version = "0.0", features = ["nvrtc"] }
-rakka-accel-cuda-realtime = { version = "0.0", features = ["nvrtc"] }
+atomr-accel          = { version = "0.0", features = ["nvrtc"] }
+atomr-accel-cuda-realtime = { version = "0.0", features = ["nvrtc"] }
 ```
 
 [`docs/features-matrix.md`](docs/features-matrix.md) shows the full
@@ -300,16 +300,16 @@ feature.
 Every sub-crate ships a `prelude` module:
 
 ```rust
-use rakka_accel_cuda::prelude::*;            // foundation
-use rakka_accel_patterns::prelude::*;   // batching, cascade, …
-use rakka_accel_train::prelude::*;      // trainers, optimizers
-use rakka_accel_agents::prelude::*;     // RAG, embedding cache
-use rakka_accel_cuda_realtime::prelude::*;   // particles, cloth, sparse
+use atomr_accel_cuda::prelude::*;            // foundation
+use atomr_accel_patterns::prelude::*;   // batching, cascade, …
+use atomr_accel_train::prelude::*;      // trainers, optimizers
+use atomr_accel_agents::prelude::*;     // RAG, embedding cache
+use atomr_accel_cuda_realtime::prelude::*;   // particles, cloth, sparse
 ```
 
 ## Status
 
-`F2 – F9 implemented + rakka 0.2 adoption complete.` The full feature
+`F2 – F9 implemented + atomr 0.2 adoption complete.` The full feature
 matrix builds clean; 60+ tests pass on a no-GPU CI; the GPU-runtime
 suite covers SGEMM, FFT, RNG, pinned memcpy, SpMV, tensor contraction,
 SVD, and the multi-actor end-to-end smoke.
@@ -368,4 +368,4 @@ Apache-2.0.
 [nccl]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html
 [nccl-comm]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/communicators.html
 [nccl-allreduce]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/colls.html#ncclallreduce
-[rakka-sharding]: ../rakka/crates/rakka-cluster-sharding
+[atomr-sharding]: ../atomr/crates/atomr-cluster-sharding

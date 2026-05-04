@@ -2,10 +2,10 @@ name: Docs
 
 # Publish rustdoc to GitHub Pages on every push to `main` and on
 # every `v*` tag. The site lives at:
-#   https://rustakka.github.io/rakka-accel/rakka_accel/index.html
+#   https://rustakka.github.io/atomr-accel/atomr_accel/index.html
 #
-# Mirrors the rakka workspace's docs.yml. rakka uses mkdocs-material
-# because its docs are markdown-driven; rakka-accel's primary doc
+# Mirrors the atomr workspace's docs.yml. atomr uses mkdocs-material
+# because its docs are markdown-driven; atomr-accel's primary doc
 # surface is rustdoc, so we publish that instead. The markdown docs
 # under `docs/` are linked from rustdoc and the README.
 
@@ -28,37 +28,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: cargo doc --workspace --no-deps (every feature on)
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           cargo doc --workspace --no-deps \
-            --features rakka-accel-cuda/full-cuda,rakka-accel-cuda/replay,rakka-accel-cuda/cluster,rakka-accel-cuda/streams,rakka-accel-cuda/telemetry
+            --features atomr-accel-cuda/full-cuda,atomr-accel-cuda/replay,atomr-accel-cuda/cluster,atomr-accel-cuda/streams,atomr-accel-cuda/telemetry
       - name: Add index redirect to the umbrella crate
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           cat > target/doc/index.html <<'EOF'
           <!doctype html>
           <meta charset="utf-8">
-          <title>rakka-accel — Rust API documentation</title>
-          <meta http-equiv="refresh" content="0; url=rakka_accel/index.html">
-          <link rel="canonical" href="rakka_accel/index.html">
+          <title>atomr-accel — Rust API documentation</title>
+          <meta http-equiv="refresh" content="0; url=atomr_accel/index.html">
+          <link rel="canonical" href="atomr_accel/index.html">
           EOF
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: rakka-accel/target/doc
+          path: atomr-accel/target/doc
 
   deploy:
     needs: build

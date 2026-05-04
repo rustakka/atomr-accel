@@ -1,0 +1,126 @@
+[package]
+name = "atomr-accel-cuda"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "GPU acceleration via the actor model. Wraps NVIDIA CUDA libraries (cuBLAS, cuDNN, cuFFT, cuRAND, cuSOLVER, cuSPARSE, cuTENSOR, cuBLASLt, NVRTC, NCCL) as supervised atomr actors with generation-validated buffers and a uniform async surface."
+
+[features]
+default = []
+# Gates examples and benches that allocate a real CudaContext / launch real kernels.
+# Off-by-default so the crate builds and unit-tests on hosts without a GPU
+# (cudarc's default features include fallback-dynamic-loading).
+cuda-runtime-tests = []
+
+# Per-library actor gates. Each pulls in the matching cudarc feature.
+cudnn    = ["cudarc/cudnn"]
+cufft    = ["cudarc/cufft"]
+cusolver = ["cudarc/cusolver"]
+cusparse = ["cudarc/cusparse"]
+cutensor = ["cudarc/cutensor"]
+nccl     = ["cudarc/nccl"]
+# cublaslt, curand, nvrtc are on-by-default in cudarc; the atomr-accel-cuda
+# feature gates the actor module compilation only.
+cublaslt = []
+curand   = []
+nvrtc    = []
+# Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
+# in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
+# When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
+# backend.
+replay   = ["dep:atomr-persistence", "dep:serde", "dep:serde_json"]
+# Cluster-sharding adapter for `placement::PlacementActor`. Pulls in
+# `atomr-cluster-sharding` so callers can address devices via
+# `EntityRef<DeviceExtractor>`.
+cluster  = ["dep:atomr-cluster-sharding"]
+# Streams-based pipeline composition. Pulls in `atomr-streams` so the
+# `streams_pipeline` helper module is available alongside the
+# actor-based `pipeline::PipelineExecutor`.
+streams  = ["dep:atomr-streams"]
+# Observability: install atomr-telemetry's TelemetryExtension on the
+# host ActorSystem and expose a small set of GPU-specific probes
+# (per-device VRAM, GpuRef generation counters, stream pool capacity,
+# kernel envelope latency).
+telemetry = ["dep:atomr-telemetry"]
+# half-precision dtype variants (f16, bf16) for AllocateF16 / AllocateBf16
+# and tensor descriptors. Pulls in cudarc's `f16` feature which
+# requires `half`.
+f16      = ["cudarc/f16", "dep:half"]
+
+# Convenience aggregates.
+core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
+training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
+full-cuda     = ["training-libs", "nccl"]
+
+[dependencies]
+atomr-core   = { workspace = true }
+atomr-config = { workspace = true }
+atomr-macros = { workspace = true }
+cudarc       = { workspace = true }
+tokio        = { workspace = true }
+async-trait  = { workspace = true }
+futures      = { workspace = true }
+futures-util = { workspace = true }
+arc-swap     = { workspace = true }
+parking_lot  = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+bitflags     = "2"
+lru          = "0.12"
+half         = { version = "2", optional = true }
+tokio-stream = "0.1"
+atomr-persistence = { workspace = true, optional = true }
+atomr-cluster-sharding = { workspace = true, optional = true }
+atomr-streams = { workspace = true, optional = true }
+atomr-telemetry = { workspace = true, optional = true }
+serde        = { version = "1", features = ["derive"], optional = true }
+serde_json   = { version = "1", optional = true }
+
+[dev-dependencies]
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+tracing-subscriber = { workspace = true }
+criterion          = { workspace = true }
+atomr-testkit      = { workspace = true }
+
+[[example]]
+name = "echo_no_gpu"
+
+[[example]]
+name = "pipeline_no_gpu"
+
+[[example]]
+name = "sgemm"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "rng_uniform"
+required-features = ["cuda-runtime-tests", "curand"]
+
+[[example]]
+name = "fft_1d"
+required-features = ["cuda-runtime-tests", "cufft"]
+
+[[example]]
+name = "jit_relu"
+required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[bench]]
+name = "sgemm_overhead"
+harness = false
+required-features = ["cuda-runtime-tests"]
+
+[[bench]]
+name = "rng_throughput"
+harness = false
+required-features = ["cuda-runtime-tests", "curand"]
+
+[lib]
+path = "src/lib.rs"

@@ -1,7 +1,7 @@
-# Releasing rakka-accel
+# Releasing atomr-accel
 
 A single tag → both **crates.io** (five Rust crates in dep order)
-and **PyPI** (one Python wheel + sdist). Mirrors the rakka workspace's
+and **PyPI** (one Python wheel + sdist). Mirrors the atomr workspace's
 release flow.
 
 ## TL;DR — fully automated path
@@ -35,7 +35,7 @@ git push origin main --follow-tags
 The xtask updates `[workspace.package].version`, rewrites internal
 path-dep version pins inside `[workspace.dependencies]`, refreshes
 `Cargo.lock`, and mirrors the version into
-`crates/rakka-accel-py/pyproject.toml`.
+`crates/atomr-accel-py/pyproject.toml`.
 
 ## Workflows
 
@@ -56,18 +56,18 @@ TestPyPI for wheel uploads.
 - [ ] `CHANGELOG.md` updated (or rely on auto-generated release notes).
 - [ ] `cargo xtask verify` passes locally (mirrors the
       release-pipeline gate).
-- [ ] `(cd crates/rakka-accel-py && maturin develop --release && pytest tests/)`
+- [ ] `(cd crates/atomr-accel-py && maturin develop --release && pytest tests/)`
       passes.
 
 ## After a release
 
-1. Verify on [crates.io](https://crates.io/crates/rakka-accel) and
-   [PyPI](https://pypi.org/project/rakka-accel/).
-2. `pip install --upgrade rakka-accel && python -c "import
-   rakka_accel; print(rakka_accel.__version__)"`.
-3. `cargo install --version <new> rakka-accel-cuda` (sanity check).
+1. Verify on [crates.io](https://crates.io/crates/atomr-accel) and
+   [PyPI](https://pypi.org/project/atomr-accel/).
+2. `pip install --upgrade atomr-accel && python -c "import
+   atomr_accel; print(atomr_accel.__version__)"`.
+3. `cargo install --version <new> atomr-accel-cuda` (sanity check).
 4. Bump the workspace version one minor / patch ahead on `main` to
-   start the next development cycle (mirrors the rakka pattern):
+   start the next development cycle (mirrors the atomr pattern):
    ```toml
    version = "0.0.3-dev"
    ```
@@ -76,7 +76,7 @@ TestPyPI for wheel uploads.
 
 - **`CARGO_REGISTRY_TOKEN`** — repo settings → secrets →
   `crates-io` environment. Generate at
-  https://crates.io/me with publish-only scope on the rakka-accel
+  https://crates.io/me with publish-only scope on the atomr-accel
   crates.
 - **`PYPI_API_TOKEN`** — repo settings → secrets → `pypi`
   environment. Project-scoped token from
@@ -88,8 +88,8 @@ TestPyPI for wheel uploads.
 
 ```bash
 # crates.io
-cargo yank --vers 0.0.2 rakka-accel
-cargo yank --vers 0.0.2 rakka-accel-patterns
+cargo yank --vers 0.0.2 atomr-accel
+cargo yank --vers 0.0.2 atomr-accel-patterns
 # ...etc
 
 # PyPI: open the project page → Manage → Releases → Yank.
@@ -101,7 +101,7 @@ If you need to publish a single crate out-of-band (rare, but
 sometimes happens when a downstream user reports a bug):
 
 ```bash
-cargo publish -p rakka-accel-patterns --token "$CARGO_REGISTRY_TOKEN"
+cargo publish -p atomr-accel-patterns --token "$CARGO_REGISTRY_TOKEN"
 ```
 
 The `cargo publish --wait-for-publish-timeout 120` flag is useful

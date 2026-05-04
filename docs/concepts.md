@@ -1,6 +1,6 @@
 # Concepts
 
-The five ideas you need to be productive in rakka-accel. Each one
+The five ideas you need to be productive in atomr-accel. Each one
 exists because it makes a CUDA invariant easier to live with.
 
 ## 1. The two-tier supervision split
@@ -12,7 +12,7 @@ Contexts can poison themselves on certain errors and have to be torn
 down + rebuilt. Devices, from the user's point of view, just keep
 working.
 
-rakka-accel mirrors this with two actors:
+atomr-accel mirrors this with two actors:
 
 - **`DeviceActor`** — stable address (`ActorRef<DeviceMsg>`). Lives
   for as long as the device is part of the system. Queues incoming
@@ -39,7 +39,7 @@ decider routes to `Directive::Restart`. `OutOfMemory` → `Resume`.
 `Unrecoverable` → `Stop`. Anything else → `Escalate`.
 
 The transport is intentionally a panic message: `Actor::handle`
-returns `()` in rakka, so panics are how failures travel up the
+returns `()` in atomr, so panics are how failures travel up the
 tree. Receive-side parsing is either the closure-based
 `error::decider()` or the typed `error::DeviceSupervisor` that
 implements `SupervisorOf<C>` over `GpuError`.

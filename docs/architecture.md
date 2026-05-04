@@ -1,7 +1,7 @@
 # Architecture
 
 The full design narrative. If you're trying to decide whether
-rakka-accel fits your workload, this is the document.
+atomr-accel fits your workload, this is the document.
 
 For the API tour, read [getting-started.md](getting-started.md).
 For the conceptual model, read [concepts.md](concepts.md).
@@ -30,7 +30,7 @@ The actor model is a remarkably good fit. Each CUDA library
 - **One restart unit** when the underlying [`CUcontext`][cuda-ctx]
   poisons.
 
-Those are exactly the invariants of a rakka actor: a single
+Those are exactly the invariants of a atomr actor: a single
 `handle` method, one mailbox, one supervisor.
 
 ## Design principles
@@ -42,9 +42,9 @@ Those are exactly the invariants of a rakka actor: a single
    `device_id`, and a generation token. The compiler catches dtype
    mismatches; the runtime catches generation mismatches.
 3. **Failures travel as panics with tagged messages.** Receive-side
-   parsing maps to typed [`Directive`s][rakka-directive]
+   parsing maps to typed [`Directive`s][atomr-directive]
    (Restart / Resume / Stop / Escalate). The transport is a
-   constraint of the rakka `Actor` trait, not a deliberate choice.
+   constraint of the atomr `Actor` trait, not a deliberate choice.
 4. **Cudarc safe layer where it exists; `cudarc::*::sys` where it
    doesn't.** cuSPARSE / cuTENSOR / advanced cuSOLVER are wrapped at
    the `sys::` layer until cudarc upstream catches up. The actor
@@ -227,7 +227,7 @@ streams the journal back through a user-supplied
 `ReplaySink<Msg>` so the system replays bit-for-bit. With the
 `replay` feature on, `ReplayHarness::with_journal(journal,
 "persistence-id")` round-trips every entry through any
-[`rakka_persistence::Journal`][rakka-persistence] backend (in-memory,
+[`atomr_persistence::Journal`][atomr-persistence] backend (in-memory,
 SQL, Redis, MongoDB, Cassandra, Dynamo). Crash, restart, replay.
 
 ## Cluster-aware placement
@@ -237,9 +237,9 @@ active streams) and picks one per request via a `PlacementPolicy`
 (`RoundRobinPolicy` or `LeastLoadedPolicy`).
 
 With the `cluster` feature, `placement::sharded::PlacementShardingAdapter`
-adapts the placement layer to rakka's
-[cluster-sharding][rakka-sharding]: every request is routed by a
-typed [`EntityRef<DeviceExtractor>`][rakka-entity-ref] using a
+adapts the placement layer to atomr's
+[cluster-sharding][atomr-sharding]: every request is routed by a
+typed [`EntityRef<DeviceExtractor>`][atomr-entity-ref] using a
 consistent-hash on the entity id. Cross-node routing follows the
 shard owner; intra-node routing hits the local device fleet.
 
@@ -256,19 +256,19 @@ probes:
 
 The same `TelemetryExtension` ships actor-level, cluster-level,
 sharding-level, persistence-level, and stream-level probes from
-upstream rakka. The [`rakka-dashboard`][rakka-dashboard] SPA
+upstream atomr. The [`atomr-dashboard`][atomr-dashboard] SPA
 visualizes the resulting `NodeSnapshot` over WebSocket — pointing it
-at any rakka-accel host shows the GPU panels alongside the standard
+at any atomr-accel host shows the GPU panels alongside the standard
 ones.
 
 ## Crate layout
 
 ```
 crates/
-├── rakka-accel-cuda/         # foundation: actors, supervision, GpuRef, streams,
+├── atomr-accel-cuda/         # foundation: actors, supervision, GpuRef, streams,
 │                            # completion, kernel envelope, library actors,
 │                            # P2pTopology, GraphActor, ReplayHarness, …
-├── rakka-accel-patterns/     # universal blueprints
+├── atomr-accel-patterns/     # universal blueprints
 │   ├── batching.rs          # DynamicBatchingServer
 │   ├── cascade.rs           # InferenceCascade
 │   ├── replica_pool.rs      # ModelReplicaPool
@@ -277,20 +277,20 @@ crates/
 │   ├── speculative.rs       # SpeculativeDecoder
 │   ├── moe.rs               # MoeRouter
 │   └── mock.rs              # GpuMockActor (CPU stand-in)
-├── rakka-accel-train/        # distributed training blueprints
+├── atomr-accel-train/        # distributed training blueprints
 │   ├── data_parallel.rs
 │   ├── pipeline_parallel.rs
 │   ├── tensor_parallel.rs
 │   ├── parameter_server.rs
 │   ├── optimizer.rs
 │   └── loss.rs
-├── rakka-accel-agents/       # agentic / LLM blueprints
+├── atomr-accel-agents/       # agentic / LLM blueprints
 │   ├── rag.rs
 │   ├── embedding_cache.rs
 │   ├── vector_index.rs
 │   ├── shared_state.rs
 │   └── langgraph_nodes.rs
-└── rakka-accel-cuda-realtime/     # interactive-rate blueprints
+└── atomr-accel-cuda-realtime/     # interactive-rate blueprints
     ├── kernels/             # CUDA-C kernel sources (NVRTC-compiled)
     │   ├── coo_spmv.cu
     │   ├── particle_step.cu
@@ -316,7 +316,7 @@ crates/
   For sub-100ns dispatch (e.g. tight RNG loops), measure first;
   consider `SingleStreamAllocator` to keep everything on one actor.
 - **Panic-as-failure.** Restarts go through `panic!` because
-  `Actor::handle` returns `()`. This is rakka's choice, not ours.
+  `Actor::handle` returns `()`. This is atomr's choice, not ours.
   Application code should never have to write or catch these
   panics; it interacts with `Result<_, GpuError>` exclusively.
 - **`sys::`-level FFI for cuSPARSE / cuTENSOR / parts of cuSOLVER.**
@@ -330,7 +330,7 @@ crates/
 
 ## Status & roadmap
 
-`F2 – F9 implemented + rakka 0.2 adoption complete.` The project's
+`F2 – F9 implemented + atomr 0.2 adoption complete.` The project's
 internal phase plan is "F"-numbered (foundation phases F1 through
 F10):
 
@@ -377,8 +377,8 @@ F10):
 [nccl-comm]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/communicators.html
 [nccl-allreduce]: https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/colls.html#ncclallreduce
 [otp-sup]: https://www.erlang.org/doc/design_principles/sup_princ.html
-[rakka-directive]: ../../rakka/crates/rakka-core/src/supervision.rs
-[rakka-persistence]: ../../rakka/crates/rakka-persistence
-[rakka-sharding]: ../../rakka/crates/rakka-cluster-sharding
-[rakka-entity-ref]: ../../rakka/crates/rakka-cluster-sharding/src/entity_ref.rs
-[rakka-dashboard]: ../../rakka/crates/rakka-dashboard
+[atomr-directive]: ../../atomr/crates/atomr-core/src/supervision.rs
+[atomr-persistence]: ../../atomr/crates/atomr-persistence
+[atomr-sharding]: ../../atomr/crates/atomr-cluster-sharding
+[atomr-entity-ref]: ../../atomr/crates/atomr-cluster-sharding/src/entity_ref.rs
+[atomr-dashboard]: ../../atomr/crates/atomr-dashboard

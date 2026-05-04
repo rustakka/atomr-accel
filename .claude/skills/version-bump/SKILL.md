@@ -2,17 +2,17 @@
 name: version-bump
 description: |
   Decide the right SemVer bump (patch / minor / major / pre-release)
-  for the changes in the current rakka-accel working tree, then apply
+  for the changes in the current atomr-accel working tree, then apply
   the bump via `cargo xtask bump`. Use whenever the user asks "bump
   the version", "cut a release", "release this as <kind>", or after
   a substantive change has been reviewed and is ready to ship.
 ---
 
-# version-bump (rakka-accel)
+# version-bump (atomr-accel)
 
 Single-purpose skill: pick a SemVer bump for the staged/working
-changes in the rakka-accel workspace and apply it. Mirrors the
-sibling rakka workspace's skill but with rakka-accel-specific crate
+changes in the atomr-accel workspace and apply it. Mirrors the
+sibling atomr workspace's skill but with atomr-accel-specific crate
 list and GPU-domain notes.
 
 ## Decision rule (Conventional Commits → SemVer)
@@ -22,7 +22,7 @@ tag exists yet) and choose the **strongest** bump implied:
 
 | Found in any commit                       | Bump  |
 |-------------------------------------------|-------|
-| `BREAKING CHANGE:` / `<type>!:` / typed-API removal in `rakka-accel-cuda`, `rakka-accel-patterns`, `rakka-accel-train`, `rakka-accel-agents`, `rakka-accel-cuda-realtime` | **major** |
+| `BREAKING CHANGE:` / `<type>!:` / typed-API removal in `atomr-accel-cuda`, `atomr-accel-patterns`, `atomr-accel-train`, `atomr-accel-agents`, `atomr-accel-cuda-realtime` | **major** |
 | `feat:` / new public type, trait method, or `DeviceMsg` variant | **minor** |
 | `fix:` / `perf:` / `revert:` / internal-only fix | **patch** |
 | `chore:` / `docs:` / `ci:` / `test:` / `refactor:` / `style:` / `build:` only | **skip** (don't bump) |
@@ -88,12 +88,12 @@ GPU-domain things that look scary but don't break the public API:
      `version = "<old>"` pins to the new version (sub-crates need
      this in lockstep so crates.io can resolve them on publish).
    - Mirrors the new version into
-     `crates/rakka-accel-py/pyproject.toml` if it has a static
+     `crates/atomr-accel-py/pyproject.toml` if it has a static
      `version` line.
    - Refreshes `Cargo.lock` via `cargo update --workspace`.
 
 4. **Stage the bump.** `git add Cargo.toml Cargo.lock
-   crates/rakka-accel-py/pyproject.toml` and prepare a commit titled
+   crates/atomr-accel-py/pyproject.toml` and prepare a commit titled
    `chore(release): vX.Y.Z`. Don't push or tag from this skill —
    that's the user's call (or
    `.github/workflows/version-bump.yml`'s job on `main`, which fires

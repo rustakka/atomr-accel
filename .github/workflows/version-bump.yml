@@ -16,8 +16,8 @@ name: Version bump + tag
 # version. Pass `dry_run=true` via workflow_dispatch to print the
 # decision without committing or tagging.
 #
-# Mirrors the rakka workspace's version-bump.yml — the only difference
-# is the bot identity and the tag namespace ("rakka-accel v…").
+# Mirrors the atomr workspace's version-bump.yml — the only difference
+# is the bot identity and the tag namespace ("atomr-accel v…").
 
 on:
   push:
@@ -48,27 +48,27 @@ jobs:
     # workflow doesn't loop on its own output.
     if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):')
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel (full history for `git tag`)
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel (full history for `git tag`)
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
 
       - name: Decide bump kind from Conventional Commits
         id: decide
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
           FORCE: ${{ github.event.inputs.force }}
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           set -euo pipefail
           if [ -n "${FORCE:-}" ]; then
@@ -107,7 +107,7 @@ jobs:
       - name: Bump version + refresh Cargo.lock
         if: steps.decide.outputs.kind != 'skip'
         id: bump
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           set -euo pipefail
           kind="${{ steps.decide.outputs.kind }}"
@@ -133,16 +133,16 @@ jobs:
 
       - name: Commit + tag
         if: steps.decide.outputs.kind != 'skip' && github.event.inputs.dry_run != 'true'
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         env:
           NEW_VERSION: ${{ steps.bump.outputs.version }}
         run: |
           set -euo pipefail
-          git config user.name "rakka-accel-release-bot"
+          git config user.name "atomr-accel-release-bot"
           git config user.email "release-bot@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock crates/rakka-accel-py/pyproject.toml 2>/dev/null || true
+          git add Cargo.toml Cargo.lock crates/atomr-accel-py/pyproject.toml 2>/dev/null || true
           git commit -m "chore(release): v${NEW_VERSION}"
-          git tag -a "v${NEW_VERSION}" -m "rakka-accel v${NEW_VERSION}"
+          git tag -a "v${NEW_VERSION}" -m "atomr-accel v${NEW_VERSION}"
           git push origin HEAD --follow-tags
 
       - name: Summary

@@ -1,4 +1,4 @@
-# Getting started with rakka-accel
+# Getting started with atomr-accel
 
 A ten-minute tour. By the end you'll have:
 
@@ -11,7 +11,7 @@ A ten-minute tour. By the end you'll have:
 ## Prerequisites
 
 - Rust **1.78+** (workspace toolchain in `rust-toolchain.toml`).
-- A sibling clone of [rakka](../../rakka) at `../rakka` (path
+- A sibling clone of [atomr](../../atomr) at `../atomr` (path
   dependency, version 0.2.x).
 - Optional but recommended: an NVIDIA GPU plus the
   [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) (driver
@@ -20,8 +20,8 @@ A ten-minute tour. By the end you'll have:
 
 ```
 your-workspace/
-├── rakka/         # the rakka actor runtime
-└── rakka-accel/   # this repo
+├── atomr/         # the atomr actor runtime
+└── atomr-accel/   # this repo
 ```
 
 ## 1. Build with no GPU
@@ -37,7 +37,7 @@ the CUDA driver.
 Run the smallest example:
 
 ```bash
-cargo run -p rakka-accel --example echo_no_gpu
+cargo run -p atomr-accel --example echo_no_gpu
 ```
 
 Expected output:
@@ -51,7 +51,7 @@ Plumbing OK. Terminating system...
 
 What just happened:
 
-1. `ActorSystem::create` spun up rakka.
+1. `ActorSystem::create` spun up atomr.
 2. `DeviceActor::props(DeviceConfig::mock(0))` built a **mock-mode**
    device — supervision and message wiring run, but cudarc calls are
    stubbed.
@@ -69,7 +69,7 @@ call changes.
 If you have a GPU and the CUDA toolkit installed:
 
 ```bash
-cargo run -p rakka-accel --example sgemm --features cuda-runtime-tests
+cargo run -p atomr-accel --example sgemm --features cuda-runtime-tests
 ```
 
 This spawns a real `DeviceActor`, allocates three N×N f32 buffers
@@ -79,9 +79,9 @@ on-device, and issues an [`SGEMM`][cublas-sgemm] through the
 Try the others:
 
 ```bash
-cargo run -p rakka-accel --example rng_uniform --features cuda-runtime-tests,curand
-cargo run -p rakka-accel --example fft_1d      --features cuda-runtime-tests,cufft
-cargo run -p rakka-accel --example jit_relu    --features cuda-runtime-tests,nvrtc
+cargo run -p atomr-accel --example rng_uniform --features cuda-runtime-tests,curand
+cargo run -p atomr-accel --example fft_1d      --features cuda-runtime-tests,cufft
+cargo run -p atomr-accel --example jit_relu    --features cuda-runtime-tests,nvrtc
 ```
 
 The `jit_relu` example is the most instructive: it compiles a CUDA-C
@@ -92,9 +92,9 @@ That's the full NVRTC roundtrip in ~80 lines of Rust.
 ## 3. Your first request from scratch
 
 ```rust
-use rakka_config::Config;
-use rakka_core::actor::ActorSystem;
-use rakka_accel_cuda::prelude::*;
+use atomr_config::Config;
+use atomr_core::actor::ActorSystem;
+use atomr_accel_cuda::prelude::*;
 use std::time::Duration;
 use tokio::sync::oneshot;
 
@@ -207,10 +207,10 @@ is rebuilt between `Compile` and `Launch`, the launch fails fast with
   generation tokens, stream allocators. The "why" behind the API.
 - **[architecture.md](architecture.md)** — the full design narrative
   with NVIDIA references for every primitive.
-- **`crates/rakka-accel-patterns/examples/`** — concrete patterns
+- **`crates/atomr-accel-patterns/examples/`** — concrete patterns
   (batching, cascade, MoE, fair-share, speculative decoding) that
   ship with no-GPU demo runners.
-- **`crates/rakka-accel-cuda/tests/end_to_end_e2e.rs`** — multi-actor
+- **`crates/atomr-accel-cuda/tests/end_to_end_e2e.rs`** — multi-actor
   smoke that allocates, copies, runs SGEMM, and reads back.
 
 [cublas-sgemm]: https://docs.nvidia.com/cuda/cublas/index.html#cublas-t-gemm

@@ -16,7 +16,7 @@ name: Release
 #
 # Honors `--dry-run` for `workflow_dispatch`.
 #
-# Mirrors the rakka workspace's release.yml — same job graph, same
+# Mirrors the atomr workspace's release.yml — same job graph, same
 # dry-run semantics, same trusted-publishing setup.
 
 on:
@@ -51,22 +51,22 @@ jobs:
     name: Verify (release-pipeline gate)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy, rustfmt }
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: cargo xtask verify
         run: cargo xtask verify
-        working-directory: rakka-accel
+        working-directory: atomr-accel
 
   # ─── Python wheels ───────────────────────────────────────────────────
   build-wheels:
@@ -99,15 +99,15 @@ jobs:
             python-target: x64
             manylinux: "off"
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -120,11 +120,11 @@ jobs:
           # the right CPython headers.
           args: --release --strip --out dist --no-default-features --features extension-module
           manylinux: ${{ matrix.manylinux }}
-          working-directory: rakka-accel/crates/rakka-accel-py
+          working-directory: atomr-accel/crates/atomr-accel-py
       - uses: actions/upload-artifact@v4
         with:
-          name: rakka-accel-wheels-${{ matrix.target }}
-          path: rakka-accel/crates/rakka-accel-py/dist/*.whl
+          name: atomr-accel-wheels-${{ matrix.target }}
+          path: atomr-accel/crates/atomr-accel-py/dist/*.whl
           if-no-files-found: error
 
   build-sdist:
@@ -133,15 +133,15 @@ jobs:
     if: github.event_name == 'push' || github.event.inputs.skip_python != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -150,11 +150,11 @@ jobs:
         with:
           command: sdist
           args: --out dist
-          working-directory: rakka-accel/crates/rakka-accel-py
+          working-directory: atomr-accel/crates/atomr-accel-py
       - uses: actions/upload-artifact@v4
         with:
-          name: rakka-accel-sdist
-          path: rakka-accel/crates/rakka-accel-py/dist/*.tar.gz
+          name: atomr-accel-sdist
+          path: atomr-accel/crates/atomr-accel-py/dist/*.tar.gz
           if-no-files-found: error
 
   # ─── GitHub Release ──────────────────────────────────────────────────
@@ -179,29 +179,29 @@ jobs:
           prev=$(git tag --sort=-creatordate | grep -v "^${tag}$" | head -n1 || true)
           range="${prev:+$prev..}HEAD"
           {
-            echo "## rakka-accel ${tag}"
+            echo "## atomr-accel ${tag}"
             echo
             echo "### Changes"
             git log --no-merges --pretty=format:'- %s (%h)' "${range}"
             echo
             echo
             echo "### Crates published"
-            echo "- rakka-accel-cuda"
-            echo "- rakka-accel"
-            echo "- rakka-accel-patterns"
-            echo "- rakka-accel-train"
-            echo "- rakka-accel-agents"
-            echo "- rakka-accel-cuda-realtime"
+            echo "- atomr-accel-cuda"
+            echo "- atomr-accel"
+            echo "- atomr-accel-patterns"
+            echo "- atomr-accel-train"
+            echo "- atomr-accel-agents"
+            echo "- atomr-accel-cuda-realtime"
             echo
             echo "### Python wheels"
-            ls artifacts | grep "rakka-accel-wheels-" | sed 's/^/- /' || true
+            ls artifacts | grep "atomr-accel-wheels-" | sed 's/^/- /' || true
           } > RELEASE_NOTES.md
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.notes.outputs.tag }}
-          name: rakka-accel ${{ steps.notes.outputs.tag }}
+          name: atomr-accel ${{ steps.notes.outputs.tag }}
           body_path: RELEASE_NOTES.md
           prerelease: ${{ contains(steps.notes.outputs.tag, '-') }}
           files: |
@@ -220,20 +220,20 @@ jobs:
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: Publish all crates in dep order
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
           set -euo pipefail
           # crates.io applies a "new crates per period" rate limit. Pace
@@ -268,18 +268,18 @@ jobs:
             done
           }
           # Strict dep-order:
-          #   1. rakka-accel-cuda  — backend impl (no internal deps)
-          #   2. rakka-accel       — umbrella core (optional re-export)
+          #   1. atomr-accel-cuda  — backend impl (no internal deps)
+          #   2. atomr-accel       — umbrella core (optional re-export)
           #   3. blueprints        — patterns / agents / cuda-realtime
-          #                          (each depends only on rakka-accel-cuda)
-          #   4. rakka-accel-train — depends on rakka-accel-patterns
+          #                          (each depends only on atomr-accel-cuda)
+          #   4. atomr-accel-train — depends on atomr-accel-patterns
           for crate in \
-            rakka-accel-cuda \
-            rakka-accel \
-            rakka-accel-patterns \
-            rakka-accel-agents \
-            rakka-accel-cuda-realtime \
-            rakka-accel-train; do
+            atomr-accel-cuda \
+            atomr-accel \
+            atomr-accel-patterns \
+            atomr-accel-agents \
+            atomr-accel-cuda-realtime \
+            atomr-accel-train; do
             publish_one "$crate"
           done
 
@@ -289,22 +289,22 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_crates != 'true'
     steps:
-      - name: Checkout sibling rakka
+      - name: Checkout sibling atomr
         uses: actions/checkout@v4
         with:
-          repository: rustakka/rakka
-          path: rakka
-      - name: Checkout rakka-accel
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
         uses: actions/checkout@v4
         with:
-          path: rakka-accel
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: rakka-accel }
+        with: { workspaces: atomr-accel }
       - name: Dry-run publish
-        working-directory: rakka-accel
+        working-directory: atomr-accel
         run: |
-          for c in rakka-accel-cuda rakka-accel rakka-accel-patterns rakka-accel-train rakka-accel-agents rakka-accel-cuda-realtime; do
+          for c in atomr-accel-cuda atomr-accel atomr-accel-patterns atomr-accel-train atomr-accel-agents atomr-accel-cuda-realtime; do
             echo "==> $c"
             cargo publish -p "$c" --dry-run --allow-dirty || true
           done
@@ -319,14 +319,14 @@ jobs:
     # publishing → add GitHub publisher (owner / repo / workflow / env).
     environment:
       name: pypi
-      url: https://pypi.org/p/rakka-accel
+      url: https://pypi.org/p/atomr-accel
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "rakka-accel-{wheels-*,sdist}"
+          pattern: "atomr-accel-{wheels-*,sdist}"
       - name: Flatten wheel + sdist artifacts
         run: |
           mkdir -p upload
@@ -347,14 +347,14 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_python != 'true'
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/rakka-accel
+      url: https://test.pypi.org/p/atomr-accel
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "rakka-accel-{wheels-*,sdist}"
+          pattern: "atomr-accel-{wheels-*,sdist}"
       - name: Flatten wheel + sdist artifacts
         run: |
           mkdir -p upload
