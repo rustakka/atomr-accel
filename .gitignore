@@ -31,3 +31,12 @@ Thumbs.db
 # Profiler output
 flamegraph.svg
 perf.data*
+
+# Claude harness worktrees
+.claude/worktrees/
+
+# Python virtualenvs / build artifacts (already partially ignored elsewhere)
+.venv/
+__pycache__/
+dist/
+*.egg-info/
