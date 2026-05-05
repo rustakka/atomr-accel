@@ -92,6 +92,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomr-accel-cub"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-accel-cuda",
+ "atomr-core",
+ "criterion",
+ "cudarc",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "atomr-accel-cuda"
 version = "0.1.0"
 dependencies = [

@@ -47,6 +47,12 @@ pub mod error;
 pub mod event;
 pub mod gpu_ref;
 pub mod graph;
+/// Phase 5: Hopper / Blackwell host-side primitives. The module
+/// surface is always compiled (the `tma::TensorMapDescriptor` builder
+/// and `cluster::LaunchSpec` types are useful even on hosts that don't
+/// link a Hopper driver). The `hopper` cargo feature gates the FFI
+/// implementations of `cuTensorMapEncodeTiled` / `cudaLaunchKernelExC`.
+pub mod hopper;
 pub mod host;
 pub mod kernel;
 pub mod memory;

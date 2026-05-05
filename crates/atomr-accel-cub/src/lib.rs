@@ -1,0 +1,276 @@
+//! # atomr-accel-cub
+//!
+//! Device-wide CUB primitives surfaced as an atomr actor. CUB ships
+//! template-heavy block / device-level reductions, scans, sorts,
+//! histograms, and select / partition operators inside its
+//! `<cub/device/...>` headers; we wrap them as per-(op, dtype) NVRTC
+//! kernel sources so the actor compiles them lazily on first
+//! invocation and replays the cubin on subsequent calls through the
+//! Phase 0.6 disk cache shared with `atomr-accel-cuda`.
+//!
+//! ## Architecture
+//!
+//! [`CubActor`] is a child actor of an `atomr-accel-cuda::ContextActor`.
+//! Construction goes through [`cub_props`], which stashes the actor
+//! ref into [`atomr_accel_cuda::device::KernelChildren`] via
+//! `register_extra::<ActorRef<CubMsg>>(...)`. The host side never owns
+//! a CUB handle — every call boils down to:
+//!
+//! 1. Look up (or compile) the per-(op, dtype) NVRTC kernel source,
+//! 2. Invoke it through `NvrtcActor` on the actor's stream,
+//! 3. Reply via the `oneshot::Sender` carried by the dispatch payload.
+//!
+//! ## Mailbox surface
+//!
+//! [`CubMsg`] is a sum of seven boxed-dispatch variants — one per CUB
+//! family. Each request is generic over `T: CudaDtype`; reductions are
+//! parameterised by [`ReductionOp`] (Sum, Max, Min, ArgMax, ArgMin),
+//! sorts by key/value dtype + ascending/descending, etc. The boxed
+//! traits ([`CubReduceDispatch`], [`CubScanDispatch`], …) follow the
+//! Phase 0.3 `*Dispatch` pattern from `atomr-accel-cuda`.
+
+#![allow(clippy::too_many_arguments)]
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use atomr_core::actor::{Actor, ActorRef, Context, Props};
+use parking_lot::Mutex;
+use tokio::sync::oneshot;
+
+use atomr_accel_cuda::completion::CompletionStrategy;
+use atomr_accel_cuda::device::DeviceState;
+use atomr_accel_cuda::error::GpuError;
+
+pub mod histogram;
+pub mod reduce;
+pub mod scan;
+pub mod segmented;
+pub mod select;
+pub mod sort;
+
+pub use histogram::{CubHistogramDispatch, HistogramRequest};
+pub use reduce::{CubReduceDispatch, ReduceRequest, ReductionOp};
+pub use scan::{CubScanDispatch, ScanKind, ScanRequest};
+pub use segmented::{CubSegmentedReduceDispatch, SegmentedReduceRequest};
+pub use select::{CubPartitionDispatch, CubSelectDispatch, PartitionRequest, SelectRequest};
+pub use sort::{CubSortDispatch, SortDirection, SortRequest};
+
+/// Public mailbox of [`CubActor`]. Each variant boxes a dispatch
+/// trait whose concrete payload carries the typed `GpuRef<T>` inputs
+/// and a `oneshot::Sender` for the reply.
+pub enum CubMsg {
+    Reduce(Box<dyn CubReduceDispatch>),
+    Scan(Box<dyn CubScanDispatch>),
+    Sort(Box<dyn CubSortDispatch>),
+    Histogram(Box<dyn CubHistogramDispatch>),
+    Select(Box<dyn CubSelectDispatch>),
+    Partition(Box<dyn CubPartitionDispatch>),
+    SegmentedReduce(Box<dyn CubSegmentedReduceDispatch>),
+}
+
+/// Per-call context bundle handed to every CUB dispatcher. Captures
+/// the actor's stream, completion strategy, and `DeviceState` snapshot
+/// so dispatch impls don't need to know how the parent supervisor
+/// wired things up.
+pub struct CubDispatchCtx<'a> {
+    pub stream: &'a Arc<cudarc::driver::CudaStream>,
+    pub completion: &'a Arc<dyn CompletionStrategy>,
+    pub state: &'a Arc<DeviceState>,
+    pub ctx: &'a Arc<cudarc::driver::CudaContext>,
+    /// Compiled-kernel cache shared across requests in this actor's
+    /// lifetime. Keys: `(op_name, dtype_name)`; values: opaque cubin
+    /// bytes returned by NVRTC for the matching template instantiation.
+    pub kernel_cache: &'a Mutex<KernelSourceCache>,
+}
+
+/// In-actor cache mapping `(op, dtype)` to the most-recent NVRTC PTX
+/// blob for replay. The persistent disk cache (shared with
+/// `atomr-accel-cuda`'s `NvrtcCache`) lives one level below; this map
+/// is the per-actor hot-path lookup.
+#[derive(Default)]
+pub struct KernelSourceCache {
+    inner: std::collections::HashMap<(String, String), Arc<Vec<u8>>>,
+}
+
+impl KernelSourceCache {
+    pub fn get(&self, op: &str, dtype: &str) -> Option<Arc<Vec<u8>>> {
+        self.inner.get(&(op.to_string(), dtype.to_string())).cloned()
+    }
+    pub fn insert(&mut self, op: &str, dtype: &str, ptx: Arc<Vec<u8>>) {
+        self.inner
+            .insert((op.to_string(), dtype.to_string()), ptx);
+    }
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+}
+
+/// `CubActor` — owns no CUDA handle of its own; every op routes
+/// through NVRTC against the parent context.
+pub struct CubActor {
+    inner: CubInner,
+}
+
+enum CubInner {
+    Real {
+        ctx: Arc<cudarc::driver::CudaContext>,
+        stream: Arc<cudarc::driver::CudaStream>,
+        completion: Arc<dyn CompletionStrategy>,
+        state: Arc<DeviceState>,
+        kernel_cache: Mutex<KernelSourceCache>,
+    },
+    Mock,
+}
+
+impl CubActor {
+    /// Build a [`Props`] for a CUB child of the given context.
+    pub fn props(
+        stream: Arc<cudarc::driver::CudaStream>,
+        completion: Arc<dyn CompletionStrategy>,
+        state: Arc<DeviceState>,
+        ctx: Arc<cudarc::driver::CudaContext>,
+    ) -> Props<Self> {
+        Props::create(move || CubActor {
+            inner: CubInner::Real {
+                ctx: ctx.clone(),
+                stream: stream.clone(),
+                completion: completion.clone(),
+                state: state.clone(),
+                kernel_cache: Mutex::new(KernelSourceCache::default()),
+            },
+        })
+    }
+
+    /// Mock-mode props: every request replies `Unrecoverable("CubActor in mock mode")`.
+    pub fn mock_props() -> Props<Self> {
+        Props::create(|| CubActor {
+            inner: CubInner::Mock,
+        })
+    }
+}
+
+/// Convenience wrapper for `CubActor::props` that returns a `Props`
+/// callers can register as a child of `atomr-accel-cuda::ContextActor`.
+/// Stash the resulting `ActorRef<CubMsg>` into the context's
+/// `KernelChildren::register_extra::<ActorRef<CubMsg>>(...)` so the
+/// supervisor can fold it into the device's restart graph.
+pub fn cub_props(
+    stream: Arc<cudarc::driver::CudaStream>,
+    completion: Arc<dyn CompletionStrategy>,
+    state: Arc<DeviceState>,
+    ctx: Arc<cudarc::driver::CudaContext>,
+) -> Props<CubActor> {
+    CubActor::props(stream, completion, state, ctx)
+}
+
+#[async_trait]
+impl Actor for CubActor {
+    type Msg = CubMsg;
+
+    async fn handle(&mut self, _ctx: &mut Context<Self>, msg: CubMsg) {
+        match &self.inner {
+            CubInner::Mock => mock_reply(msg),
+            CubInner::Real {
+                ctx,
+                stream,
+                completion,
+                state,
+                kernel_cache,
+            } => {
+                let dispatch_ctx = CubDispatchCtx {
+                    stream,
+                    completion,
+                    state,
+                    ctx,
+                    kernel_cache,
+                };
+                match msg {
+                    CubMsg::Reduce(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::Scan(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::Sort(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::Histogram(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::Select(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::Partition(d) => d.dispatch(&dispatch_ctx),
+                    CubMsg::SegmentedReduce(d) => d.dispatch(&dispatch_ctx),
+                }
+            }
+        }
+    }
+}
+
+fn mock_reply(msg: CubMsg) {
+    let err = || {
+        GpuError::Unrecoverable("CubActor in mock mode (no GPU available)".into())
+    };
+    match msg {
+        CubMsg::Reduce(d) => d.cancel(err()),
+        CubMsg::Scan(d) => d.cancel(err()),
+        CubMsg::Sort(d) => d.cancel(err()),
+        CubMsg::Histogram(d) => d.cancel(err()),
+        CubMsg::Select(d) => d.cancel(err()),
+        CubMsg::Partition(d) => d.cancel(err()),
+        CubMsg::SegmentedReduce(d) => d.cancel(err()),
+    }
+}
+
+/// Shared marker required of every CUB dispatch trait.
+///
+/// `op_name` and `dtype_name` feed into the per-(op, dtype) NVRTC
+/// kernel-source cache key; `cancel` lets the actor abort the request
+/// in mock mode (or on context-restart) by delivering an error through
+/// the request's own oneshot.
+pub trait CubDispatchBase: Send + 'static {
+    fn op_name(&self) -> &'static str;
+    fn dtype_name(&self) -> &'static str;
+    fn cancel(self: Box<Self>, err: GpuError);
+}
+
+/// Convenience helper used by every dispatch impl to send a typed
+/// reply error through a `oneshot::Sender`.
+pub(crate) fn reply_err<T>(reply: oneshot::Sender<Result<T, GpuError>>, err: GpuError) {
+    let _ = reply.send(Err(err));
+}
+
+/// Convenience: helper constructing a string label of the form
+/// `"{op}_{dtype}"` used for NVRTC cache-key disambiguation. Surfaced
+/// as a public function so tests / benches can reproduce the same key
+/// the actor would.
+pub fn kernel_key(op: &str, dtype: &str) -> String {
+    format!("cub_{op}_{dtype}")
+}
+
+/// Tag-only marker so callers' `register_extra::<CubChildRef>(actor_ref)`
+/// can disambiguate. Wraps the `ActorRef<CubMsg>` so the supervisor
+/// can stop / restart it with everything else.
+#[derive(Clone)]
+pub struct CubChildRef(pub ActorRef<CubMsg>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kernel_key_format() {
+        assert_eq!(kernel_key("reduce_sum", "f32"), "cub_reduce_sum_f32");
+        assert_eq!(
+            kernel_key("scan_inclusive", "i64"),
+            "cub_scan_inclusive_i64"
+        );
+    }
+
+    #[test]
+    fn kernel_source_cache_round_trip() {
+        let mut c = KernelSourceCache::default();
+        assert!(c.is_empty());
+        let bytes = Arc::new(vec![0xAA; 32]);
+        c.insert("reduce_sum", "f32", bytes.clone());
+        assert_eq!(c.len(), 1);
+        let got = c.get("reduce_sum", "f32").expect("hit");
+        assert_eq!(got.as_slice(), bytes.as_slice());
+        assert!(c.get("reduce_sum", "f64").is_none());
+    }
+}
