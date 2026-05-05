@@ -17,10 +17,15 @@ use bitflags::bitflags;
 use tokio::sync::oneshot;
 use tracing::{debug, warn};
 
+use crate::dtype::CudaDtype;
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::BlasMsg;
 
+use super::alloc_dispatch::{
+    AllocDispatch, AllocReq, CopyFromHostDispatch, CopyFromHostReq, CopyToHostDispatch,
+    CopyToHostReq,
+};
 use super::alloc_msg::{DeviceLoad, HostBuf};
 use super::context_actor::{ContextActor, ContextMsg};
 use super::state::DeviceState;
@@ -103,54 +108,88 @@ impl DeviceConfig {
 
 /// Public messages sent to a `DeviceActor`.
 ///
-/// Allocation variants are typed per dtype so `GpuRef<T>` keeps its
-/// static type on the receive side. Memcpy variants accept either
-/// owned `Vec<T>` or pinned [`PinnedBuf<T>`] via [`HostBuf<T>`].
+/// **Phase 0.4** — the formerly-21 dtype-enumerated `Allocate*` /
+/// `CopyToHost*` / `CopyFromHost*` variants collapse into 3 boxed
+/// dispatchers:
+///
+/// - [`DeviceMsg::Alloc`] — typed allocation
+/// - [`DeviceMsg::CopyToHost`] — D2H async copy
+/// - [`DeviceMsg::CopyFromHost`] — H2D async copy
+///
+/// Each carries a `Box<dyn …Dispatch>` whose concrete payload is an
+/// `AllocReq<T>` / `CopyToHostReq<T>` / `CopyFromHostReq<T>` for some
+/// `T: CudaDtype`. `GpuRef<T>` keeps its static dtype on both ends —
+/// the box is purely a uniform mailbox surface.
+///
+/// The legacy `Allocate*` / `CopyToHost*` / `CopyFromHost*` variants
+/// remain as `#[deprecated]` aliases. Existing call sites compile and
+/// run unchanged; the handler arm constructs the equivalent
+/// `Box<dyn …Dispatch>` and forwards through the new path.
 pub enum DeviceMsg {
+    /// Phase 0.4 generic alloc. Construct via
+    /// [`DeviceMsg::alloc::<T>`](Self::alloc) or
+    /// `Box::new(AllocReq::<T> { … })` directly.
+    Alloc(Box<dyn AllocDispatch>),
+    /// Phase 0.4 generic D2H copy.
+    CopyToHost(Box<dyn CopyToHostDispatch>),
+    /// Phase 0.4 generic H2D copy.
+    CopyFromHost(Box<dyn CopyFromHostDispatch>),
+
     /// **Deprecated alias** for [`DeviceMsg::AllocateF32`]. F1
     /// callers wrote `Allocate { len, reply }` — kept for back-compat.
+    #[deprecated(note = "use DeviceMsg::alloc::<f32>(len, reply)")]
     Allocate {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<f32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<f32>(len, reply)")]
     AllocateF32 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<f32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<f64>(len, reply)")]
     AllocateF64 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<f64>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<i8>(len, reply)")]
     AllocateI8 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<i8>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<i32>(len, reply)")]
     AllocateI32 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<i32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<i64>(len, reply)")]
     AllocateI64 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<i64>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<u8>(len, reply)")]
     AllocateU8 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<u8>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<u32>(len, reply)")]
     AllocateU32 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<u32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::alloc::<u64>(len, reply)")]
     AllocateU64 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<u64>, GpuError>>,
     },
     #[cfg(feature = "f16")]
+    #[deprecated(note = "use DeviceMsg::alloc::<half::f16>(len, reply)")]
     AllocateF16 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<half::f16>, GpuError>>,
     },
     #[cfg(feature = "f16")]
+    #[deprecated(note = "use DeviceMsg::alloc::<half::bf16>(len, reply)")]
     AllocateBf16 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<half::bf16>, GpuError>>,
@@ -158,51 +197,61 @@ pub enum DeviceMsg {
 
     /// D2H async copy — buffer round-trips back via the reply so a
     /// pinned buffer can return to its pool.
+    #[deprecated(note = "use DeviceMsg::copy_to_host::<f32>(src, dst, reply)")]
     CopyToHostF32 {
         src: GpuRef<f32>,
         dst: HostBuf<f32>,
         reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_from_host::<f32>(src, dst, reply)")]
     CopyFromHostF32 {
         src: HostBuf<f32>,
         dst: GpuRef<f32>,
         reply: oneshot::Sender<Result<HostBuf<f32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_to_host::<f64>(src, dst, reply)")]
     CopyToHostF64 {
         src: GpuRef<f64>,
         dst: HostBuf<f64>,
         reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_from_host::<f64>(src, dst, reply)")]
     CopyFromHostF64 {
         src: HostBuf<f64>,
         dst: GpuRef<f64>,
         reply: oneshot::Sender<Result<HostBuf<f64>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_to_host::<i32>(src, dst, reply)")]
     CopyToHostI32 {
         src: GpuRef<i32>,
         dst: HostBuf<i32>,
         reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_from_host::<i32>(src, dst, reply)")]
     CopyFromHostI32 {
         src: HostBuf<i32>,
         dst: GpuRef<i32>,
         reply: oneshot::Sender<Result<HostBuf<i32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_to_host::<u32>(src, dst, reply)")]
     CopyToHostU32 {
         src: GpuRef<u32>,
         dst: HostBuf<u32>,
         reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_from_host::<u32>(src, dst, reply)")]
     CopyFromHostU32 {
         src: HostBuf<u32>,
         dst: GpuRef<u32>,
         reply: oneshot::Sender<Result<HostBuf<u32>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_to_host::<u8>(src, dst, reply)")]
     CopyToHostU8 {
         src: GpuRef<u8>,
         dst: HostBuf<u8>,
         reply: oneshot::Sender<Result<HostBuf<u8>, GpuError>>,
     },
+    #[deprecated(note = "use DeviceMsg::copy_from_host::<u8>(src, dst, reply)")]
     CopyFromHostU8 {
         src: HostBuf<u8>,
         dst: GpuRef<u8>,
@@ -259,6 +308,35 @@ pub struct KernelChildren {
     pub fft: Option<ActorRef<crate::kernel::FftMsg>>,
     #[cfg(feature = "curand")]
     pub rng: Option<ActorRef<crate::kernel::RngMsg>>,
+}
+
+impl DeviceMsg {
+    /// Phase 0.4: typed-allocation constructor. Boxes an
+    /// [`AllocReq<T>`] into the generic [`DeviceMsg::Alloc`] variant.
+    pub fn alloc<T: CudaDtype>(
+        len: usize,
+        reply: oneshot::Sender<Result<GpuRef<T>, GpuError>>,
+    ) -> Self {
+        DeviceMsg::Alloc(Box::new(AllocReq::<T> { len, reply }))
+    }
+
+    /// Phase 0.4: typed D2H copy constructor.
+    pub fn copy_to_host<T: CudaDtype>(
+        src: GpuRef<T>,
+        dst: HostBuf<T>,
+        reply: oneshot::Sender<Result<HostBuf<T>, GpuError>>,
+    ) -> Self {
+        DeviceMsg::CopyToHost(Box::new(CopyToHostReq::<T> { src, dst, reply }))
+    }
+
+    /// Phase 0.4: typed H2D copy constructor.
+    pub fn copy_from_host<T: CudaDtype>(
+        src: HostBuf<T>,
+        dst: GpuRef<T>,
+        reply: oneshot::Sender<Result<HostBuf<T>, GpuError>>,
+    ) -> Self {
+        DeviceMsg::CopyFromHost(Box::new(CopyFromHostReq::<T> { src, dst, reply }))
+    }
 }
 
 /// Body of a `DeviceMsg::Sgemm` request. Boxed because it's larger than
@@ -395,256 +473,138 @@ impl Actor for DeviceActor {
     }
 
     async fn handle(&mut self, _ctx: &mut Context<Self>, msg: DeviceMsg) {
-        // The forwarding logic is mechanical but expansive: 10 alloc
-        // variants + 10 copy variants. We unfold them inline rather
-        // than via macros — Rust's struct-init syntax doesn't work
-        // through `path`-fragment macro params, and `tt`-only macros
-        // would lose error locations.
+        // Phase 0.4: the alloc/copy fan-out collapses into 3 generic
+        // arms. Legacy `Allocate*` / `CopyToHost*` / `CopyFromHost*`
+        // variants are translated into the new boxed dispatchers
+        // before forwarding, so the rest of the pipeline (stash /
+        // drain / context handler) sees a single shape.
+        #[allow(deprecated)]
+        let msg = match msg {
+            // -- legacy alloc → AllocReq<T> -------------------
+            DeviceMsg::Allocate { len, reply } | DeviceMsg::AllocateF32 { len, reply } => {
+                DeviceMsg::alloc::<f32>(len, reply)
+            }
+            DeviceMsg::AllocateF64 { len, reply } => DeviceMsg::alloc::<f64>(len, reply),
+            DeviceMsg::AllocateI8 { len, reply } => DeviceMsg::alloc::<i8>(len, reply),
+            DeviceMsg::AllocateI32 { len, reply } => DeviceMsg::alloc::<i32>(len, reply),
+            DeviceMsg::AllocateI64 { len, reply } => DeviceMsg::alloc::<i64>(len, reply),
+            DeviceMsg::AllocateU8 { len, reply } => DeviceMsg::alloc::<u8>(len, reply),
+            DeviceMsg::AllocateU32 { len, reply } => DeviceMsg::alloc::<u32>(len, reply),
+            DeviceMsg::AllocateU64 { len, reply } => DeviceMsg::alloc::<u64>(len, reply),
+            #[cfg(feature = "f16")]
+            DeviceMsg::AllocateF16 { len, reply } => DeviceMsg::alloc::<half::f16>(len, reply),
+            #[cfg(feature = "f16")]
+            DeviceMsg::AllocateBf16 { len, reply } => DeviceMsg::alloc::<half::bf16>(len, reply),
+            // -- legacy copy_to_host → CopyToHostReq<T> -------
+            DeviceMsg::CopyToHostF32 { src, dst, reply } => {
+                DeviceMsg::copy_to_host::<f32>(src, dst, reply)
+            }
+            DeviceMsg::CopyToHostF64 { src, dst, reply } => {
+                DeviceMsg::copy_to_host::<f64>(src, dst, reply)
+            }
+            DeviceMsg::CopyToHostI32 { src, dst, reply } => {
+                DeviceMsg::copy_to_host::<i32>(src, dst, reply)
+            }
+            DeviceMsg::CopyToHostU32 { src, dst, reply } => {
+                DeviceMsg::copy_to_host::<u32>(src, dst, reply)
+            }
+            DeviceMsg::CopyToHostU8 { src, dst, reply } => {
+                DeviceMsg::copy_to_host::<u8>(src, dst, reply)
+            }
+            // -- legacy copy_from_host → CopyFromHostReq<T> ---
+            DeviceMsg::CopyFromHostF32 { src, dst, reply } => {
+                DeviceMsg::copy_from_host::<f32>(src, dst, reply)
+            }
+            DeviceMsg::CopyFromHostF64 { src, dst, reply } => {
+                DeviceMsg::copy_from_host::<f64>(src, dst, reply)
+            }
+            DeviceMsg::CopyFromHostI32 { src, dst, reply } => {
+                DeviceMsg::copy_from_host::<i32>(src, dst, reply)
+            }
+            DeviceMsg::CopyFromHostU32 { src, dst, reply } => {
+                DeviceMsg::copy_from_host::<u32>(src, dst, reply)
+            }
+            DeviceMsg::CopyFromHostU8 { src, dst, reply } => {
+                DeviceMsg::copy_from_host::<u8>(src, dst, reply)
+            }
+            // already-collapsed / non-alloc variants pass through
+            other => other,
+        };
+
         let ready = self.context_ref.is_some() && self.children.is_some();
 
         match msg {
-            DeviceMsg::Allocate { len, reply } | DeviceMsg::AllocateF32 { len, reply } => {
+            // Phase 0.4: 3 arms for the generic forms.
+            DeviceMsg::Alloc(boxed) => {
                 if ready {
                     self.context_ref
                         .as_ref()
                         .unwrap()
-                        .tell(ContextMsg::AllocateF32 { len, reply });
+                        .tell(ContextMsg::Alloc(boxed));
                 } else {
                     self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateF32 { len, reply })
+                        c.tell(ContextMsg::Alloc(boxed))
                     })));
                 }
             }
-            DeviceMsg::AllocateF64 { len, reply } => {
+            DeviceMsg::CopyToHost(boxed) => {
                 if ready {
                     self.context_ref
                         .as_ref()
                         .unwrap()
-                        .tell(ContextMsg::AllocateF64 { len, reply });
+                        .tell(ContextMsg::CopyToHost(boxed));
                 } else {
                     self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateF64 { len, reply })
+                        c.tell(ContextMsg::CopyToHost(boxed))
                     })));
                 }
             }
-            DeviceMsg::AllocateI8 { len, reply } => {
+            DeviceMsg::CopyFromHost(boxed) => {
                 if ready {
                     self.context_ref
                         .as_ref()
                         .unwrap()
-                        .tell(ContextMsg::AllocateI8 { len, reply });
+                        .tell(ContextMsg::CopyFromHost(boxed));
                 } else {
                     self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateI8 { len, reply })
-                    })));
-                }
-            }
-            DeviceMsg::AllocateI32 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateI32 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateI32 { len, reply })
-                    })));
-                }
-            }
-            DeviceMsg::AllocateI64 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateI64 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateI64 { len, reply })
-                    })));
-                }
-            }
-            DeviceMsg::AllocateU8 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateU8 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateU8 { len, reply })
-                    })));
-                }
-            }
-            DeviceMsg::AllocateU32 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateU32 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateU32 { len, reply })
-                    })));
-                }
-            }
-            DeviceMsg::AllocateU64 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateU64 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateU64 { len, reply })
-                    })));
-                }
-            }
-            #[cfg(feature = "f16")]
-            DeviceMsg::AllocateF16 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateF16 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateF16 { len, reply })
-                    })));
-                }
-            }
-            #[cfg(feature = "f16")]
-            DeviceMsg::AllocateBf16 { len, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::AllocateBf16 { len, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _b| {
-                        c.tell(ContextMsg::AllocateBf16 { len, reply })
+                        c.tell(ContextMsg::CopyFromHost(boxed))
                     })));
                 }
             }
 
-            DeviceMsg::CopyToHostF32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyToHostF32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyToHostF32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyFromHostF32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyFromHostF32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyFromHostF32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyToHostF64 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyToHostF64 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyToHostF64 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyFromHostF64 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyFromHostF64 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyFromHostF64 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyToHostI32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyToHostI32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyToHostI32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyFromHostI32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyFromHostI32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyFromHostI32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyToHostU32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyToHostU32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyToHostU32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyFromHostU32 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyFromHostU32 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyFromHostU32 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyToHostU8 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyToHostU8 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyToHostU8 { src, dst, reply })
-                    })));
-                }
-            }
-            DeviceMsg::CopyFromHostU8 { src, dst, reply } => {
-                if ready {
-                    self.context_ref
-                        .as_ref()
-                        .unwrap()
-                        .tell(ContextMsg::CopyFromHostU8 { src, dst, reply });
-                } else {
-                    self.enqueue_pending(WorkRequest::Boxed(Box::new(move |c, _| {
-                        c.tell(ContextMsg::CopyFromHostU8 { src, dst, reply })
-                    })));
-                }
+            // Legacy variants are unreachable here: the upstream
+            // translation stage (above) rewrote every one into the
+            // generic form.
+            #[allow(deprecated)]
+            DeviceMsg::Allocate { .. }
+            | DeviceMsg::AllocateF32 { .. }
+            | DeviceMsg::AllocateF64 { .. }
+            | DeviceMsg::AllocateI8 { .. }
+            | DeviceMsg::AllocateI32 { .. }
+            | DeviceMsg::AllocateI64 { .. }
+            | DeviceMsg::AllocateU8 { .. }
+            | DeviceMsg::AllocateU32 { .. }
+            | DeviceMsg::AllocateU64 { .. }
+            | DeviceMsg::CopyToHostF32 { .. }
+            | DeviceMsg::CopyFromHostF32 { .. }
+            | DeviceMsg::CopyToHostF64 { .. }
+            | DeviceMsg::CopyFromHostF64 { .. }
+            | DeviceMsg::CopyToHostI32 { .. }
+            | DeviceMsg::CopyFromHostI32 { .. }
+            | DeviceMsg::CopyToHostU32 { .. }
+            | DeviceMsg::CopyFromHostU32 { .. }
+            | DeviceMsg::CopyToHostU8 { .. }
+            | DeviceMsg::CopyFromHostU8 { .. } => unreachable!(
+                "Phase 0.4 translation collapses all legacy alloc/copy variants \
+                 into DeviceMsg::Alloc / CopyToHost / CopyFromHost"
+            ),
+            #[cfg(feature = "f16")]
+            #[allow(deprecated)]
+            DeviceMsg::AllocateF16 { .. } | DeviceMsg::AllocateBf16 { .. } => {
+                unreachable!(
+                    "Phase 0.4 translation collapses all legacy alloc/copy variants \
+                     into DeviceMsg::Alloc"
+                )
             }
 
             DeviceMsg::Sgemm(req) => match &self.children {
@@ -710,8 +670,10 @@ impl DeviceActor {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // exercised on purpose: legacy variants must keep routing.
 mod tests {
     use super::*;
+    use crate::dtype::DType;
     use atomr_config::Config;
     use atomr_core::actor::ActorSystem;
     use std::time::Duration;
@@ -742,5 +704,133 @@ mod tests {
         assert!(matches!(res, Err(GpuError::Unrecoverable(_))));
 
         sys.terminate().await;
+    }
+
+    /// Phase 0.4: the typed `DeviceMsg::alloc::<T>` constructor should
+    /// build an `AllocReq<T>`-shaped boxed dispatcher and round-trip
+    /// through the actor pipeline, replying with the same kind of
+    /// error the legacy variant produces in mock mode.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn alloc_dispatch_via_typed_constructor() {
+        let sys = ActorSystem::create("test", Config::empty()).await.unwrap();
+        let dev = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "dev1")
+            .unwrap();
+
+        let (tx, rx) = oneshot::channel::<Result<GpuRef<f32>, GpuError>>();
+        dev.tell(DeviceMsg::alloc::<f32>(64, tx));
+        let res = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .expect("alloc reply within timeout")
+            .expect("oneshot dropped");
+        assert!(matches!(res, Err(GpuError::Unrecoverable(_))));
+
+        sys.terminate().await;
+    }
+
+    /// Phase 0.4: every `*Dispatch` trait carries a runtime dtype tag
+    /// reflecting the concrete `T: CudaDtype`. We never go through the
+    /// actor system here — boxing is enough to verify dispatch.
+    #[test]
+    fn alloc_dispatch_dtype_kind_correct() {
+        // f32
+        let (tx, _rx) = oneshot::channel::<Result<GpuRef<f32>, GpuError>>();
+        let boxed: Box<dyn AllocDispatch> = Box::new(AllocReq::<f32> { len: 4, reply: tx });
+        assert_eq!(boxed.dtype(), DType::F32);
+        assert_eq!(boxed.len(), 4);
+
+        // i32
+        let (tx, _rx) = oneshot::channel::<Result<GpuRef<i32>, GpuError>>();
+        let boxed: Box<dyn AllocDispatch> = Box::new(AllocReq::<i32> { len: 7, reply: tx });
+        assert_eq!(boxed.dtype(), DType::I32);
+
+        // u8
+        let (tx, _rx) = oneshot::channel::<Result<GpuRef<u8>, GpuError>>();
+        let boxed: Box<dyn AllocDispatch> = Box::new(AllocReq::<u8> { len: 1, reply: tx });
+        assert_eq!(boxed.dtype(), DType::U8);
+    }
+
+    /// Phase 0.4: legacy `DeviceMsg::AllocateF32` constructor is
+    /// `#[deprecated]` but still compiles and routes correctly into
+    /// the new generic pipeline.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn deprecated_allocate_f32_still_works() {
+        let sys = ActorSystem::create("test", Config::empty()).await.unwrap();
+        let dev = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "dev2")
+            .unwrap();
+
+        let (tx, rx) = oneshot::channel::<Result<GpuRef<f32>, GpuError>>();
+        // NOTE: explicitly using the deprecated variant. The
+        // `#[allow(deprecated)]` on the mod silences the warning.
+        dev.tell(DeviceMsg::AllocateF32 { len: 8, reply: tx });
+        let res = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .expect("alloc reply within timeout")
+            .expect("oneshot dropped");
+        assert!(matches!(res, Err(GpuError::Unrecoverable(_))));
+
+        sys.terminate().await;
+    }
+
+    /// Phase 0.4: the `CopyToHostDispatch` trait carries a runtime
+    /// dtype tag. We exercise this with a stub dispatcher (no real
+    /// `GpuRef<T>` involved — that would require a live CudaContext)
+    /// and confirm the boxed dtype reports `T::KIND`.
+    #[test]
+    fn copy_to_host_typed() {
+        struct Stub<T: CudaDtype>(std::marker::PhantomData<T>);
+        impl<T: CudaDtype> CopyToHostDispatch for Stub<T> {
+            fn dtype(&self) -> DType {
+                T::KIND
+            }
+            fn run(
+                self: Box<Self>,
+                _stream: Arc<cudarc::driver::CudaStream>,
+                _completion: Arc<dyn crate::completion::CompletionStrategy>,
+            ) {
+                // never invoked in unit tests
+            }
+        }
+
+        let boxed: Box<dyn CopyToHostDispatch> = Box::new(Stub::<f32>(std::marker::PhantomData));
+        assert_eq!(boxed.dtype(), DType::F32);
+        let boxed: Box<dyn CopyToHostDispatch> = Box::new(Stub::<i32>(std::marker::PhantomData));
+        assert_eq!(boxed.dtype(), DType::I32);
+
+        // Smoke: the typed constructor builds the matching variant.
+        // We can wrap the stub in DeviceMsg::CopyToHost manually and
+        // assert the variant tag.
+        let msg = DeviceMsg::CopyToHost(Box::new(Stub::<u32>(std::marker::PhantomData)));
+        match msg {
+            DeviceMsg::CopyToHost(b) => assert_eq!(b.dtype(), DType::U32),
+            _ => panic!("expected CopyToHost variant"),
+        }
+    }
+
+    /// Phase 0.4: H2D mirror of `copy_to_host_typed`.
+    #[test]
+    fn copy_from_host_typed() {
+        struct Stub<T: CudaDtype>(std::marker::PhantomData<T>);
+        impl<T: CudaDtype> CopyFromHostDispatch for Stub<T> {
+            fn dtype(&self) -> DType {
+                T::KIND
+            }
+            fn run(
+                self: Box<Self>,
+                _stream: Arc<cudarc::driver::CudaStream>,
+                _completion: Arc<dyn crate::completion::CompletionStrategy>,
+            ) {
+            }
+        }
+
+        let boxed: Box<dyn CopyFromHostDispatch> = Box::new(Stub::<u8>(std::marker::PhantomData));
+        assert_eq!(boxed.dtype(), DType::U8);
+
+        let msg = DeviceMsg::CopyFromHost(Box::new(Stub::<f64>(std::marker::PhantomData)));
+        match msg {
+            DeviceMsg::CopyFromHost(b) => assert_eq!(b.dtype(), DType::F64),
+            _ => panic!("expected CopyFromHost variant"),
+        }
     }
 }

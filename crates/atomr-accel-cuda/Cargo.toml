@@ -55,6 +55,11 @@ telemetry = ["dep:atomr-telemetry"]
 # requires `half`.
 f16      = ["cudarc/f16", "dep:half"]
 
+# Phase 0.6 telemetry feature placeholders — wired in later phases.
+# Declared here so that workspace verification commands referencing
+# them keep working before the matching code lands.
+nvtx     = []
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]

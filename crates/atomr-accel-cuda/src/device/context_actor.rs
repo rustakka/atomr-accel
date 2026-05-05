@@ -27,6 +27,7 @@ use crate::gpu_ref::GpuRef;
 use crate::kernel::{envelope, BlasActor};
 use crate::stream::{PerActorAllocator, StreamAllocator};
 
+use super::alloc_dispatch::{AllocDispatch, CopyFromHostDispatch, CopyToHostDispatch};
 use super::alloc_msg::HostBuf;
 use super::device_actor::{DeviceConfig, DeviceMsg, EnabledLibraries, KernelChildren};
 use super::state::DeviceState;
@@ -36,7 +37,23 @@ pub enum ContextMsg {
     /// rebuilds) the `CudaContext` and spawns library children.
     Init,
 
+    /// Phase 0.4 generic allocation. Carries a typed
+    /// `Box<dyn AllocDispatch>` that the handler invokes via
+    /// [`AllocDispatch::run`]. Replaces the per-dtype `Allocate*`
+    /// variants below — those remain as `#[deprecated]` aliases
+    /// constructed by `DeviceActor::handle` so existing call sites
+    /// keep compiling.
+    Alloc(Box<dyn AllocDispatch>),
+    /// Phase 0.4 generic D2H copy.
+    CopyToHost(Box<dyn CopyToHostDispatch>),
+    /// Phase 0.4 generic H2D copy.
+    CopyFromHost(Box<dyn CopyFromHostDispatch>),
+
     // --- Per-dtype allocations (forwarded from DeviceMsg::Allocate*).
+    //     Deprecated in Phase 0.4; constructed by DeviceActor for
+    //     legacy call sites and re-routed through `Alloc(Box<…>)` on
+    //     the way out. Kept here so existing tests / examples that
+    //     match on these variants continue to compile.
     AllocateF32 {
         len: usize,
         reply: oneshot::Sender<Result<GpuRef<f32>, GpuError>>,
@@ -347,7 +364,7 @@ impl ContextActor {
 
 /// Helper: do an async D2H copy via cudarc's `memcpy_dtoh` and
 /// schedule completion via the shared envelope.
-fn run_copy_to_host<T: DeviceRepr + Send + 'static>(
+pub(super) fn run_copy_to_host<T: DeviceRepr + Send + 'static>(
     src: GpuRef<T>,
     mut dst: HostBuf<T>,
     stream: Arc<cudarc::driver::CudaStream>,
@@ -390,7 +407,7 @@ fn run_copy_to_host<T: DeviceRepr + Send + 'static>(
     });
 }
 
-fn run_copy_from_host<T: DeviceRepr + Send + 'static>(
+pub(super) fn run_copy_from_host<T: DeviceRepr + Send + 'static>(
     src: HostBuf<T>,
     dst: GpuRef<T>,
     stream: Arc<cudarc::driver::CudaStream>,
@@ -449,6 +466,19 @@ impl Actor for ContextActor {
     async fn handle(&mut self, ctx: &mut Context<Self>, msg: ContextMsg) {
         match msg {
             ContextMsg::Init => self.run_init(ctx).await,
+
+            // Phase 0.4 generic forms — single arm each.
+            ContextMsg::Alloc(boxed) => {
+                boxed.run(self.stream.as_ref(), &self.state, self.config.mock_mode);
+            }
+            ContextMsg::CopyToHost(boxed) => {
+                let stream = self.stream.clone().expect("ctx not ready");
+                boxed.run(stream, self.completion.clone());
+            }
+            ContextMsg::CopyFromHost(boxed) => {
+                let stream = self.stream.clone().expect("ctx not ready");
+                boxed.run(stream, self.completion.clone());
+            }
 
             ContextMsg::AllocateF32 { len, reply } => {
                 let _ = reply.send(self.alloc::<f32>(len));
