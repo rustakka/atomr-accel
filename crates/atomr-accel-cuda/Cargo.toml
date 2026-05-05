@@ -35,8 +35,9 @@ nvrtc    = []
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
 # When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
-# backend.
-replay   = ["dep:atomr-persistence", "dep:serde", "dep:serde_json"]
+# backend. `serde` is always pulled (the NVRTC disk cache uses it),
+# so only `serde_json` and `atomr-persistence` are conditional here.
+replay   = ["dep:atomr-persistence", "dep:serde_json"]
 # Cluster-sharding adapter for `placement::PlacementActor`. Pulls in
 # `atomr-cluster-sharding` so callers can address devices via
 # `EntityRef<DeviceExtractor>`.
@@ -88,14 +89,19 @@ atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
 atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
-serde        = { version = "1", features = ["derive"], optional = true }
+serde        = { version = "1", features = ["derive"] }
 serde_json   = { version = "1", optional = true }
+# NVRTC persistent kernel cache (Phase 0.6). `bincode = "1"` for the
+# on-disk format; `dirs` for `$XDG_CACHE_HOME` / `$HOME/.cache` probing.
+bincode      = "1"
+dirs         = "5"
 
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
 tracing-subscriber = { workspace = true }
 criterion          = { workspace = true }
 atomr-testkit      = { workspace = true }
+tempfile           = "3"
 
 [[example]]
 name = "echo_no_gpu"

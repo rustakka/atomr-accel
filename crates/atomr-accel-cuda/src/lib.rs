@@ -51,6 +51,7 @@ pub mod kernel;
 pub mod memory;
 #[cfg(feature = "nccl")]
 pub mod multi_device;
+pub mod nvrtc_cache;
 #[cfg(feature = "telemetry")]
 pub mod observability;
 pub mod p2p;
