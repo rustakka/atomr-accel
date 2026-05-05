@@ -1,0 +1,65 @@
+[package]
+name = "atomr-accel-tensorrt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords = ["cuda", "tensorrt", "inference", "actor", "ml"]
+categories = ["concurrency", "asynchronous", "science", "hardware-support"]
+description = "TensorRT engine builder + runtime as supervised atomr actors. Wraps libnvinfer / libnvonnxparser at runtime (proprietary library, not vendored). ONNX import, INT8/FP8 PTQ calibration, IPluginV3 Rust trampolines, dynamic shapes, refit."
+
+build = "build.rs"
+
+[features]
+default = []
+
+# Real link-and-load path against libnvinfer. Off-by-default so the
+# crate compiles and unit-tests on hosts without TensorRT installed.
+# When ON, build.rs probes LIBNVINFER_PATH then standard library
+# directories and panics with a clear hint if libnvinfer.so is not
+# located.
+tensorrt-link = []
+
+# ONNX import via libnvonnxparser. Enabling pulls the
+# `onnx::OnnxParser` wrapper plus the `onnx_resnet50_int8` example.
+tensorrt-onnx = []
+
+# IPluginV3 Rust trampolines (host-side trait surface — runtime
+# registration glue is feature-gated so plugin development can iterate
+# without a full TensorRT install).
+tensorrt-plugin = []
+
+# INT8 calibration helpers (entropy + minmax variants).
+tensorrt-int8 = []
+
+# FP8 PTQ helpers (Hopper-class GPUs with FP8 tensor cores).
+tensorrt-fp8 = []
+
+[dependencies]
+atomr-core   = { workspace = true }
+atomr-config = { workspace = true }
+atomr-macros = { workspace = true }
+tokio        = { workspace = true }
+async-trait  = { workspace = true }
+futures      = { workspace = true }
+parking_lot  = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+bitflags     = "2"
+cudarc       = { workspace = true }
+
+[dev-dependencies]
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "onnx_resnet50_int8"
+required-features = ["tensorrt-onnx", "tensorrt-int8"]
+
+[lib]
+path = "src/lib.rs"

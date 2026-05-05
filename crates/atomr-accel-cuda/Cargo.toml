@@ -118,6 +118,18 @@ cuda-ipc           = []
 cuda-managed       = []
 graphs-conditional = []
 
+# TensorRT integration (Phase 8). Pulls in the sibling
+# `atomr-accel-tensorrt` crate so callers can re-export `TrtActor`
+# / `TrtMsg` alongside `DeviceActor`. The proprietary libnvinfer
+# itself is **not** vendored — the link probe is gated by
+# `atomr-accel-tensorrt/tensorrt-link` and only fires when that
+# inner feature is also on.
+tensorrt        = ["dep:atomr-accel-tensorrt"]
+tensorrt-onnx   = ["tensorrt", "atomr-accel-tensorrt/tensorrt-onnx"]
+tensorrt-plugin = ["tensorrt", "atomr-accel-tensorrt/tensorrt-plugin"]
+tensorrt-int8   = ["tensorrt", "atomr-accel-tensorrt/tensorrt-int8"]
+tensorrt-fp8    = ["tensorrt", "atomr-accel-tensorrt/tensorrt-fp8"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor", "cuda-managed"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
@@ -152,6 +164,8 @@ serde_json   = { version = "1", optional = true }
 # on-disk format; `dirs` for `$XDG_CACHE_HOME` / `$HOME/.cache` probing.
 bincode      = "1"
 dirs         = "5"
+# Phase 8 TensorRT crate (linked at runtime; libnvinfer is proprietary).
+atomr-accel-tensorrt = { path = "../atomr-accel-tensorrt", version = "0.1.0", optional = true }
 
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

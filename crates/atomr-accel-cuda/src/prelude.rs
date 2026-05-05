@@ -119,3 +119,10 @@ pub use crate::kernel::{
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
+
+/// TensorRT integration (Phase 8). Re-exports the sibling
+/// `atomr-accel-tensorrt` crate root so callers can `use
+/// atomr_accel_cuda::prelude::tensorrt::*` to pick up `TrtActor` /
+/// `TrtMsg` / `IBuilderConfig` alongside `DeviceActor`.
+#[cfg(feature = "tensorrt")]
+pub use atomr_accel_tensorrt as tensorrt;

@@ -7,6 +7,7 @@ members = [
     "crates/atomr-accel-train",      # backend-agnostic training blueprints
     "crates/atomr-accel-agents",     # backend-agnostic LLM blueprints
     "crates/atomr-accel-cuda-realtime", # CUDA-specific realtime sims (NVRTC)
+    "crates/atomr-accel-tensorrt",   # TensorRT engine builder + runtime (Phase 8)
     "crates/atomr-accel-py",         # Python bindings
     "xtask",
 ]
