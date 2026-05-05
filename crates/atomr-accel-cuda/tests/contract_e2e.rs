@@ -36,7 +36,7 @@ async fn cutensor_matmul_via_contraction() {
         .expect("snapshot")
         .expect("oneshot")
         .expect("context not yet built");
-    let stream = Arc::new(ctx.new_stream().expect("new_stream"));
+    let stream = ctx.new_stream().expect("new_stream");
     let allocator = Arc::new(SingleStreamAllocator::new(stream.clone()));
     let completion = Arc::new(HostFnCompletion::new());
     let state = Arc::new(DeviceState::new(0));
@@ -111,7 +111,7 @@ async fn alloc_and_copy(
     let g = rx.await.unwrap().unwrap();
     let (tx, rx) = oneshot::channel();
     dev.tell(DeviceMsg::CopyFromHostF32 {
-        src: HostBuf::Vec(host.to_vec()),
+        src: HostBuf::Owned(host.to_vec()),
         dst: g.clone(),
         reply: tx,
     });
@@ -127,11 +127,11 @@ async fn copy_to_host(
     let (tx, rx) = oneshot::channel();
     dev.tell(DeviceMsg::CopyToHostF32 {
         src: g.clone(),
-        dst: HostBuf::Vec(vec![0.0; len]),
+        dst: HostBuf::Owned(vec![0.0; len]),
         reply: tx,
     });
     match rx.await.unwrap().unwrap() {
-        HostBuf::Vec(v) => v,
-        HostBuf::Pinned(_) => panic!("expected Vec"),
+        HostBuf::Owned(v) => v,
+        HostBuf::Pinned(_) => panic!("expected Owned"),
     }
 }

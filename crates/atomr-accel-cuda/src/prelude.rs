@@ -38,7 +38,14 @@ pub use crate::kernel::{SolverActor, SolverMsg, Uplo};
 pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};
 
 #[cfg(feature = "cutensor")]
-pub use crate::kernel::{TensorActor, TensorMsg, TensorSpec};
+pub use crate::dtype::TensorSupported;
+#[cfg(feature = "cutensor")]
+pub use crate::kernel::dispatch::{TensorDispatch, TensorDispatchCtx};
+#[cfg(feature = "cutensor")]
+pub use crate::kernel::{
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
+    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+};
 
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::{Activation, BlasLtActor, BlasLtMsg};

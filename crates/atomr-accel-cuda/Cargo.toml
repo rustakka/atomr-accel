@@ -25,7 +25,13 @@ cudnn    = ["cudarc/cudnn"]
 cufft    = ["cudarc/cufft"]
 cusolver = ["cudarc/cusolver"]
 cusparse = ["cudarc/cusparse"]
-cutensor = ["cudarc/cutensor"]
+cutensor = ["cudarc/cutensor", "dep:libloading"]
+# Phase 2 cuTENSOR autotune: probes top-k cutensorAlgo_t variants to
+# pick the fastest plan for a given key. Adds a small measurement
+# loop to the contraction hot path on first encounter; cached
+# afterwards. Off by default — pure cuTENSOR-default works for
+# almost every shape and skips the probe cost.
+cutensor-autotune = ["cutensor"]
 nccl     = ["cudarc/nccl"]
 # cublaslt, curand, nvrtc are on-by-default in cudarc; the atomr-accel-cuda
 # feature gates the actor module compilation only.
@@ -76,6 +82,7 @@ tracing      = { workspace = true }
 bitflags     = "2"
 lru          = "0.12"
 half         = { version = "2", optional = true }
+libloading   = { version = "0.8", optional = true }
 tokio-stream = "0.1"
 atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
@@ -111,6 +118,10 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "tensor_reduce"
+required-features = ["cuda-runtime-tests", "cutensor", "f16"]
 
 [[bench]]
 name = "sgemm_overhead"

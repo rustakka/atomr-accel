@@ -42,11 +42,15 @@
 pub mod completion;
 pub mod device;
 pub mod dispatcher;
+#[cfg(feature = "cutensor")]
+pub mod dtype;
 pub mod error;
 pub mod gpu_ref;
 pub mod graph;
 pub mod host;
 pub mod kernel;
+#[cfg(feature = "cutensor")]
+pub mod sys;
 pub mod memory;
 #[cfg(feature = "nccl")]
 pub mod multi_device;

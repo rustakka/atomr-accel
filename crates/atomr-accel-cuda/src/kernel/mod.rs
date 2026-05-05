@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
@@ -71,6 +72,9 @@ mod sparse;
 pub use sparse::{CsrMatrix, SparseActor, SparseMsg};
 
 #[cfg(feature = "cutensor")]
-mod tensor;
+pub mod tensor;
 #[cfg(feature = "cutensor")]
-pub use tensor::{TensorActor, TensorMsg, TensorSpec};
+pub use tensor::{
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
+    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+};
