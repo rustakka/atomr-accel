@@ -35,6 +35,75 @@ use cudarc::nccl::sys as nccl_sys;
 /// without changing every call site.
 pub use atomr_accel::DType;
 
+/// Alias used by `BlasLtDispatch::dtype_kind` and other Phase 1 dispatchers.
+pub use atomr_accel::DType as DTypeKind;
+
+/// Local fp8 / fp4 wrappers (`#[repr(transparent)]` over `u8`) that
+/// satisfy cudarc's orphan-rule constraint for `unsafe impl DeviceRepr`.
+/// Convertible from/to the backend-agnostic `atomr_accel::dtype::*`
+/// equivalents.
+#[cfg(feature = "f8")]
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct F8E4m3(pub u8);
+
+#[cfg(feature = "f8")]
+impl F8E4m3 {
+    #[inline]
+    pub fn from_f32(x: f32) -> Self {
+        Self(atomr_accel::dtype::F8E4m3::from_f32(x).0)
+    }
+    #[inline]
+    pub fn to_f32(self) -> f32 {
+        atomr_accel::dtype::F8E4m3(self.0).to_f32()
+    }
+}
+
+#[cfg(feature = "f8")]
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct F8E5m2(pub u8);
+
+#[cfg(feature = "f8")]
+impl F8E5m2 {
+    #[inline]
+    pub fn from_f32(x: f32) -> Self {
+        Self(atomr_accel::dtype::F8E5m2::from_f32(x).0)
+    }
+    #[inline]
+    pub fn to_f32(self) -> f32 {
+        atomr_accel::dtype::F8E5m2(self.0).to_f32()
+    }
+}
+
+#[cfg(feature = "f8")]
+impl atomr_accel::AccelDtype for F8E4m3 {
+    type Scalar = f32;
+    const KIND: DType = DType::F8E4m3;
+    const SIZE: usize = 1;
+    const NAME: &'static str = "f8_e4m3";
+    #[inline]
+    fn zero() -> Self { F8E4m3(0x00) }
+    #[inline]
+    fn one() -> Self { F8E4m3(0x38) }
+    #[inline]
+    fn nan() -> Option<Self> { Some(F8E4m3(0x7f)) }
+}
+
+#[cfg(feature = "f8")]
+impl atomr_accel::AccelDtype for F8E5m2 {
+    type Scalar = f32;
+    const KIND: DType = DType::F8E5m2;
+    const SIZE: usize = 1;
+    const NAME: &'static str = "f8_e5m2";
+    #[inline]
+    fn zero() -> Self { F8E5m2(0x00) }
+    #[inline]
+    fn one() -> Self { F8E5m2(0x3c) }
+    #[inline]
+    fn nan() -> Option<Self> { Some(F8E5m2(0x7e)) }
+}
+
 /// CUDA-specific layer over [`AccelDtype`].
 ///
 /// The cudarc bounds (`DeviceRepr`, `ValidAsZeroBits`) are part of the
@@ -195,6 +264,70 @@ impl GemmSupported for i32 {}
 impl GemmSupported for half::f16 {}
 #[cfg(feature = "f16")]
 impl GemmSupported for half::bf16 {}
+
+#[cfg(feature = "f8")]
+mod fp8_impls {
+    use super::*;
+    use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
+
+    unsafe impl DeviceRepr for F8E4m3 {}
+    unsafe impl ValidAsZeroBits for F8E4m3 {}
+    unsafe impl DeviceRepr for F8E5m2 {}
+    unsafe impl ValidAsZeroBits for F8E5m2 {}
+
+    impl CudaDtype for F8E4m3 {
+        #[inline]
+        fn cuda_data_type() -> cublas_sys::cudaDataType_t {
+            cublas_sys::cudaDataType_t::CUDA_R_8F_E4M3
+        }
+        #[inline]
+        fn cublas_compute_type() -> cublas_sys::cublasComputeType_t {
+            cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
+        }
+        #[inline]
+        fn cuda_type_name() -> &'static str { "__nv_fp8_e4m3" }
+        #[cfg(feature = "cudnn")]
+        #[inline]
+        fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {
+            cudnn_sys::cudnnDataType_t::CUDNN_DATA_FP8_E4M3
+        }
+        #[cfg(feature = "nccl")]
+        #[inline]
+        fn nccl_data_type() -> nccl_sys::ncclDataType_t {
+            nccl_sys::ncclDataType_t::ncclFloat8e4m3
+        }
+    }
+
+    impl CudaDtype for F8E5m2 {
+        #[inline]
+        fn cuda_data_type() -> cublas_sys::cudaDataType_t {
+            cublas_sys::cudaDataType_t::CUDA_R_8F_E5M2
+        }
+        #[inline]
+        fn cublas_compute_type() -> cublas_sys::cublasComputeType_t {
+            cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
+        }
+        #[inline]
+        fn cuda_type_name() -> &'static str { "__nv_fp8_e5m2" }
+        #[cfg(feature = "cudnn")]
+        #[inline]
+        fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {
+            cudnn_sys::cudnnDataType_t::CUDNN_DATA_FP8_E5M2
+        }
+        #[cfg(feature = "nccl")]
+        #[inline]
+        fn nccl_data_type() -> nccl_sys::ncclDataType_t {
+            nccl_sys::ncclDataType_t::ncclFloat8e5m2
+        }
+    }
+
+    impl GemmSupported for F8E4m3 {}
+    impl GemmSupported for F8E5m2 {}
+    impl CudnnSupported for F8E4m3 {}
+    impl CudnnSupported for F8E5m2 {}
+    impl NcclReduceSupported for F8E4m3 {}
+    impl NcclReduceSupported for F8E5m2 {}
+}
 
 impl CudnnSupported for f32 {}
 impl CudnnSupported for f64 {}

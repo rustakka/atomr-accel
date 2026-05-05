@@ -21,11 +21,13 @@ pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
 pub use crate::kernel::dispatch::{
-    BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
-    CudnnDispatchCtx, DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx,
-    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch, SolverDispatchCtx, SparseDispatch,
-    SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
+    GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
+    SolverDispatch, SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch,
+    TensorDispatchCtx,
 };
+#[cfg(feature = "cublaslt")]
+pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
 pub use crate::kernel::envelope;
@@ -57,7 +59,10 @@ pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};
 pub use crate::kernel::{TensorActor, TensorMsg, TensorSpec};
 
 #[cfg(feature = "cublaslt")]
-pub use crate::kernel::{Activation, BlasLtActor, BlasLtMsg};
+pub use crate::kernel::{
+    Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
+    WorkspacePool,
+};
 
 #[cfg(feature = "nvrtc")]
 pub use crate::kernel::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};

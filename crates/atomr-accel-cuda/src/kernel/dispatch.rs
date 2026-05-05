@@ -237,24 +237,49 @@ pub struct GemmDispatchCtx<'a> {
     pub _phantom: PhantomData<&'a ()>,
 }
 
-/// Boxed-dispatch trait for cuBLASLt matmul descriptors.
-///
-/// TODO: populate impls when cuBLASLt is migrated in Phase 1.x.
-pub trait BlasLtDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &BlasLtDispatchCtx<'_>);
+#[cfg(feature = "cublaslt")]
+mod blaslt_dispatch_internal {
+    //! Hidden helper: cuBLASLt context type names cudarc/internal types
+    //! without leaking them through the public `BlasLtDispatch` surface.
+    use std::sync::Arc;
+
+    use cudarc::cublaslt::CudaBlasLT;
+    use tokio::sync::oneshot;
+
+    use crate::completion::CompletionStrategy;
+    use crate::error::GpuError;
+    use crate::kernel::blas_lt::heuristic::HeuristicCacheRef;
+    use crate::kernel::blas_lt::workspace::WorkspacePool;
+
+    /// Per-call context handed to a `BlasLtDispatch::dispatch` impl.
+    pub struct BlasLtDispatchCtx<'a> {
+        pub blas_lt: Arc<CudaBlasLT>,
+        pub stream: &'a Arc<cudarc::driver::CudaStream>,
+        pub completion: &'a Arc<dyn CompletionStrategy>,
+        pub workspace: &'a WorkspacePool,
+        pub heuristic: HeuristicCacheRef,
+        pub sm_arch: u32,
+    }
+
+    pub fn reply_unsupported(
+        reply: oneshot::Sender<Result<(), GpuError>>,
+        dtype_name: &'static str,
+    ) {
+        let _ = reply.send(Err(GpuError::Unrecoverable(format!(
+            "BlasLtDispatch: dtype {dtype_name} unsupported in this build"
+        ))));
+    }
 }
 
-/// Per-call context for [`BlasLtDispatch`].
-///
-/// TODO: populate `Arc<CudaBlasLt>` and the workspace pool ref when
-/// cuBLASLt is migrated in Phase 1.x.
-pub struct BlasLtDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+#[cfg(feature = "cublaslt")]
+pub use blaslt_dispatch_internal::{reply_unsupported, BlasLtDispatchCtx};
+
+/// Boxed-dispatch trait the cuBLASLt actor uses to call into a typed
+/// `MatmulRequest<T>` after type-erasing it through the mailbox.
+#[cfg(feature = "cublaslt")]
+pub trait BlasLtDispatch: Send + 'static {
+    fn dtype_kind(&self) -> crate::dtype::DTypeKind;
+    fn dispatch(self: Box<Self>, ctx: &BlasLtDispatchCtx<'_>);
 }
 
 /// Boxed-dispatch trait for cuDNN ops (conv, norm, attention, …).
@@ -496,8 +521,10 @@ mod tests {
     #[test]
     fn stub_dispatch_traits_compile() {
         fn _gemm(_: Box<dyn GemmDispatch>) {}
+        #[cfg(feature = "cublaslt")]
         fn _blaslt(_: Box<dyn BlasLtDispatch>) {}
         fn _cudnn(_: Box<dyn CudnnDispatch>) {}
+        #[cfg(feature = "cufft")]
         fn _fft(_: Box<dyn FftDispatch>) {}
         fn _rng(_: Box<dyn RngDispatch>) {}
         fn _solver(_: Box<dyn SolverDispatch>) {}

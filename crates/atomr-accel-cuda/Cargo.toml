@@ -45,6 +45,10 @@ nvrtc    = []
 # cudarc's safe NVTX wrapper. When off, `KernelEnvelope::with_nvtx`
 # stores the label but emits no calls (zero runtime cost).
 nvtx     = ["cudarc/nvtx"]
+# Phase 1 cuBLASLt: enable fp8 dispatch (e4m3 / e5m2). Hopper+ runtime
+# only — gated so older hardware can use cublaslt without fp8 sys wiring.
+# Pulls in the F8E4m3/F8E5m2 wrapper newtypes from atomr-accel.
+cublas-fp8 = ["cublaslt", "f8"]
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
 # When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
@@ -76,9 +80,7 @@ f8       = ["atomr-accel/f8"]
 f4       = ["atomr-accel/f4"]
 
 # Phase 1 per-library feature placeholders for libraries whose
-# expansion agents haven't landed yet (their flags will be activated
-# alongside their kernel-actor changes).
-cublas-fp8        = []   # cuBLAS Phase 1: gates fp8 GEMM via cuBLASLt sys layer
+# expansion agents haven't landed yet.
 cusolver-sp       = []   # cuSOLVER Phase 1: gates `cusolverSp` sparse-solver linkage
 
 # Convenience aggregates.
@@ -152,6 +154,10 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "matmul_fp8"
+required-features = ["cuda-runtime-tests", "cublaslt", "f16", "cublas-fp8"]
 
 [[bench]]
 name = "sgemm_overhead"

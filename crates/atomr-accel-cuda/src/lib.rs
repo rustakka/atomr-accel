@@ -49,6 +49,7 @@ pub mod graph;
 pub mod host;
 pub mod kernel;
 pub mod memory;
+pub mod sys;
 #[cfg(feature = "nccl")]
 pub mod multi_device;
 pub mod nvrtc_cache;
@@ -62,5 +63,3 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
-#[cfg(any(feature = "cufft", feature = "curand", feature = "cublaslt", feature = "cusolver"))]
-pub mod sys;
