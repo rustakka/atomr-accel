@@ -54,6 +54,10 @@ telemetry = ["dep:atomr-telemetry"]
 # and tensor descriptors. Pulls in cudarc's `f16` feature which
 # requires `half`.
 f16      = ["cudarc/f16", "dep:half"]
+# Telemetry placeholder feature (NVTX ranges around kernel envelopes).
+# No-op on this branch — the real implementation lands with Phase 9
+# of the CUDA-coverage roadmap.
+nvtx     = []
 
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
@@ -111,6 +115,22 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "conv2d_nhwc_fp16"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "layernorm"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "rnn_lstm"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "fused_mha_bf16"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
 
 [[bench]]
 name = "sgemm_overhead"

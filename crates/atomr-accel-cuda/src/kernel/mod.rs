@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
@@ -28,11 +29,17 @@ mod blas;
 pub use blas::{BlasActor, BlasMsg};
 
 #[cfg(feature = "cudnn")]
-mod cudnn_actor;
+pub mod cudnn;
 #[cfg(feature = "cudnn")]
-pub use cudnn_actor::{
-    ActivationKind, ActivationRequest, ConvForwardRequest, ConvParams, CudnnActor, CudnnMsg,
-    SoftmaxRequest,
+pub use cudnn::{
+    ActivationFwdRequest, ActivationKind, ActivationRequest, AttentionMask, AttentionParams,
+    BatchNormRequest, ConvBwdDataRequest, ConvBwdFilterRequest, ConvDescParams, ConvForwardRequest,
+    ConvFwdRequest, ConvParams, CudnnActor, CudnnMsg, DropoutFwdRequest, EpilogueKind,
+    GroupNormRequest, InstanceNormRequest, LayerNormRequest, LrnFwdRequest, LrnParams,
+    MultiHeadAttnBwdRequest, MultiHeadAttnFwdRequest, NormBwdRequest, NormMode, NormPhase,
+    PoolBwdRequest, PoolFwdRequest, PoolMode, PoolParams, RnnBwdRequest, RnnDirection,
+    RnnFwdRequest, RnnMode, RnnParams, SoftmaxFwdRequest, SoftmaxMode, SoftmaxRequest,
+    TensorLayout,
 };
 
 #[cfg(feature = "cufft")]
