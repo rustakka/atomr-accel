@@ -182,15 +182,7 @@ impl ContextActor {
             let stub = ctx
                 .spawn::<BlasActor>(BlasActor::mock_props(), "blas")
                 .unwrap_or_else(|e| panic!("Unrecoverable: spawn mock BlasActor: {e}"));
-            let children = KernelChildren {
-                blas: stub,
-                #[cfg(feature = "cudnn")]
-                cudnn: None,
-                #[cfg(feature = "cufft")]
-                fft: None,
-                #[cfg(feature = "curand")]
-                rng: None,
-            };
+            let children = KernelChildren::new(stub);
             self.children = Some(children.clone());
             self.parent.tell(DeviceMsg::ContextReady { children });
             info!(device_id, "ContextActor (mock) ready");
@@ -309,15 +301,20 @@ impl ContextActor {
             None
         };
 
-        let children = KernelChildren {
-            blas: blas_ref,
-            #[cfg(feature = "cudnn")]
-            cudnn: cudnn_ref,
-            #[cfg(feature = "cufft")]
-            fft: fft_ref,
-            #[cfg(feature = "curand")]
-            rng: rng_ref,
-        };
+        #[allow(unused_mut)]
+        let mut children = KernelChildren::new(blas_ref);
+        #[cfg(feature = "cudnn")]
+        {
+            children.cudnn = cudnn_ref;
+        }
+        #[cfg(feature = "cufft")]
+        {
+            children.fft = fft_ref;
+        }
+        #[cfg(feature = "curand")]
+        {
+            children.rng = rng_ref;
+        }
         self.children = Some(children.clone());
         self.parent.tell(DeviceMsg::ContextReady { children });
         info!(

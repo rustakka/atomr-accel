@@ -63,8 +63,8 @@ f8       = ["atomr-accel/f8"]
 f4       = ["atomr-accel/f4"]
 
 # Convenience aggregates.
-core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
-training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
+core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor"]
+training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
 full-cuda     = ["training-libs", "nccl"]
 
 [dependencies]
