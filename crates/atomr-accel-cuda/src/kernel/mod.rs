@@ -20,12 +20,17 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
-mod blas;
+pub mod blas;
 
-pub use blas::{BlasActor, BlasMsg};
+pub use blas::{
+    AsumRequest, AxpyRequest, BlasActor, BlasMsg, CopyRequest, DotRequest, GeamRequest,
+    GemmRequest, GemmStridedBatchedRequest, GemvRequest, GerRequest, IamaxRequest, IaminRequest,
+    Nrm2Request, RotRequest, ScalRequest, SwapRequest, SyrkRequest, TrsmRequest,
+};
 
 #[cfg(feature = "cudnn")]
 mod cudnn_actor;

@@ -42,6 +42,7 @@
 pub mod completion;
 pub mod device;
 pub mod dispatcher;
+pub mod dtype;
 pub mod error;
 pub mod gpu_ref;
 pub mod graph;
@@ -60,3 +61,4 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
+pub mod sys;

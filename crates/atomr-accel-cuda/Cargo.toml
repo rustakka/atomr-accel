@@ -32,6 +32,15 @@ nccl     = ["cudarc/nccl"]
 cublaslt = []
 curand   = []
 nvrtc    = []
+# fp8 cuBLAS path: activates cudarc 12080+ gating so `cudaDataType_t::CUDA_R_8F_E4M3`
+# / `CUDA_R_8F_E5M2` enum values resolve, and unlocks the
+# [`crate::kernel::blas::scaling`] helpers + cuBLASLt fp8 dispatch.
+# Requires Hopper (sm_90+) at runtime; gated on cuBLAS 12.x at build time.
+cublas-fp8 = ["f16"]
+# NVTX range push/pop hooks in `kernel::envelope::run_kernel`. Phase 1
+# scaffold — no runtime symbol pull-in until the Phase 9 telemetry
+# crate lands.
+nvtx     = []
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
 # When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
@@ -98,6 +107,22 @@ name = "pipeline_no_gpu"
 
 [[example]]
 name = "sgemm"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "dgemm"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "gemv"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "axpy_dot"
+required-features = ["cuda-runtime-tests"]
+
+[[example]]
+name = "gemm_fp8"
 required-features = ["cuda-runtime-tests"]
 
 [[example]]
