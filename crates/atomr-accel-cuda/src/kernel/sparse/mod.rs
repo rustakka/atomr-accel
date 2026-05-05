@@ -1,16 +1,47 @@
-//! `SparseActor` — wraps cuSPARSE for CSR sparse matrix-vector and
-//! matrix-matrix multiply.
+//! `SparseActor` — wraps cuSPARSE for the full op surface.
 //!
-//! cudarc 0.19 only exposes cuSPARSE at `sys` level (no safe wrapper
-//! for the SpMat / DnVec descriptor lifecycle). This actor manages the
-//! handle, descriptors, and external-buffer scratch space directly via
-//! `unsafe` FFI, mirroring the pattern in [`super::solver`].
+//! Phase 4 expands the F-9 CSR-only SpMv/SpMm shape into a full
+//! generic-API surface (CSR/COO/CSC/Blocked-ELL/BSR × f32/f64/f16/bf16
+//! × i32/i64) plus SpGEMM, SpSV, SDDMM, and dense↔sparse conversion.
 //!
-//! Supported ops (F-phase 9.x, sys-level):
-//! - `SpMv { csr, x, y, alpha, beta }` — y = alpha * A * x + beta * y
-//!   for an `m × n` matrix in CSR layout.
-//! - `SpMm { csr, b, c, alpha, beta }` — C = alpha * A * B + beta * C
-//!   for an `m × n` sparse `A` and `n × k` dense `B`.
+//! ## Mailbox shape
+//!
+//! ```ignore
+//! pub enum SparseMsg {
+//!     Op(Box<dyn SparseDispatch>),    // canonical
+//!     #[deprecated] SpMv { ... },     // legacy CSR-only f32
+//!     #[deprecated] SpMm { ... },
+//! }
+//! ```
+//!
+//! New callers ship the `Op(Box<…>)` variant produced by an
+//! `SpMvRequest::new(…)` / `SpMmRequest::new(…)` / etc. The deprecated
+//! typed variants route through the original F-9 implementation
+//! directly (CSR-only, f32-only) and remain wire-compatible with the
+//! existing `tests/spmv_e2e.rs` end-to-end test.
+//!
+//! The CudaContext / supervision wiring is unchanged from F-9 — the
+//! actor still owns a `cusparseHandle_t` for the lifetime of the
+//! current `ContextActor` generation, panics with `"ContextPoisoned"`
+//! on init failure, and drops to `Mock` mode when no GPU is present.
+
+pub mod convert;
+pub mod descriptor;
+pub mod dispatch_impls;
+pub mod format;
+pub mod sddmm;
+pub mod spgemm;
+pub mod spmm;
+pub mod spmv;
+pub mod spsv;
+
+pub use convert::{ConvertKind, ConvertRequest, ConvertResult};
+pub use format::{SparseFormat, SparseMatrix};
+pub use sddmm::SddmmRequest;
+pub use spgemm::{SpGemmRequest, SpGemmResult};
+pub use spmm::{DenseOrder, SpMmRequest};
+pub use spmv::{SpMvOp, SpMvRequest};
+pub use spsv::{SpSvDiag, SpSvFill, SpSvRequest};
 
 use std::sync::Arc;
 
@@ -25,14 +56,14 @@ use crate::completion::CompletionStrategy;
 use crate::device::DeviceState;
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
+use crate::kernel::dispatch::{SendSparseHandle, SparseDispatch, SparseDispatchCtx};
 use crate::kernel::envelope;
 use crate::stream::StreamAllocator;
 
 const LIB: &str = "cusparse";
 
-/// CSR sparse matrix in device memory. The three `GpuRef` arms are
-/// the row-pointer (`m + 1` entries), column-index (`nnz` entries),
-/// and value (`nnz` entries) buffers.
+/// Legacy CSR sparse matrix in device memory — kept for back-compat with
+/// callers built against F-9. Prefer [`SparseMatrix`] for new code.
 #[derive(Clone)]
 pub struct CsrMatrix {
     pub row_offsets: GpuRef<i32>,
@@ -43,8 +74,20 @@ pub struct CsrMatrix {
     pub nnz: i64,
 }
 
+/// Public messages for [`SparseActor`].
+///
+/// New code uses the canonical `Op(Box<dyn SparseDispatch>)` payload.
+/// The two deprecated typed variants are aliases retained for
+/// back-compat with F-9 callers and the existing `spmv_e2e` integration
+/// test.
 pub enum SparseMsg {
-    /// y = alpha * A * x + beta * y
+    /// Canonical Phase-4 dispatch — generic over dtype/format/index
+    /// type via the boxed [`SparseDispatch`].
+    Op(Box<dyn SparseDispatch>),
+
+    #[deprecated(
+        note = "use SparseMsg::Op(Box::new(SpMvRequest::new(...))) for the dtype-generic path"
+    )]
     SpMv {
         csr: CsrMatrix,
         x: GpuRef<f32>,
@@ -53,7 +96,10 @@ pub enum SparseMsg {
         beta: f32,
         reply: oneshot::Sender<Result<(), GpuError>>,
     },
-    /// C = alpha * A * B + beta * C  (B and C are dense, column-major).
+
+    #[deprecated(
+        note = "use SparseMsg::Op(Box::new(SpMmRequest::new(...))) for the dtype-generic path"
+    )]
     SpMm {
         csr: CsrMatrix,
         b: GpuRef<f32>,
@@ -71,14 +117,10 @@ pub struct SparseActor {
     inner: SparseInner,
 }
 
-struct SendHandle(cusparse_sys::cusparseHandle_t);
-unsafe impl Send for SendHandle {}
-unsafe impl Sync for SendHandle {}
-
 #[allow(dead_code)]
 enum SparseInner {
     Real {
-        handle: Mutex<SendHandle>,
+        handle: Mutex<SendSparseHandle>,
         stream: Arc<cudarc::driver::CudaStream>,
         completion: Arc<dyn CompletionStrategy>,
         state: Arc<DeviceState>,
@@ -121,7 +163,7 @@ impl SparseActor {
             }
             SparseActor {
                 inner: SparseInner::Real {
-                    handle: Mutex::new(SendHandle(h)),
+                    handle: Mutex::new(SendSparseHandle(h)),
                     stream: stream.clone(),
                     completion: completion.clone(),
                     state: state.clone(),
@@ -151,43 +193,69 @@ impl Actor for SparseActor {
                 completion,
                 workspace,
                 ..
-            } => match msg {
-                SparseMsg::SpMv {
-                    csr,
-                    x,
-                    y,
-                    alpha,
-                    beta,
-                    reply,
-                } => {
-                    handle_spmv(
-                        handle, stream, completion, workspace, csr, x, y, alpha, beta, reply,
-                    );
+            } => {
+                #[allow(deprecated)]
+                match msg {
+                    SparseMsg::Op(op) => {
+                        let ctx = SparseDispatchCtx {
+                            handle,
+                            stream,
+                            completion,
+                            workspace,
+                        };
+                        op.dispatch(&ctx);
+                    }
+                    SparseMsg::SpMv {
+                        csr,
+                        x,
+                        y,
+                        alpha,
+                        beta,
+                        reply,
+                    } => {
+                        handle_spmv(
+                            handle, stream, completion, workspace, csr, x, y, alpha, beta, reply,
+                        );
+                    }
+                    SparseMsg::SpMm {
+                        csr,
+                        b,
+                        c,
+                        b_cols,
+                        ldb,
+                        ldc,
+                        alpha,
+                        beta,
+                        reply,
+                    } => {
+                        handle_spmm(
+                            handle, stream, completion, workspace, csr, b, c, b_cols, ldb, ldc,
+                            alpha, beta, reply,
+                        );
+                    }
                 }
-                SparseMsg::SpMm {
-                    csr,
-                    b,
-                    c,
-                    b_cols,
-                    ldb,
-                    ldc,
-                    alpha,
-                    beta,
-                    reply,
-                } => {
-                    handle_spmm(
-                        handle, stream, completion, workspace, csr, b, c, b_cols, ldb, ldc, alpha,
-                        beta, reply,
-                    );
-                }
-            },
+            }
         }
     }
 }
 
 fn mock_reply(msg: SparseMsg) {
     let err = || GpuError::Unrecoverable("SparseActor in mock mode".into());
+    #[allow(deprecated)]
     match msg {
+        SparseMsg::Op(op) => {
+            // We can't dispatch without a handle, so surface the error
+            // via the boxed op's own dispatch path. The ctx is unused
+            // for the mock case — but we still need to give the op a
+            // place to put its reply. Drop the box; the reply oneshot
+            // inside is dropped, which the caller observes as a
+            // `RecvError`.
+            //
+            // For symmetry with the typed variants, we surface a typed
+            // error via the dispatch trait's own context — but no ctx
+            // exists here. Drop is the documented mock-mode behaviour.
+            drop(op);
+        }
         SparseMsg::SpMv { reply, .. } | SparseMsg::SpMm { reply, .. } => {
             let _ = reply.send(Err(err()));
         }
@@ -210,8 +278,9 @@ fn ensure_workspace(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_spmv(
-    handle: &Mutex<SendHandle>,
+    handle: &Mutex<SendSparseHandle>,
     stream: &Arc<cudarc::driver::CudaStream>,
     completion: &Arc<dyn CompletionStrategy>,
     workspace: &Mutex<Option<CudaSlice<u8>>>,
@@ -267,7 +336,6 @@ fn handle_spmv(
         }
     };
 
-    // Build descriptors. cusparse{Create,Destroy}{SpMat,DnVec} are sys-level.
     let h = handle.lock();
     let (row_off_ptr, _g0) = row_off.device_ptr(stream);
     let (col_idx_ptr, _g1) = col_idx.device_ptr(stream);
@@ -338,7 +406,6 @@ fn handle_spmv(
         return;
     }
 
-    // Workspace size query.
     let alpha_h = alpha;
     let beta_h = beta;
     let mut buf_size: usize = 0;
@@ -386,8 +453,6 @@ fn handle_spmv(
     let handle_clone = handle;
     let workspace_ref = workspace;
     let stream_for_check = stream.clone();
-    // Wrap descriptors so the move-closure can carry them; raw pointers
-    // from cusparse are not Send by default.
     struct SendDesc<T>(T);
     unsafe impl<T> Send for SendDesc<T> {}
     let mat = SendDesc(mat_desc);
@@ -427,9 +492,6 @@ fn handle_spmv(
                 msg: format!("SpMV: {s:?}"),
             });
         }
-        // Move owners + descriptors into keep-alive so they live to
-        // kernel completion. Drop closure unwinds descriptors via the
-        // helper struct below.
         struct DescGuard {
             mat: cusparse_sys::cusparseSpMatDescr_t,
             x: cusparse_sys::cusparseDnVecDescr_t,
@@ -456,7 +518,7 @@ fn handle_spmv(
 
 #[allow(clippy::too_many_arguments)]
 fn handle_spmm(
-    handle: &Mutex<SendHandle>,
+    handle: &Mutex<SendSparseHandle>,
     stream: &Arc<cudarc::driver::CudaStream>,
     completion: &Arc<dyn CompletionStrategy>,
     workspace: &Mutex<Option<CudaSlice<u8>>>,
@@ -700,4 +762,56 @@ fn handle_spmm(
         };
         Ok((c_owned, row_off, col_idx, vals, b_slice, guard))
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// The deprecated typed `SpMv` variant is what the F-9 e2e test
+    /// emits — make sure it still constructs cleanly even though new
+    /// callers route through `SparseMsg::Op(...)`.
+    #[test]
+    #[allow(deprecated)]
+    fn deprecated_spmv_alias_still_constructs() {
+        // We can't mint a real GpuRef without a CudaSlice, so we
+        // exercise just the enum match shape.
+        let state = Arc::new(DeviceState::new(0));
+        // Touch `state` so the unused-binding lint stays quiet on the
+        // host-only test path.
+        assert_eq!(state.generation(), 0);
+
+        // Compile-only: the enum variant is constructible by name.
+        fn _assemble<F>(_f: F) {}
+        _assemble(|csr: CsrMatrix,
+                   x: GpuRef<f32>,
+                   y: GpuRef<f32>,
+                   reply: oneshot::Sender<Result<(), GpuError>>| {
+            SparseMsg::SpMv {
+                csr,
+                x,
+                y,
+                alpha: 1.0,
+                beta: 0.0,
+                reply,
+            }
+        });
+        _assemble(|csr: CsrMatrix,
+                   b: GpuRef<f32>,
+                   c: GpuRef<f32>,
+                   reply: oneshot::Sender<Result<(), GpuError>>| {
+            SparseMsg::SpMm {
+                csr,
+                b,
+                c,
+                b_cols: 1,
+                ldb: 1,
+                ldc: 1,
+                alpha: 1.0,
+                beta: 0.0,
+                reply,
+            }
+        });
+    }
 }

@@ -29,6 +29,12 @@ cusolver = ["cudarc/cusolver"]
 # the `kernel::solver::sparse` module.
 cusolver-sp = ["cusolver"]
 cusparse = ["cudarc/cusparse"]
+# Phase 4 cuSPARSE generic API (cuSPARSE 12.x SpMM/SpMV/SpGEMM/SpSV
+# with descriptor-based handles). On-by-default with `cusparse`.
+cusparse-generic = ["cusparse"]
+# Phase 4 structured 2:4 sparsity via cuSPARSELt. Off by default;
+# requires libcusparseLt.so at runtime (loaded via libloading).
+cusparse-lt = []
 cutensor = ["cudarc/cutensor"]
 # Phase 2 cuTENSOR autotune: probes top-k cutensorAlgo_t variants to
 # pick the fastest plan for a given key. Adds a small measurement

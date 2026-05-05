@@ -376,24 +376,61 @@ pub trait RngDispatch: Send + 'static {
 #[cfg(feature = "cusolver")]
 pub use crate::kernel::solver::SolverDispatch;
 
-/// Boxed-dispatch trait for cuSPARSE ops.
-///
-/// TODO: populate impls when cuSPARSE is migrated in Phase 4.
-pub trait SparseDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &SparseDispatchCtx<'_>);
-}
+/// Phase 4 cuSPARSE handle wrapper. Raw pointer is `!Send` by default;
+/// cuSPARSE is thread-safe per-handle as long as a given handle is only
+/// touched by one stream at a time (the actor-per-handle invariant).
+#[cfg(feature = "cusparse")]
+pub struct SendSparseHandle(pub cudarc::cusparse::sys::cusparseHandle_t);
+#[cfg(feature = "cusparse")]
+unsafe impl Send for SendSparseHandle {}
+#[cfg(feature = "cusparse")]
+unsafe impl Sync for SendSparseHandle {}
 
-/// Per-call context for [`SparseDispatch`].
-///
-/// TODO: populate `Arc<CudaSparse>` when cuSPARSE is migrated in
-/// Phase 4.
+/// Per-call context handed to a `SparseDispatch::dispatch` impl.
+#[cfg(feature = "cusparse")]
 pub struct SparseDispatchCtx<'a> {
+    pub handle: &'a parking_lot::Mutex<SendSparseHandle>,
     pub stream: &'a Arc<cudarc::driver::CudaStream>,
     pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+    pub workspace: &'a parking_lot::Mutex<Option<cudarc::driver::CudaSlice<u8>>>,
+}
+
+/// Op-kind tag a `SparseDispatch` exposes.
+#[cfg(feature = "cusparse")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SparseOp {
+    SpMv,
+    SpMm,
+    SpGemm,
+    SpSv,
+    Sddmm,
+    DenseToSparse,
+    SparseToDense,
+    Convert,
+}
+
+#[cfg(feature = "cusparse")]
+impl SparseOp {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SparseOp::SpMv => "spmv",
+            SparseOp::SpMm => "spmm",
+            SparseOp::SpGemm => "spgemm",
+            SparseOp::SpSv => "spsv",
+            SparseOp::Sddmm => "sddmm",
+            SparseOp::DenseToSparse => "dense_to_sparse",
+            SparseOp::SparseToDense => "sparse_to_dense",
+            SparseOp::Convert => "convert",
+        }
+    }
+}
+
+/// Box-erased cuSPARSE op (Phase 4).
+#[cfg(feature = "cusparse")]
+pub trait SparseDispatch: Send + 'static {
+    fn op_name(&self) -> SparseOp;
+    fn dtype(&self) -> DType;
+    fn dispatch(self: Box<Self>, ctx: &SparseDispatchCtx<'_>);
 }
 
 /// `TensorDispatch` is owned by `kernel::tensor` (Phase 2 cuTENSOR).
@@ -603,6 +640,7 @@ mod tests {
         fn _rng(_: Box<dyn RngDispatch>) {}
         #[cfg(feature = "cusolver")]
         fn _solver(_: Box<dyn crate::kernel::solver::SolverDispatch>) {}
+        #[cfg(feature = "cusparse")]
         fn _sparse(_: Box<dyn SparseDispatch>) {}
         #[cfg(feature = "cutensor")]
         fn _tensor(_: Box<dyn TensorDispatch>) {}

@@ -15,5 +15,9 @@ pub mod cufft;
 pub mod curand;
 #[cfg(feature = "cusolver")]
 pub mod cusolver;
+#[cfg(feature = "cusparse")]
+pub mod cusparse;
+#[cfg(feature = "cusparse-lt")]
+pub mod cusparse_lt;
 #[cfg(feature = "cutensor")]
 pub mod cutensor;

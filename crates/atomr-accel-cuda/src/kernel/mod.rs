@@ -26,8 +26,9 @@ pub mod record;
 
 pub use dispatch::{
     DevSliceArg, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SparseDispatch, SparseDispatchCtx,
 };
+#[cfg(feature = "cusparse")]
+pub use dispatch::{SparseDispatch, SparseDispatchCtx, SendSparseHandle, SparseOp};
 #[cfg(feature = "cublaslt")]
 pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cudnn")]

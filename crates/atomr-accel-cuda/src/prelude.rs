@@ -22,8 +22,10 @@ pub use crate::host::{
 };
 pub use crate::kernel::dispatch::{
     DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch,
-    ScalarArg, SparseDispatch, SparseDispatchCtx,
+    ScalarArg,
 };
+#[cfg(feature = "cusparse")]
+pub use crate::kernel::dispatch::{SparseDispatch, SparseDispatchCtx, SendSparseHandle, SparseOp};
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cudnn")]

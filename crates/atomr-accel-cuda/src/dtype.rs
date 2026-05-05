@@ -21,8 +21,6 @@
 //! against unsupported dtypes — `BlasMsg::gemm::<i64>(...)` does not
 //! compile because `i64: GemmSupported` has no impl.
 
-use atomr_accel::AccelDtype;
-
 use cudarc::cublas::sys as cublas_sys;
 use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 #[cfg(feature = "cudnn")]
@@ -34,6 +32,10 @@ use cudarc::nccl::sys as nccl_sys;
 /// imports inside `atomr-accel-cuda` (added by Phase 0.4) keep working
 /// without changing every call site.
 pub use atomr_accel::DType;
+
+/// Re-export so `crate::dtype::AccelDtype` resolves for actor modules
+/// that prefer the unified import path.
+pub use atomr_accel::AccelDtype;
 
 /// Alias used by `BlasLtDispatch::dtype_kind` and other Phase 1 dispatchers.
 pub use atomr_accel::DType as DTypeKind;
@@ -150,6 +152,30 @@ pub trait TensorSupported: CudaDtype {}
 /// Capability marker — cuRAND integer-fill operand. `curandGenerate` produces u32,
 /// `curandGenerateLongLong` produces u64. Used by `Discrete` and raw-bit paths.
 pub trait RngIntSupported: CudaDtype {}
+
+/// Phase 4 cuSPARSE index-type marker. Only `i32` and `i64` are
+/// representable cuSPARSE row/col index dtypes.
+pub trait SparseIndex: AccelDtype {
+    #[cfg(feature = "cusparse")]
+    fn cusparse_index_type() -> cudarc::cusparse::sys::cusparseIndexType_t;
+}
+
+#[cfg(feature = "cusparse")]
+impl SparseIndex for i32 {
+    fn cusparse_index_type() -> cudarc::cusparse::sys::cusparseIndexType_t {
+        cudarc::cusparse::sys::cusparseIndexType_t::CUSPARSE_INDEX_32I
+    }
+}
+#[cfg(feature = "cusparse")]
+impl SparseIndex for i64 {
+    fn cusparse_index_type() -> cudarc::cusparse::sys::cusparseIndexType_t {
+        cudarc::cusparse::sys::cusparseIndexType_t::CUSPARSE_INDEX_64I
+    }
+}
+#[cfg(not(feature = "cusparse"))]
+impl SparseIndex for i32 {}
+#[cfg(not(feature = "cusparse"))]
+impl SparseIndex for i64 {}
 
 // Phase 1 cuBLAS sub-marker traits (per-op dtype subsets).
 
