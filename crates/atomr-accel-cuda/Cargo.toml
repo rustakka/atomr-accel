@@ -32,6 +32,14 @@ nccl     = ["cudarc/nccl"]
 cublaslt = []
 curand   = []
 nvrtc    = []
+# Phase 1 cuBLASLt: enable fp8 dispatch (e4m3 / e5m2). Hopper+ runtime
+# only — gated separately so older hardware can still take the
+# cublaslt path without dragging fp8 sys-level wiring in.
+cublas-fp8 = ["cublaslt"]
+# Observability: NVTX kernel-range markers. Stub feature today
+# (Phase 0.5 wiring lands separately); kept in the manifest so the
+# full-feature verification matrix builds cleanly.
+nvtx = []
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
 # When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
@@ -111,6 +119,10 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "matmul_fp8"
+required-features = ["cuda-runtime-tests", "cublaslt", "f16", "cublas-fp8"]
 
 [[bench]]
 name = "sgemm_overhead"

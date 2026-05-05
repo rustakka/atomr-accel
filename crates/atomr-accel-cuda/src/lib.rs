@@ -42,12 +42,14 @@
 pub mod completion;
 pub mod device;
 pub mod dispatcher;
+pub mod dtype;
 pub mod error;
 pub mod gpu_ref;
 pub mod graph;
 pub mod host;
 pub mod kernel;
 pub mod memory;
+pub mod sys;
 #[cfg(feature = "nccl")]
 pub mod multi_device;
 #[cfg(feature = "telemetry")]

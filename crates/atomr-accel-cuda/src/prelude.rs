@@ -41,7 +41,10 @@ pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};
 pub use crate::kernel::{TensorActor, TensorMsg, TensorSpec};
 
 #[cfg(feature = "cublaslt")]
-pub use crate::kernel::{Activation, BlasLtActor, BlasLtMsg};
+pub use crate::kernel::{
+    Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
+    WorkspacePool,
+};
 
 #[cfg(feature = "nvrtc")]
 pub use crate::kernel::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};

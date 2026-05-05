@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
@@ -51,9 +52,12 @@ mod solver;
 pub use solver::{SolverActor, SolverMsg, Uplo};
 
 #[cfg(feature = "cublaslt")]
-mod blas_lt;
+pub mod blas_lt;
 #[cfg(feature = "cublaslt")]
-pub use blas_lt::{Activation, BlasLtActor, BlasLtMsg};
+pub use blas_lt::{
+    Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
+    WorkspacePool,
+};
 
 #[cfg(feature = "nvrtc")]
 mod nvrtc;
