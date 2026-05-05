@@ -98,6 +98,7 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "atomr-accel",
+ "atomr-accel-telemetry",
  "atomr-accel-tensorrt",
  "atomr-cluster-sharding",
  "atomr-config",
@@ -115,7 +116,7 @@ dependencies = [
  "futures",
  "futures-util",
  "half",
- "libloading",
+ "libloading 0.9.0",
  "lru",
  "parking_lot",
  "serde",
@@ -171,6 +172,19 @@ dependencies = [
  "parking_lot",
  "pyo3",
  "pyo3-async-runtimes",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-accel-telemetry"
+version = "0.1.0"
+dependencies = [
+ "atomr-telemetry",
+ "cudarc",
+ "libloading 0.8.9",
+ "parking_lot",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -593,7 +607,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f071cd6a7b5d51607df76aa2d426aaabc7a74bc6bdb885b8afa63a880572ad9b"
 dependencies = [
  "half",
- "libloading",
+ "libloading 0.9.0",
 ]
 
 [[package]]
@@ -964,6 +978,16 @@ name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+
+[[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
 
 [[package]]
 name = "libloading"

@@ -130,6 +130,15 @@ tensorrt-plugin = ["tensorrt", "atomr-accel-tensorrt/tensorrt-plugin"]
 tensorrt-int8   = ["tensorrt", "atomr-accel-tensorrt/tensorrt-int8"]
 tensorrt-fp8    = ["tensorrt", "atomr-accel-tensorrt/tensorrt-fp8"]
 
+# Phase 9 — observability backends, layered onto the existing
+# `telemetry` feature. Each pulls the matching feature on
+# `atomr-accel-telemetry`. Enable individually or via the aggregate
+# `observability-full`.
+nvtx-trace = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/nvtx", "telemetry"]
+nvml       = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/nvml", "telemetry"]
+cupti      = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/cupti", "telemetry"]
+observability-full = ["telemetry", "nvtx-trace", "nvml", "cupti"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor", "cuda-managed"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
@@ -158,6 +167,7 @@ atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
 atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
+atomr-accel-telemetry = { path = "../atomr-accel-telemetry", version = "0.1.0", optional = true, default-features = false }
 serde        = { version = "1", features = ["derive"] }
 serde_json   = { version = "1", optional = true }
 # NVRTC persistent kernel cache (Phase 0.6). `bincode = "1"` for the

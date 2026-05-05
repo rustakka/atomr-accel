@@ -126,3 +126,22 @@ pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, R
 /// `TrtMsg` / `IBuilderConfig` alongside `DeviceActor`.
 #[cfg(feature = "tensorrt")]
 pub use atomr_accel_tensorrt as tensorrt;
+
+// Phase 9 — observability backends. Re-export the public surface
+// of `atomr-accel-telemetry`.
+#[cfg(feature = "nvtx-trace")]
+pub use atomr_accel_telemetry::nvtx::{Domain as NvtxDomain, NvtxKernelTrace};
+
+#[cfg(feature = "nvml")]
+pub use atomr_accel_telemetry::nvml::{
+    register_all as register_nvml_probes, NvmlActor, NvmlConfig, NvmlError, NvmlMsg, NvmlReply,
+    NvmlSnapshot, ProbeRegistration as NvmlProbeRegistration,
+};
+
+#[cfg(feature = "cupti")]
+pub use atomr_accel_telemetry::cupti::{
+    Activity, ActivityCategory, CuptiBootstrap, CuptiError, CuptiMsg, CuptiReply, CuptiSession,
+};
+
+#[cfg(any(feature = "nvtx-trace", feature = "nvml", feature = "cupti"))]
+pub use atomr_accel_telemetry::{KernelInfo, KernelTrace, NoopKernelTrace};

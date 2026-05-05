@@ -1,0 +1,62 @@
+[package]
+name = "atomr-accel-telemetry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "GPU observability for atomr-accel: NVTX ranges, NVML metrics actor, and CUPTI activity tracing. Implements the KernelTrace hooks exported by atomr-accel-cuda and registers atomr-telemetry probes."
+
+[features]
+default = []
+
+# NVTX integration: enables `NvtxKernelTrace`, an implementation of the
+# `KernelTrace` hook used by `atomr-accel-cuda`'s kernel envelope.
+nvtx = ["cudarc/nvtx"]
+
+# NVML actor: polls libnvidia-ml.so via libloading for power, temp,
+# clocks, ECC, throttle reasons, PCIe bw, mem util, processes, MIG.
+nvml = ["dep:libloading"]
+
+# CUPTI activity tracing + range profiler. Pulls cudarc's cupti
+# bindings (which transitively requires the runtime + driver wrappers).
+cupti = ["cudarc/cupti"]
+
+[dependencies]
+# Note on layering: the `KernelTrace` / `KernelInfo` trait this
+# crate ships is the same shape Phase 0.7 lands inside
+# `atomr_accel_cuda::kernel::envelope`. We deliberately keep the
+# trait *here* (rather than depending on `atomr-accel-cuda`) so
+# that:
+#   1. enabling NVTX/NVML/CUPTI doesn't drag the entire CUDA actor
+#      surface into a downstream crate that only wants probes;
+#   2. there is no `atomr-accel-cuda -> atomr-accel-telemetry ->
+#      atomr-accel-cuda` cycle when `atomr-accel-cuda` re-exports
+#      these types via `prelude` under feature gates.
+# `atomr-accel-cuda`'s prelude re-exports the trait when any of
+# `nvtx-trace` / `nvml` / `cupti` is on, keeping the public-facing
+# `atomr_accel_cuda::kernel::envelope::KernelTrace` import path
+# stable for callers.
+atomr-telemetry  = { workspace = true }
+cudarc           = { workspace = true }
+tokio            = { workspace = true }
+parking_lot      = { workspace = true }
+tracing          = { workspace = true }
+thiserror        = { workspace = true }
+libloading       = { version = "0.8", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+
+[[example]]
+name = "cupti_trace"
+required-features = ["cupti"]
+
+[lib]
+path = "src/lib.rs"
