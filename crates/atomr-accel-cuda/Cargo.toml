@@ -66,6 +66,14 @@ f8       = ["atomr-accel/f8"]
 # 4-bit float wrapper type (`F4E2m1`). Blackwell.
 f4       = ["atomr-accel/f4"]
 
+# Phase 1 per-library feature placeholders. Each new feature is empty
+# in this commit; the matching library's expansion agent activates it
+# alongside the kernel-actor changes in the relevant kernel/*.rs file.
+cublas-fp8        = []   # cuBLAS Phase 1: gates fp8 GEMM via cuBLASLt sys layer
+cusolver-sp       = []   # cuSOLVER Phase 1: gates `cusolverSp` sparse-solver linkage
+curand-host       = []   # cuRAND Phase 1: gates host-API generator parallel to device-API
+curand-quasirandom = []  # cuRAND Phase 1: gates Sobol32/Sobol64/ScrambledSobol generators
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
