@@ -66,3 +66,24 @@ pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{RngActor, RngMsg};
+
+// Phase 9 — observability backends. Re-export the public surface
+// of `atomr-accel-telemetry` so callers can `use prelude::*` and
+// drop NVTX / NVML / CUPTI handles straight onto their actor
+// system.
+#[cfg(feature = "nvtx-trace")]
+pub use atomr_accel_telemetry::nvtx::{Domain as NvtxDomain, NvtxKernelTrace};
+
+#[cfg(feature = "nvml")]
+pub use atomr_accel_telemetry::nvml::{
+    register_all as register_nvml_probes, NvmlActor, NvmlConfig, NvmlError, NvmlMsg, NvmlReply,
+    NvmlSnapshot, ProbeRegistration as NvmlProbeRegistration,
+};
+
+#[cfg(feature = "cupti")]
+pub use atomr_accel_telemetry::cupti::{
+    Activity, ActivityCategory, CuptiBootstrap, CuptiError, CuptiMsg, CuptiReply, CuptiSession,
+};
+
+#[cfg(any(feature = "nvtx-trace", feature = "nvml", feature = "cupti"))]
+pub use atomr_accel_telemetry::{KernelInfo, KernelTrace, NoopKernelTrace};

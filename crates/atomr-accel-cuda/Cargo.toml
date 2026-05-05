@@ -55,6 +55,15 @@ telemetry = ["dep:atomr-telemetry"]
 # requires `half`.
 f16      = ["cudarc/f16", "dep:half"]
 
+# Phase 9 — observability backends, layered onto the existing
+# `telemetry` feature. Each pulls the matching feature on
+# `atomr-accel-telemetry`. Enable individually or via the aggregate
+# `observability-full`.
+nvtx-trace = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/nvtx", "telemetry"]
+nvml       = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/nvml", "telemetry"]
+cupti      = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/cupti", "telemetry"]
+observability-full = ["telemetry", "nvtx-trace", "nvml", "cupti"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
@@ -81,6 +90,7 @@ atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
 atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
+atomr-accel-telemetry = { path = "../atomr-accel-telemetry", version = "0.1.0", optional = true, default-features = false }
 serde        = { version = "1", features = ["derive"], optional = true }
 serde_json   = { version = "1", optional = true }
 
