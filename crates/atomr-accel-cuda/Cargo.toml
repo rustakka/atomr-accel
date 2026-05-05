@@ -31,6 +31,15 @@ nccl     = ["cudarc/nccl"]
 # feature gates the actor module compilation only.
 cublaslt = []
 curand   = []
+# cuRAND host-API path: `curandCreateGeneratorHost` + the host-side
+# `curandGenerate*` family that fills *host* buffers (and copies).
+# Off by default; pulls only on extra feature gating in the actor.
+curand-host = ["curand"]
+# Quasi-random (Sobol/Scrambled-Sobol) generator support. cuRAND
+# exposes these as `CURAND_RNG_QUASI_*` rng-types — same FFI surface,
+# but they require `curandSetQuasiRandomGeneratorDimensions` and
+# don't accept a pseudo-seed. Off by default.
+curand-quasirandom = ["curand"]
 nvrtc    = []
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
@@ -103,6 +112,10 @@ required-features = ["cuda-runtime-tests"]
 [[example]]
 name = "rng_uniform"
 required-features = ["cuda-runtime-tests", "curand"]
+
+[[example]]
+name = "rng_sobol"
+required-features = ["cuda-runtime-tests", "curand", "curand-quasirandom"]
 
 [[example]]
 name = "fft_1d"

@@ -23,6 +23,9 @@
 pub mod envelope;
 pub mod record;
 
+#[cfg(feature = "curand")]
+pub mod dispatch;
+
 mod blas;
 
 pub use blas::{BlasActor, BlasMsg};
@@ -41,9 +44,9 @@ mod fft;
 pub use fft::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
-mod rng;
+pub mod rng;
 #[cfg(feature = "curand")]
-pub use rng::{RngActor, RngMsg};
+pub use rng::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
 
 #[cfg(feature = "cusolver")]
 mod solver;

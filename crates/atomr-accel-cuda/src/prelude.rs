@@ -65,4 +65,4 @@ pub use crate::kernel::{
 pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
-pub use crate::kernel::{RngActor, RngMsg};
+pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
