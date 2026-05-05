@@ -24,6 +24,10 @@ cuda-runtime-tests = []
 cudnn    = ["cudarc/cudnn"]
 cufft    = ["cudarc/cufft"]
 cusolver = ["cudarc/cusolver"]
+# Sparse arm of cuSOLVER (`cusolverSp`). Builds on top of the
+# `cusolver` cudarc feature (which already pulls cusparse) and gates
+# the `kernel::solver::sparse` module.
+cusolver-sp = ["cusolver"]
 cusparse = ["cudarc/cusparse"]
 cutensor = ["cudarc/cutensor"]
 nccl     = ["cudarc/nccl"]
@@ -32,6 +36,11 @@ nccl     = ["cudarc/nccl"]
 cublaslt = []
 curand   = []
 nvrtc    = []
+# NVTX scoped-range markers (cudarc's `nvtx` arm). atomr-accel-cuda
+# does not currently emit NVTX ranges itself; the feature is wired
+# so downstream binaries that link an external NVTX consumer can
+# enable the cudarc symbols without us standing in the way.
+nvtx     = ["cudarc/nvtx"]
 # Persistence-backed replay journal for `replay::ReplayHarness`. Pulls
 # in `atomr-persistence` for the `Journal`/`PersistentRepr` traits.
 # When off, ReplayHarness ships only the in-memory `Vec<JournalEntry>`
@@ -111,6 +120,10 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "solver_svd_batched"
+required-features = ["cuda-runtime-tests", "cusolver"]
 
 [[bench]]
 name = "sgemm_overhead"

@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
@@ -46,9 +47,15 @@ mod rng;
 pub use rng::{RngActor, RngMsg};
 
 #[cfg(feature = "cusolver")]
-mod solver;
+pub mod solver;
 #[cfg(feature = "cusolver")]
-pub use solver::{SolverActor, SolverMsg, Uplo};
+pub use solver::{
+    CholeskyRequest, GesvdjBatchedRequest, GetrfBatchedRequest, HegvdRequest, LuRequest,
+    LuSolveRequest, PotrfBatchedRequest, QrRequest, SolverActor, SolverDispatch, SolverMsg,
+    SvdRequest, SyevdRequest, SygvdRequest, Uplo,
+};
+#[cfg(all(feature = "cusolver", feature = "cusolver-sp"))]
+pub use solver::{SparseCholeskyRequest, SparseLuRequest, SparseQrRequest};
 
 #[cfg(feature = "cublaslt")]
 mod blas_lt;
