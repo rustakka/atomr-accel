@@ -8,12 +8,13 @@
 //!
 //! ```toml
 //! [dependencies]
-//! atomr-accel = { version = "0.0", features = ["cuda"] }
+//! atomr-accel      = "0.1"
+//! atomr-accel-cuda = "0.1"   # active backend
 //! ```
 //!
 //! ```ignore
 //! use atomr_accel::prelude::*;
-//! use atomr_accel::cuda;          // re-export of `atomr-accel-cuda`
+//! use atomr_accel_cuda as cuda;
 //! ```
 //!
 //! ## What this crate is
@@ -23,6 +24,9 @@
 //!
 //! - [`AccelBackend`] — marker trait identifying a backend, with
 //!   associated `Device`, `Stream`, `Event`, `Error` types.
+//! - [`AccelDtype`] / [`DType`] — backend-agnostic numeric data-type
+//!   trait + discriminant. Backends layer their own `*Dtype` trait
+//!   on top with FFI mappings.
 //! - [`AccelRef`] — generation-validated typed device pointer
 //!   parametric over the backend.
 //! - [`AccelError`] — typed error enum, `#[non_exhaustive]` so
@@ -33,15 +37,15 @@
 //!   RngFillUniform, etc.).
 //!
 //! The core deliberately ships **no concrete actors**. Each backend
-//! crate provides its own `DeviceActor`, `KernelActor` family, and
-//! library wrappers. The umbrella re-exports the active backend at
-//! `atomr_accel::cuda` (and, eventually, `atomr_accel::rocm`,
-//! `atomr_accel::metal`, etc.) so users have one stable import path.
+//! crate (`atomr-accel-cuda`, future `atomr-accel-rocm`,
+//! `atomr-accel-metal`, …) provides its own `DeviceActor`,
+//! `KernelActor` family, and library wrappers, and depends on this
+//! crate for the trait surface.
 //!
 //! ## What this crate is not
 //!
 //! - A least-common-denominator API. Backends expose more than the
-//!   trait surface — `atomr_accel::cuda::kernel::CudnnActor` has a
+//!   trait surface — `atomr_accel_cuda::kernel::CudnnActor` has a
 //!   richer message set than `KernelOp` knows about, and that's
 //!   fine. The trait surface is for portable code; backend-specific
 //!   work uses the concrete crate directly.
@@ -53,21 +57,17 @@
 
 pub mod backend;
 pub mod completion;
+pub mod dtype;
 pub mod error;
 pub mod gpu_ref;
 pub mod kernel;
 
 pub use backend::{AccelBackend, AccelDevice, AccelStream};
 pub use completion::CompletionStrategy;
+pub use dtype::{AccelDtype, DType};
 pub use error::AccelError;
 pub use gpu_ref::AccelRef;
 pub use kernel::KernelOp;
-
-/// Re-export the CUDA backend at a stable path. Active when the
-/// `cuda` feature is on.
-#[cfg(feature = "cuda")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cuda")))]
-pub use atomr_accel_cuda as cuda;
 
 pub mod prelude {
     //! Canonical re-exports. `use atomr_accel::prelude::*;`.

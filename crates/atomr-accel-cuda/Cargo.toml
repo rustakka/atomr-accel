@@ -53,7 +53,13 @@ telemetry = ["dep:atomr-telemetry"]
 # half-precision dtype variants (f16, bf16) for AllocateF16 / AllocateBf16
 # and tensor descriptors. Pulls in cudarc's `f16` feature which
 # requires `half`.
-f16      = ["cudarc/f16", "dep:half"]
+f16      = ["cudarc/f16", "dep:half", "atomr-accel/f16"]
+# 8-bit float wrapper types (`F8E4m3`, `F8E5m2`). Forwards to atomr-accel/f8.
+# Phase 1 wires fp8 GEMM through cuBLASLt; Phase 0 only exposes the type
+# in the AccelDtype matrix.
+f8       = ["atomr-accel/f8"]
+# 4-bit float wrapper type (`F4E2m1`). Blackwell.
+f4       = ["atomr-accel/f4"]
 
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
@@ -64,6 +70,7 @@ full-cuda     = ["training-libs", "nccl"]
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
 atomr-macros = { workspace = true }
+atomr-accel  = { path = "../atomr-accel", version = "0.1.0", default-features = false }
 cudarc       = { workspace = true }
 tokio        = { workspace = true }
 async-trait  = { workspace = true }

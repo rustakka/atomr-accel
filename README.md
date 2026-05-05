@@ -14,7 +14,7 @@ work into a Rust service without juggling streams, contexts, or
 hand-rolled retry loops.
 
 ```rust
-use atomr_accel::cuda::prelude::*;
+use atomr_accel_cuda::prelude::*;
 
 let device = system.actor_of(DeviceActor::props(DeviceConfig::new(0)), "gpu-0")?;
 let a = ask_alloc::<f32>(&device, n * n).await?;
@@ -72,7 +72,7 @@ supervision, typed messages, async/await throughout.
 
 | Crate                       | What it does                                                                                                         |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `atomr-accel`               | Backend-agnostic core — `AccelBackend` trait, `AccelRef<T>`, `AccelError`, `CompletionStrategy`. Re-exports the active backend at `atomr_accel::cuda` when the `cuda` feature is on |
+| `atomr-accel`               | Backend-agnostic core — `AccelBackend` trait, `AccelRef<T>`, `AccelDtype`/`DType`, `AccelError`, `CompletionStrategy`. Each backend crate (e.g. `atomr-accel-cuda`) depends on this for its trait surface. |
 | `atomr-accel-cuda`          | NVIDIA CUDA implementation — `DeviceActor`/`ContextActor`, kernel actors for cuBLAS/cuBLASLt/cuDNN/cuFFT/cuRAND/cuSOLVER/cuSPARSE/cuTENSOR/NVRTC/NCCL, P2P topology, CUDA graphs, pinned pools |
 | `atomr-accel-patterns`      | Universal blueprints — `DynamicBatchingServer`, `InferenceCascade`, `ModelReplicaPool`, `FairShareScheduler`, `ModelHotSwapServer`, `SpeculativeDecoder`, `MoeRouter`, plus a CPU `GpuMockActor` |
 | `atomr-accel-train`         | Distributed-training blueprints — `DataParallelTrainer`, `PipelineParallelTrainer`, `TensorParallelTrainer`, `AsyncParameterServer`, optimizer + loss enums |
@@ -129,7 +129,7 @@ Or pull in subsystem crates directly — `atomr-accel-cuda`,
 `atomr-accel-cuda-realtime` are all on crates.io.
 
 ```rust
-use atomr_accel::cuda::prelude::*;
+use atomr_accel_cuda::prelude::*;
 use atomr::prelude::*;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]

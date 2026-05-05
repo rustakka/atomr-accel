@@ -24,13 +24,13 @@ backend implements:
 The core ships **no concrete actors**. Each backend crate
 (`atomr-accel-cuda` today; `atomr-accel-rocm`, `-metal`, `-oneapi`,
 `-vulkan` future) provides its own `DeviceActor`, library-specific
-kernel actors, and stream allocators. The umbrella re-exports the
-active backend at a stable path:
+kernel actors, and stream allocators. Each backend crate depends on
+`atomr-accel` (the trait surface) and is imported directly:
 
 ```rust
-use atomr_accel::cuda;          // when feature `cuda` is on
-// use atomr_accel::rocm;        // future
-// use atomr_accel::metal;       // future
+use atomr_accel_cuda as cuda;       // CUDA backend
+// use atomr_accel_rocm as rocm;     // future
+// use atomr_accel_metal as metal;   // future
 ```
 
 ## What's *not* in the abstraction
@@ -46,7 +46,7 @@ contract. They don't try to:
   perfect MPS equivalent. The trait surface is for *portable*
   code; backend-specific work uses the concrete crate directly:
   ```rust
-  use atomr_accel::cuda::kernel::{CudnnActor, ConvForwardRequest};
+  use atomr_accel_cuda::kernel::{CudnnActor, ConvForwardRequest};
   ```
 - **Abstract over kernel launch shapes.** A CUDA kernel has
   blocks/threads; a Metal kernel has threadgroups; a Vulkan
