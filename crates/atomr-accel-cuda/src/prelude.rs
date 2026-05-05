@@ -8,7 +8,15 @@ pub use crate::device::{
 pub use crate::dispatcher::GpuDispatcher;
 pub use crate::error::{decider, device_supervisor_strategy, DeviceSupervisor, GpuError};
 pub use crate::gpu_ref::GpuRef;
-pub use crate::graph::{GraphActor, GraphHandle, GraphMsg, GraphOp};
+#[cfg(feature = "cufft")]
+pub use crate::graph::FftR2COp;
+#[allow(deprecated)]
+pub use crate::graph::GraphOpLegacy;
+#[cfg(feature = "curand")]
+pub use crate::graph::RngFillUniformOp;
+pub use crate::graph::{
+    GraphActor, GraphHandle, GraphMsg, GraphOp, GraphRecordCtx, MemcpyOp, SgemmOp,
+};
 pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
