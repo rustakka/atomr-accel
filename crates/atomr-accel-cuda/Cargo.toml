@@ -30,6 +30,12 @@ cusolver = ["cudarc/cusolver"]
 cusolver-sp = ["cusolver"]
 cusparse = ["cudarc/cusparse"]
 cutensor = ["cudarc/cutensor"]
+# Phase 2 cuTENSOR autotune: probes top-k cutensorAlgo_t variants to
+# pick the fastest plan for a given key. Adds a small measurement
+# loop to the contraction hot path on first encounter; cached
+# afterwards. Off by default — pure cuTENSOR-default works for
+# almost every shape and skips the probe cost.
+cutensor-autotune = ["cutensor"]
 nccl     = ["cudarc/nccl"]
 # NCCL fp8 reduction (e4m3 / e5m2). Requires NCCL >= 2.20 at runtime;
 # the capability probe degrades gracefully on older drivers.
@@ -209,6 +215,10 @@ required-features = ["cuda-runtime-tests", "cudnn", "f16"]
 [[example]]
 name = "fused_mha_bf16"
 required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "tensor_reduce"
+required-features = ["cuda-runtime-tests", "cutensor", "f16"]
 
 [[bench]]
 name = "sgemm_overhead"

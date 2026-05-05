@@ -396,24 +396,74 @@ pub struct SparseDispatchCtx<'a> {
     pub _phantom: PhantomData<&'a ()>,
 }
 
-/// Boxed-dispatch trait for cuTENSOR ops.
-///
-/// TODO: populate impls when cuTENSOR is migrated in Phase 2.
-pub trait TensorDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &TensorDispatchCtx<'_>);
-}
+/// `TensorDispatch` is owned by `kernel::tensor` (Phase 2 cuTENSOR).
+#[cfg(feature = "cutensor")]
+pub use cutensor_dispatch::{TensorDispatch, TensorDispatchCtx, WorkspacePool};
 
-/// Per-call context for [`TensorDispatch`].
-///
-/// TODO: populate the cuTENSOR handle and plan cache when cuTENSOR
-/// is migrated in Phase 2.
-pub struct TensorDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+#[cfg(feature = "cutensor")]
+mod cutensor_dispatch {
+    use std::sync::Arc;
+
+    use parking_lot::Mutex;
+
+    use crate::completion::CompletionStrategy;
+    use crate::error::GpuError;
+    use crate::kernel::tensor::plan_cache::PlanCache;
+    use crate::kernel::tensor::SendHandle;
+
+    pub struct WorkspacePool {
+        stream: Arc<cudarc::driver::CudaStream>,
+        buckets: Mutex<Vec<Bucket>>,
+    }
+
+    struct Bucket {
+        size: usize,
+        slice: cudarc::driver::CudaSlice<u8>,
+    }
+
+    impl WorkspacePool {
+        pub fn new(stream: Arc<cudarc::driver::CudaStream>) -> Self {
+            Self { stream, buckets: Mutex::new(Vec::new()) }
+        }
+
+        pub fn ensure(&self, n: usize) -> Result<usize, GpuError> {
+            if n == 0 { return Ok(0); }
+            let bucket_size = n.next_power_of_two();
+            let mut g = self.buckets.lock();
+            if g.iter().any(|b| b.size == bucket_size) {
+                return Ok(bucket_size);
+            }
+            let slice = self.stream.alloc_zeros::<u8>(bucket_size)
+                .map_err(|e| GpuError::OutOfMemory(format!("cutensor workspace: {e}")))?;
+            g.push(Bucket { size: bucket_size, slice });
+            Ok(bucket_size)
+        }
+
+        pub fn with_bucket<F, R>(&self, n: usize, f: F) -> Option<R>
+        where F: FnOnce(&mut cudarc::driver::CudaSlice<u8>) -> R,
+        {
+            if n == 0 { return None; }
+            let bucket_size = n.next_power_of_two();
+            let mut g = self.buckets.lock();
+            let b = g.iter_mut().find(|b| b.size == bucket_size)?;
+            Some(f(&mut b.slice))
+        }
+    }
+
+    pub struct TensorDispatchCtx {
+        pub handle: Arc<Mutex<SendHandle>>,
+        pub stream: Arc<cudarc::driver::CudaStream>,
+        pub completion: Arc<dyn CompletionStrategy>,
+        pub plan_cache: Arc<PlanCache>,
+        pub workspace: Arc<WorkspacePool>,
+    }
+
+    pub trait TensorDispatch: Send + 'static {
+        fn op_tag(&self) -> &'static str;
+        fn dtype_tag(&self) -> &'static str;
+        fn dispatch(self: Box<Self>, ctx: &TensorDispatchCtx);
+        fn fail_mock(self: Box<Self>);
+    }
 }
 
 /// Alias used by the NCCL CollectiveDispatch (Phase 2). Maps onto the
@@ -546,6 +596,7 @@ mod tests {
         fn _gemm(_: Box<dyn GemmDispatch>) {}
         #[cfg(feature = "cublaslt")]
         fn _blaslt(_: Box<dyn BlasLtDispatch>) {}
+        #[cfg(feature = "cudnn")]
         fn _cudnn(_: Box<dyn CudnnDispatch>) {}
         #[cfg(feature = "cufft")]
         fn _fft(_: Box<dyn FftDispatch>) {}
@@ -553,6 +604,7 @@ mod tests {
         #[cfg(feature = "cusolver")]
         fn _solver(_: Box<dyn crate::kernel::solver::SolverDispatch>) {}
         fn _sparse(_: Box<dyn SparseDispatch>) {}
+        #[cfg(feature = "cutensor")]
         fn _tensor(_: Box<dyn TensorDispatch>) {}
         #[cfg(feature = "nccl")]
         fn _coll(_: Box<dyn CollectiveDispatch>) {}

@@ -26,7 +26,7 @@ pub mod record;
 
 pub use dispatch::{
     DevSliceArg, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    SparseDispatch, SparseDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
@@ -34,6 +34,8 @@ pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 pub use dispatch::{CudnnDispatch, CudnnDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "cutensor")]
+pub use dispatch::{TensorDispatch, TensorDispatchCtx, WorkspacePool};
 #[cfg(feature = "nccl")]
 pub use dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 
@@ -88,7 +90,7 @@ pub mod blas_lt;
 #[cfg(feature = "cublaslt")]
 pub use blas_lt::{
     Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
-    WorkspacePool,
+    WorkspacePool as BlasLtWorkspacePool,
 };
 
 #[cfg(feature = "nvrtc")]
@@ -111,6 +113,9 @@ mod sparse;
 pub use sparse::{CsrMatrix, SparseActor, SparseMsg};
 
 #[cfg(feature = "cutensor")]
-mod tensor;
+pub mod tensor;
 #[cfg(feature = "cutensor")]
-pub use tensor::{TensorActor, TensorMsg, TensorSpec};
+pub use tensor::{
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
+    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+};

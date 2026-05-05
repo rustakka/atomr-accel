@@ -22,7 +22,7 @@ pub use crate::host::{
 };
 pub use crate::kernel::dispatch::{
     DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch,
-    ScalarArg, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    ScalarArg, SparseDispatch, SparseDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
@@ -30,6 +30,8 @@ pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 pub use crate::kernel::dispatch::{CudnnDispatch, CudnnDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "cutensor")]
+pub use crate::kernel::dispatch::{TensorDispatch, TensorDispatchCtx};
 #[cfg(feature = "nccl")]
 pub use crate::kernel::dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 pub use crate::kernel::envelope;
@@ -66,12 +68,17 @@ pub use crate::kernel::{SparseCholeskyRequest, SparseLuRequest, SparseQrRequest}
 pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};
 
 #[cfg(feature = "cutensor")]
-pub use crate::kernel::{TensorActor, TensorMsg, TensorSpec};
+pub use crate::dtype::TensorSupported;
+#[cfg(feature = "cutensor")]
+pub use crate::kernel::{
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
+    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+};
 
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::{
     Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
-    WorkspacePool,
+    BlasLtWorkspacePool,
 };
 
 #[cfg(feature = "nvrtc")]
