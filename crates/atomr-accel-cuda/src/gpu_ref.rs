@@ -138,6 +138,40 @@ impl<T> GpuRef<T> {
 }
 
 #[cfg(test)]
+impl<T> GpuRef<T> {
+    /// **Test-only** stub constructor for unit tests that don't need
+    /// a real CUDA context. Returns a `GpuRef<T>` whose underlying
+    /// `CudaSlice<T>` is logically uninitialized — the test must
+    /// **never** call `.access()` on it, dispatch it through a
+    /// kernel actor, or otherwise let it reach cudarc.
+    ///
+    /// SAFETY contract: the caller must ensure the `GpuRef<T>` is
+    /// leaked (e.g. via `Box::leak` of the surrounding container)
+    /// so the inner `Arc<CudaSlice<T>>` never reaches refcount zero.
+    /// Otherwise cudarc's `Drop for CudaSlice<T>` runs with
+    /// uninitialized memory and aborts the process.
+    pub(crate) fn for_test_no_gpu_leaked() -> Self {
+        // Allocate an uninitialized box of CudaSlice<T> on the heap,
+        // then leak it. We construct an `Arc<CudaSlice<T>>` via
+        // `Arc::from_raw` so cudarc's Drop only runs if the strong
+        // count returns to 1 — which `Box::leak` of the surrounding
+        // request guarantees never happens.
+        use std::mem::MaybeUninit;
+        let boxed: Box<MaybeUninit<cudarc::driver::CudaSlice<T>>> =
+            Box::new(MaybeUninit::uninit());
+        let leaked: *mut MaybeUninit<cudarc::driver::CudaSlice<T>> = Box::into_raw(boxed);
+        // SAFETY: the pointer is valid (just-allocated heap) and we
+        // forge an Arc whose strong count is 1. The contract above
+        // requires the surrounding test to leak the surrounding box
+        // so this Arc's count never decrements.
+        let arc_slice: std::sync::Arc<cudarc::driver::CudaSlice<T>> =
+            unsafe { std::sync::Arc::from_raw(leaked as *const cudarc::driver::CudaSlice<T>) };
+        let state = std::sync::Arc::new(crate::device::DeviceState::new(0));
+        Self::new(arc_slice, &state)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::device::DeviceState;

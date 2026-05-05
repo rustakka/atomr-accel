@@ -90,6 +90,14 @@ pub struct NvrtcDispatchCtx<'a> {
     pub state: &'a Arc<DeviceState>,
 }
 
+/// Bundle of resources every cuBLAS dispatcher needs to run an op.
+pub struct BlasDispatchCtx<'a> {
+    pub cublas: &'a Arc<cudarc::cublas::CudaBlas>,
+    pub stream: &'a Arc<cudarc::driver::CudaStream>,
+    pub completion: &'a Arc<dyn CompletionStrategy>,
+    pub state: &'a Arc<DeviceState>,
+}
+
 // ---------------------------------------------------------------------------
 // Shared kernel-arg traits (NVRTC adopts these in Phase 0.3).
 // ---------------------------------------------------------------------------
@@ -210,31 +218,44 @@ where
 // file in a follow-up PR (Phases 1.x onward).
 // ---------------------------------------------------------------------------
 
-/// Boxed-dispatch trait for cuBLAS GEMM and friends.
-///
-/// Phase 0.3 ships only the trait declaration; the cuBLAS migration
-/// in a later PR provides `impl<T: GemmSupported> GemmDispatch for
-/// GemmRequest<T>` and routes `BlasMsg::Gemm(Box<dyn GemmDispatch>)`
-/// through it.
+/// `GemmDispatchCtx` is now an alias for `BlasDispatchCtx` (the cuBLAS
+/// agent unified the per-op contexts since every cuBLAS dispatcher
+/// needs the same set: cuBLAS handle, stream, completion, state).
+pub type GemmDispatchCtx<'a> = BlasDispatchCtx<'a>;
+
+/// Erased `GemmRequest<T>`. Implementors live in `kernel::blas::gemm`.
 pub trait GemmDispatch: Send + 'static {
+    fn dtype_name(&self) -> &'static str;
     fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &GemmDispatchCtx<'_>);
+    fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>);
 }
 
-/// Per-call context for [`GemmDispatch`]. Carries the cuBLAS handle,
-/// stream, and completion strategy.
-///
-/// TODO: populate when cuBLAS is migrated in Phase 1.x. Today the
-/// handle field is a `PhantomData` placeholder so the type compiles
-/// alongside the trait.
-pub struct GemmDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    /// TODO: populate `Arc<CudaBlas>` when cuBLAS is migrated in
-    /// Phase 1.x.
-    pub _phantom: PhantomData<&'a ()>,
+/// Erased `GemmStridedBatchedRequest<T>`.
+pub trait GemmStridedBatchedDispatch: Send + 'static {
+    fn dtype_name(&self) -> &'static str;
+    fn op_name(&self) -> &'static str;
+    fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>);
+}
+
+/// Erased L1 ops: axpy, dot, nrm2, scal, asum, iamax, iamin, copy, swap, rot.
+pub trait BlasL1Dispatch: Send + 'static {
+    fn dtype_name(&self) -> &'static str;
+    fn op_name(&self) -> &'static str;
+    fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>);
+}
+
+/// Erased L2 ops: gemv, ger.
+pub trait BlasL2Dispatch: Send + 'static {
+    fn dtype_name(&self) -> &'static str;
+    fn op_name(&self) -> &'static str;
+    fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>);
+}
+
+/// Erased L3 ops other than gemm: geam, syrk, trsm.
+pub trait BlasL3Dispatch: Send + 'static {
+    fn dtype_name(&self) -> &'static str;
+    fn op_name(&self) -> &'static str;
+    fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>);
 }
 
 #[cfg(feature = "cublaslt")]

@@ -26,17 +26,21 @@ pub mod record;
 
 pub use dispatch::{
     CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
-    GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SparseDispatch,
+    SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use dispatch::{FftDispatch, FftDispatchCtx};
 
-mod blas;
+pub mod blas;
 
-pub use blas::{BlasActor, BlasMsg};
+pub use blas::{
+    AsumRequest, AxpyRequest, BlasActor, BlasMsg, CopyRequest, DotRequest, GeamRequest,
+    GemmRequest, GemmStridedBatchedRequest, GemvRequest, GerRequest, IamaxRequest, IaminRequest,
+    Nrm2Request, RotRequest, ScalRequest, SwapRequest, SyrkRequest, TrsmRequest,
+};
 
 #[cfg(feature = "cudnn")]
 mod cudnn_actor;

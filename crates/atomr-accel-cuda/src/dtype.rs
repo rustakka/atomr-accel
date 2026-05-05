@@ -151,6 +151,15 @@ pub trait TensorSupported: CudaDtype {}
 /// `curandGenerateLongLong` produces u64. Used by `Discrete` and raw-bit paths.
 pub trait RngIntSupported: CudaDtype {}
 
+// Phase 1 cuBLAS sub-marker traits (per-op dtype subsets).
+
+pub trait AxpyDotNrm2Supported: CudaDtype {}
+pub trait GemvSupported: CudaDtype {}
+pub trait GerSupported: CudaDtype {}
+pub trait GeamSupported: CudaDtype {}
+pub trait SyrkSupported: CudaDtype {}
+pub trait TrsmSupported: CudaDtype {}
+
 macro_rules! impl_cuda_dtype {
     (
         $rust:ty,
@@ -350,6 +359,28 @@ impl RngFloatSupported for f64 {}
 
 impl RngIntSupported for u32 {}
 impl RngIntSupported for u64 {}
+
+impl AxpyDotNrm2Supported for f32 {}
+impl AxpyDotNrm2Supported for f64 {}
+#[cfg(feature = "f16")]
+impl AxpyDotNrm2Supported for half::f16 {}
+#[cfg(feature = "f16")]
+impl AxpyDotNrm2Supported for half::bf16 {}
+
+impl GemvSupported for f32 {}
+impl GemvSupported for f64 {}
+
+impl GerSupported for f32 {}
+impl GerSupported for f64 {}
+
+impl GeamSupported for f32 {}
+impl GeamSupported for f64 {}
+
+impl SyrkSupported for f32 {}
+impl SyrkSupported for f64 {}
+
+impl TrsmSupported for f32 {}
+impl TrsmSupported for f64 {}
 
 impl NcclReduceSupported for f32 {}
 impl NcclReduceSupported for f64 {}
