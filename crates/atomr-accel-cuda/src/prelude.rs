@@ -20,6 +20,12 @@ pub use crate::graph::{
 pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
+pub use crate::kernel::dispatch::{
+    BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
+    CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
+    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, RngDispatchCtx, ScalarArg, SolverDispatch,
+    SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+};
 pub use crate::kernel::envelope;
 pub use crate::kernel::record::RecordMode;
 pub use crate::kernel::{BlasActor, BlasMsg};
