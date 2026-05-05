@@ -24,13 +24,23 @@
 use atomr_accel::AccelDtype;
 
 use cudarc::cublas::sys as cublas_sys;
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 #[cfg(feature = "cudnn")]
 use cudarc::cudnn::sys as cudnn_sys;
 #[cfg(feature = "nccl")]
 use cudarc::nccl::sys as nccl_sys;
 
+/// Re-export `atomr_accel::DType` so existing `crate::dtype::DType`
+/// imports inside `atomr-accel-cuda` (added by Phase 0.4) keep working
+/// without changing every call site.
+pub use atomr_accel::DType;
+
 /// CUDA-specific layer over [`AccelDtype`].
-pub trait CudaDtype: AccelDtype {
+///
+/// The cudarc bounds (`DeviceRepr`, `ValidAsZeroBits`) are part of the
+/// supertrait list so dispatch payloads can call `stream.alloc_zeros::<T>`
+/// behind a single `T: CudaDtype` bound.
+pub trait CudaDtype: AccelDtype + DeviceRepr + ValidAsZeroBits {
     fn cuda_data_type() -> cublas_sys::cudaDataType_t;
     fn cublas_compute_type() -> cublas_sys::cublasComputeType_t;
     /// CUDA C++ type name for NVRTC source generation.
