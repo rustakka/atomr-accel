@@ -27,8 +27,7 @@ pub mod record;
 pub use dispatch::{
     CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
     GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SolverDispatch, SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch,
-    TensorDispatchCtx,
+    SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
@@ -61,9 +60,15 @@ pub mod rng;
 pub use rng::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
 
 #[cfg(feature = "cusolver")]
-mod solver;
+pub mod solver;
 #[cfg(feature = "cusolver")]
-pub use solver::{SolverActor, SolverMsg, Uplo};
+pub use solver::{
+    CholeskyRequest, GesvdjBatchedRequest, GetrfBatchedRequest, HegvdRequest, LuRequest,
+    LuSolveRequest, PotrfBatchedRequest, QrRequest, SolverActor, SolverDispatch, SolverMsg,
+    SvdRequest, SyevdRequest, SygvdRequest, Uplo,
+};
+#[cfg(all(feature = "cusolver", feature = "cusolver-sp"))]
+pub use solver::{SparseCholeskyRequest, SparseLuRequest, SparseQrRequest};
 
 #[cfg(feature = "cublaslt")]
 pub mod blas_lt;

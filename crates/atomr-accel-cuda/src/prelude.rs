@@ -23,8 +23,7 @@ pub use crate::host::{
 pub use crate::kernel::dispatch::{
     CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
     GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SolverDispatch, SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch,
-    TensorDispatchCtx,
+    SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
@@ -50,7 +49,15 @@ pub use crate::replay::{
 };
 
 #[cfg(feature = "cusolver")]
-pub use crate::kernel::{SolverActor, SolverMsg, Uplo};
+pub use crate::dtype::{CudaDtype, SolverSupported};
+#[cfg(feature = "cusolver")]
+pub use crate::kernel::{
+    CholeskyRequest, GesvdjBatchedRequest, GetrfBatchedRequest, HegvdRequest, LuRequest,
+    LuSolveRequest, PotrfBatchedRequest, QrRequest, SolverActor, SolverDispatch, SolverMsg,
+    SvdRequest, SyevdRequest, SygvdRequest, Uplo,
+};
+#[cfg(all(feature = "cusolver", feature = "cusolver-sp"))]
+pub use crate::kernel::{SparseCholeskyRequest, SparseLuRequest, SparseQrRequest};
 
 #[cfg(feature = "cusparse")]
 pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};

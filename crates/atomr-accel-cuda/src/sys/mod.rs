@@ -10,3 +10,5 @@ pub mod cublaslt;
 pub mod cufft;
 #[cfg(feature = "curand")]
 pub mod curand;
+#[cfg(feature = "cusolver")]
+pub mod cusolver;

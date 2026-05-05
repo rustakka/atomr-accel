@@ -340,25 +340,10 @@ pub trait RngDispatch: Send + 'static {
     ) -> Result<(), GpuError>;
 }
 
-/// Boxed-dispatch trait for cuSOLVER ops.
-///
-/// TODO: populate impls when cuSOLVER is migrated in Phase 1.x.
-pub trait SolverDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &SolverDispatchCtx<'_>);
-}
-
-/// Per-call context for [`SolverDispatch`].
-///
-/// TODO: populate `Arc<CudaSolver>` when cuSOLVER is migrated in
-/// Phase 1.x.
-pub struct SolverDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
-}
+/// `SolverDispatch` is owned by `kernel::solver` (Phase 1 cuSOLVER).
+/// Re-exported here for API symmetry with other actors' dispatch traits.
+#[cfg(feature = "cusolver")]
+pub use crate::kernel::solver::SolverDispatch;
 
 /// Boxed-dispatch trait for cuSPARSE ops.
 ///
