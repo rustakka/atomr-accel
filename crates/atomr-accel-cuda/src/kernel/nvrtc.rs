@@ -11,6 +11,28 @@
 //! boundaries. It carries a generation token; if the underlying
 //! context is rebuilt, [`KernelHandle::launch_check`] returns
 //! `GpuError::GpuRefStale` and the launch fails fast.
+//!
+//! ## Phase 0.3 — boxed-dispatch arg types
+//!
+//! `KernelArg` previously had eleven explicit variants (one per dtype
+//! for each of slice / scalar) and `handle_launch` matched on each
+//! twice (once to validate, once to push). Phase 0.3 collapses the
+//! typed pairs into two boxed-dyn variants plus a `Usize` fallback:
+//!
+//! * [`KernelArg::DevSlice`] — wraps a `Box<dyn DevSliceArg>`. The
+//!   blanket impl `impl<T: CudaDtype> DevSliceArg for GpuRef<T>` covers
+//!   every dtype the runtime understands.
+//! * [`KernelArg::Scalar`] — wraps a `Box<dyn ScalarArg>`. Blanket
+//!   impl `impl<T: CudaDtype> ScalarArg for T`.
+//! * [`KernelArg::Usize`] — `usize` is not a `CudaDtype` (its size is
+//!   platform-dependent) so the dedicated variant keeps it on the
+//!   non-allocating path callers use most often.
+//!
+//! The pre-Phase-0.3 typed variants (`DevSliceF32`, `ScalarI32`, …)
+//! are preserved as `#[deprecated]` aliases so existing callers
+//! compile unchanged. They are normalised to the canonical
+//! `DevSlice` / `Scalar` form via [`KernelArg::canonicalize`] inside
+//! `handle_launch` before the launch loop.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -26,6 +48,7 @@ use crate::completion::CompletionStrategy;
 use crate::device::DeviceState;
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
+use crate::kernel::dispatch::{DevSliceArg, ScalarArg};
 use crate::kernel::envelope;
 use crate::stream::StreamAllocator;
 
@@ -72,22 +95,77 @@ impl KernelHandle {
     }
 }
 
-/// Subset of CUDA scalar argument types accepted by `Launch`. The
-/// FFI-safety contract for user-supplied kernels lives entirely on
-/// the caller; this enum just enumerates what we know how to push
-/// through cudarc's `launch_builder().arg(...)` chain.
+/// A single argument to an NVRTC kernel launch.
+///
+/// The two boxed variants ([`KernelArg::DevSlice`] and
+/// [`KernelArg::Scalar`]) are the canonical Phase-0.3+ form; every
+/// dtype the runtime understands routes through them via the
+/// [`DevSliceArg`] / [`ScalarArg`] blanket impls. The remaining
+/// typed-variant aliases are `#[deprecated]` and exist so pre-Phase-0.3
+/// callers still compile.
 pub enum KernelArg {
-    DevSliceF32(GpuRef<f32>),
-    DevSliceF64(GpuRef<f64>),
-    DevSliceI32(GpuRef<i32>),
-    DevSliceU32(GpuRef<u32>),
-    DevSliceU8(GpuRef<u8>),
-    ScalarF32(f32),
-    ScalarF64(f64),
-    ScalarI32(i32),
-    ScalarU32(u32),
-    ScalarU64(u64),
+    /// Canonical: a typed device slice as `Box<dyn DevSliceArg>`.
+    /// Construct as `KernelArg::DevSlice(Box::new(my_gpu_ref))` for any
+    /// `GpuRef<T: CudaDtype>` (which is every supported dtype, including
+    /// `u8` raw byte buffers).
+    DevSlice(Box<dyn DevSliceArg>),
+    /// Canonical: a typed scalar as `Box<dyn ScalarArg>`. Construct as
+    /// `KernelArg::Scalar(Box::new(2.0_f32))`.
+    Scalar(Box<dyn ScalarArg>),
+    /// `usize` is not a `CudaDtype` (its size is platform-dependent)
+    /// so it has its own variant.
     Usize(usize),
+
+    // ----- Phase-0.2 typed-variant aliases (deprecated) ----------------
+    #[deprecated(note = "use KernelArg::DevSlice with GpuRef directly")]
+    DevSliceF32(GpuRef<f32>),
+    #[deprecated(note = "use KernelArg::DevSlice with GpuRef directly")]
+    DevSliceF64(GpuRef<f64>),
+    #[deprecated(note = "use KernelArg::DevSlice with GpuRef directly")]
+    DevSliceI32(GpuRef<i32>),
+    #[deprecated(note = "use KernelArg::DevSlice with GpuRef directly")]
+    DevSliceU32(GpuRef<u32>),
+    #[deprecated(note = "use KernelArg::DevSlice with GpuRef directly")]
+    DevSliceU8(GpuRef<u8>),
+    #[deprecated(note = "use KernelArg::Scalar with the scalar value directly")]
+    ScalarF32(f32),
+    #[deprecated(note = "use KernelArg::Scalar with the scalar value directly")]
+    ScalarF64(f64),
+    #[deprecated(note = "use KernelArg::Scalar with the scalar value directly")]
+    ScalarI32(i32),
+    #[deprecated(note = "use KernelArg::Scalar with the scalar value directly")]
+    ScalarU32(u32),
+    #[deprecated(note = "use KernelArg::Scalar with the scalar value directly")]
+    ScalarU64(u64),
+}
+
+impl KernelArg {
+    /// Normalise any pre-Phase-0.3 typed-variant alias to the
+    /// canonical [`KernelArg::DevSlice`] / [`KernelArg::Scalar`] /
+    /// [`KernelArg::Usize`] form.
+    ///
+    /// Used by the actor to fold the ten deprecated typed variants
+    /// into the two boxed-dyn variants before the launch loop. After
+    /// canonicalisation the launch loop has exactly three arms
+    /// (`DevSlice`, `Scalar`, `Usize`) instead of eleven.
+    #[allow(deprecated)]
+    pub fn canonicalize(self) -> KernelArg {
+        match self {
+            KernelArg::DevSlice(_) | KernelArg::Scalar(_) | KernelArg::Usize(_) => self,
+
+            KernelArg::DevSliceF32(g) => KernelArg::DevSlice(Box::new(g)),
+            KernelArg::DevSliceF64(g) => KernelArg::DevSlice(Box::new(g)),
+            KernelArg::DevSliceI32(g) => KernelArg::DevSlice(Box::new(g)),
+            KernelArg::DevSliceU32(g) => KernelArg::DevSlice(Box::new(g)),
+            KernelArg::DevSliceU8(g) => KernelArg::DevSlice(Box::new(g)),
+
+            KernelArg::ScalarF32(v) => KernelArg::Scalar(Box::new(v)),
+            KernelArg::ScalarF64(v) => KernelArg::Scalar(Box::new(v)),
+            KernelArg::ScalarI32(v) => KernelArg::Scalar(Box::new(v)),
+            KernelArg::ScalarU32(v) => KernelArg::Scalar(Box::new(v)),
+            KernelArg::ScalarU64(v) => KernelArg::Scalar(Box::new(v)),
+        }
+    }
 }
 
 pub enum NvrtcMsg {
@@ -268,46 +346,23 @@ fn handle_launch(
         )));
         return;
     }
-    // Validate every GpuRef arg first; abort on stale.
+
+    // Collapse all deprecated typed variants into the canonical
+    // boxed-dyn form so the loops below have a uniform 3-arm match
+    // instead of one arm per (slice|scalar) × dtype.
+    let args: Vec<KernelArg> = args.into_iter().map(KernelArg::canonicalize).collect();
+
+    // Validate every device-slice arg first; abort on stale.
     let mut gpu_owners: Vec<Box<dyn std::any::Any + Send>> = Vec::new();
     for arg in &args {
-        match arg {
-            KernelArg::DevSliceF32(g) => match g.access() {
-                Ok(s) => gpu_owners.push(Box::new(s.clone())),
+        if let KernelArg::DevSlice(b) = arg {
+            match b.validate() {
+                Ok(owner) => gpu_owners.push(owner),
                 Err(e) => {
                     let _ = reply.send(Err(e));
                     return;
                 }
-            },
-            KernelArg::DevSliceF64(g) => match g.access() {
-                Ok(s) => gpu_owners.push(Box::new(s.clone())),
-                Err(e) => {
-                    let _ = reply.send(Err(e));
-                    return;
-                }
-            },
-            KernelArg::DevSliceI32(g) => match g.access() {
-                Ok(s) => gpu_owners.push(Box::new(s.clone())),
-                Err(e) => {
-                    let _ = reply.send(Err(e));
-                    return;
-                }
-            },
-            KernelArg::DevSliceU32(g) => match g.access() {
-                Ok(s) => gpu_owners.push(Box::new(s.clone())),
-                Err(e) => {
-                    let _ = reply.send(Err(e));
-                    return;
-                }
-            },
-            KernelArg::DevSliceU8(g) => match g.access() {
-                Ok(s) => gpu_owners.push(Box::new(s.clone())),
-                Err(e) => {
-                    let _ = reply.send(Err(e));
-                    return;
-                }
-            },
-            _ => {}
+            }
         }
     }
 
@@ -315,51 +370,41 @@ fn handle_launch(
     let stream_clone = stream.clone();
     envelope::run_kernel(LIB, stream, completion, (), reply, move || {
         let mut builder = stream_clone.launch_builder(&func);
-        // Push args. Device-pointer args use the owners we already
-        // validated; scalars push by reference into the LaunchArgs.
-        // We hold scalars in local variables so their references
-        // outlive the .arg() call.
+        // Push args. Two boxed-dyn calls (DevSlice / Scalar) plus
+        // the literal Usize variant — versus the previous 11-arm
+        // explicit match. The `gpu_owners` Vec already holds keep-
+        // alive `Arc<CudaSlice<T>>` clones so the buffers cannot be
+        // deallocated under the kernel.
         // SAFETY: kernel signature must match args; user contract.
         for arg in args.iter() {
             match arg {
-                KernelArg::DevSliceF32(g) => {
-                    let s = g.access().expect("re-validated above");
-                    builder.arg(&**s);
+                KernelArg::DevSlice(b) => {
+                    if let Err(e) = b.push(&mut builder) {
+                        return Err(e);
+                    }
                 }
-                KernelArg::DevSliceF64(g) => {
-                    let s = g.access().expect("re-validated above");
-                    builder.arg(&**s);
-                }
-                KernelArg::DevSliceI32(g) => {
-                    let s = g.access().expect("re-validated above");
-                    builder.arg(&**s);
-                }
-                KernelArg::DevSliceU32(g) => {
-                    let s = g.access().expect("re-validated above");
-                    builder.arg(&**s);
-                }
-                KernelArg::DevSliceU8(g) => {
-                    let s = g.access().expect("re-validated above");
-                    builder.arg(&**s);
-                }
-                KernelArg::ScalarF32(v) => {
-                    builder.arg(v);
-                }
-                KernelArg::ScalarF64(v) => {
-                    builder.arg(v);
-                }
-                KernelArg::ScalarI32(v) => {
-                    builder.arg(v);
-                }
-                KernelArg::ScalarU32(v) => {
-                    builder.arg(v);
-                }
-                KernelArg::ScalarU64(v) => {
-                    builder.arg(v);
+                KernelArg::Scalar(b) => {
+                    b.push(&mut builder);
                 }
                 KernelArg::Usize(v) => {
                     builder.arg(v);
                 }
+                // Unreachable: every deprecated variant was folded
+                // into one of the three canonical forms above by
+                // `canonicalize()`. The `unreachable!()` arm guards
+                // against future enum additions that bypass the
+                // canonicaliser.
+                #[allow(deprecated)]
+                KernelArg::DevSliceF32(_)
+                | KernelArg::DevSliceF64(_)
+                | KernelArg::DevSliceI32(_)
+                | KernelArg::DevSliceU32(_)
+                | KernelArg::DevSliceU8(_)
+                | KernelArg::ScalarF32(_)
+                | KernelArg::ScalarF64(_)
+                | KernelArg::ScalarI32(_)
+                | KernelArg::ScalarU32(_)
+                | KernelArg::ScalarU64(_) => unreachable!("canonicalize() folds these arms"),
             }
         }
         let res = unsafe { builder.launch(cfg) };
@@ -371,4 +416,56 @@ fn handle_launch(
             }),
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a `Vec<KernelArg>` mixing scalar f32, scalar i32, and a
+    /// (host-fake) `GpuRef<u8>` slice. We can't construct a real
+    /// `GpuRef` without a CUDA context, so this test asserts only the
+    /// *compile* side: the canonical variants accept the right types
+    /// and the canonicaliser produces the expected variant counts.
+    #[test]
+    fn launch_args_collapse_compile() {
+        let args: Vec<KernelArg> = vec![
+            KernelArg::Scalar(Box::new(1.0f32)),
+            KernelArg::Scalar(Box::new(42i32)),
+            KernelArg::Usize(128),
+        ];
+        assert_eq!(args.len(), 3);
+        // Canonicalisation is a no-op on already-canonical forms.
+        let canon: Vec<KernelArg> = args.into_iter().map(KernelArg::canonicalize).collect();
+        assert_eq!(canon.len(), 3);
+        // Variant identity check.
+        let mut n_scalar = 0;
+        let mut n_usize = 0;
+        for a in &canon {
+            match a {
+                KernelArg::Scalar(_) => n_scalar += 1,
+                KernelArg::Usize(_) => n_usize += 1,
+                _ => panic!("unexpected variant"),
+            }
+        }
+        assert_eq!((n_scalar, n_usize), (2, 1));
+    }
+
+    /// Each `#[deprecated]` constructor canonicalises to the matching
+    /// boxed variant.
+    #[test]
+    fn deprecated_aliases_still_construct() {
+        #[allow(deprecated)]
+        let aliases = vec![
+            KernelArg::ScalarF32(1.0),
+            KernelArg::ScalarF64(2.0),
+            KernelArg::ScalarI32(3),
+            KernelArg::ScalarU32(4),
+            KernelArg::ScalarU64(5),
+        ];
+        for a in aliases {
+            let c = a.canonicalize();
+            assert!(matches!(c, KernelArg::Scalar(_)));
+        }
+    }
 }

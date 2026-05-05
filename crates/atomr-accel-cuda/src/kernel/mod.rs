@@ -20,8 +20,16 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
+
+pub use dispatch::{
+    BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
+    CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
+    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, RngDispatchCtx, ScalarArg, SolverDispatch,
+    SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+};
 
 mod blas;
 
