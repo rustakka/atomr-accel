@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
