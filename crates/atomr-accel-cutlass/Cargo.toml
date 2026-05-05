@@ -17,6 +17,10 @@ description = "CUTLASS kernel-template instantiation via NVRTC for atomr-accel. 
 # Strategy A (default): NVRTC at runtime against vendored CUTLASS headers.
 default = []
 
+# Opt-in GPU integration tests (gated `#[ignore]` so `cargo test` skips
+# them by default). Run with `cargo xtask gpu-test cutlass`.
+cuda-runtime-tests = []
+
 # Strategy B: build.rs runs nvcc over a generator and links a static lib
 # of pre-instantiated kernels. When this feature is OFF the build.rs is
 # a no-op probe.

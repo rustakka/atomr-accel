@@ -286,9 +286,21 @@ maturin develop --release
 pytest tests/ -v
 ```
 
-GPU-host integration tests are gated behind `--features
-cuda-runtime-tests` so the workspace builds clean without the CUDA
-toolkit.
+GPU-host integration tests are **opt-in** and **not part of CI**. On a
+CUDA-equipped workstation:
+
+```bash
+cargo xtask gpu-probe          # report local CUDA + library availability
+cargo xtask gpu-test            # run all suites
+cargo xtask gpu-test cublas     # run one suite
+cargo xtask gpu-bench           # criterion perf-regression benches
+```
+
+Tests skip gracefully when the local driver / library / GPU isn't
+present, so the same commands are safe on a no-GPU laptop. See
+[`docs/gpu-testing.md`](docs/gpu-testing.md) for the full suite list,
+the gating model (cargo feature + `#[ignore]` + runtime probe), and
+the rationale for keeping these tests out of CI.
 
 ## Build matrix
 

@@ -28,6 +28,9 @@ fn main() -> Result<()> {
     match cmd.as_str() {
         "bump" => bump(args.collect()),
         "verify" => verify(),
+        "gpu-probe" => gpu_probe(),
+        "gpu-test" => gpu_test(args.collect()),
+        "gpu-bench" => gpu_bench(args.collect()),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -51,6 +54,20 @@ fn print_help() {
         "  bump --set <version>          set an exact version (used by Release-As: overrides)"
     );
     println!("  verify                        run fmt + clippy + test (release-pipeline gate)");
+    println!();
+    println!("GPU INTEGRATION (opt-in, not part of CI):");
+    println!("  gpu-probe                     report CUDA availability + device list");
+    println!("  gpu-test [SUITE...]           run GPU integration tests against the local driver");
+    println!("                                  SUITE in: cublas, cublaslt, cudnn, cufft, curand,");
+    println!(
+        "                                            cusolver, cusparse, cutensor, nccl, nvrtc,"
+    );
+    println!(
+        "                                            graph, event, memory, cub, cutlass, flashattn,"
+    );
+    println!("                                            tensorrt, telemetry, all (default)");
+    println!("  gpu-bench [BENCH...]          run criterion GPU benches (perf regression)");
+    println!();
     println!("  help                          print this help");
 }
 
@@ -393,4 +410,251 @@ fn verify() -> Result<()> {
     }
     println!("==> verify: all steps passed");
     Ok(())
+}
+
+// ─── GPU integration tests (opt-in, not in CI) ───────────────────────
+
+/// Probe the local machine for CUDA availability and report device + lib state.
+/// This is read-only and safe to run on hosts without CUDA installed.
+fn gpu_probe() -> Result<()> {
+    println!("==> gpu-probe: scanning local CUDA install");
+    println!();
+
+    // 1. nvcc presence
+    print!("  nvcc: ");
+    match Command::new("nvcc").arg("--version").output() {
+        Ok(out) if out.status.success() => {
+            let txt = String::from_utf8_lossy(&out.stdout);
+            let version = txt
+                .lines()
+                .find(|l| l.contains("release"))
+                .map(|l| l.trim().to_string())
+                .unwrap_or_else(|| "(version line not found)".into());
+            println!("FOUND — {}", version);
+        }
+        _ => println!("not found on PATH"),
+    }
+
+    // 2. CUDA driver via libcuda.so probe (no link)
+    print!("  libcuda.so.1: ");
+    let driver = Path::new("/usr/lib/x86_64-linux-gnu/libcuda.so.1").exists()
+        || Path::new("/usr/lib/wsl/lib/libcuda.so.1").exists()
+        || Path::new("/usr/lib64/libcuda.so.1").exists();
+    println!("{}", if driver { "FOUND" } else { "not found" });
+
+    // 3. nvidia-smi device list (safe — no allocations)
+    print!("  nvidia-smi: ");
+    match Command::new("nvidia-smi")
+        .args(["--query-gpu=index,name,compute_cap", "--format=csv,noheader"])
+        .output()
+    {
+        Ok(out) if out.status.success() => {
+            println!("FOUND");
+            for line in String::from_utf8_lossy(&out.stdout).lines() {
+                println!("    {}", line.trim());
+            }
+        }
+        _ => println!("not found"),
+    }
+
+    // 4. Per-library .so probes
+    println!();
+    println!("  optional libraries:");
+    let libs = [
+        ("cuBLAS", "libcublas.so.12"),
+        ("cuBLASLt", "libcublasLt.so.12"),
+        ("cuDNN", "libcudnn.so.9"),
+        ("cuFFT", "libcufft.so.11"),
+        ("cuRAND", "libcurand.so.10"),
+        ("cuSOLVER", "libcusolver.so.11"),
+        ("cuSPARSE", "libcusparse.so.12"),
+        ("cuSPARSELt", "libcusparseLt.so.0"),
+        ("cuTENSOR", "libcutensor.so.2"),
+        ("NCCL", "libnccl.so.2"),
+        ("NVRTC", "libnvrtc.so.12"),
+        ("CUPTI", "libcupti.so.12"),
+        ("NVML", "libnvidia-ml.so.1"),
+        ("TensorRT", "libnvinfer.so.10"),
+    ];
+    for (name, soname) in libs {
+        let found = ["/usr/lib/x86_64-linux-gnu", "/usr/local/cuda/lib64", "/usr/lib64"]
+            .iter()
+            .any(|p| Path::new(p).join(soname).exists());
+        println!("    {:<14} {}  ({})",
+            name,
+            if found { "FOUND" } else { "—" },
+            soname,
+        );
+    }
+
+    println!();
+    println!("Run `cargo xtask gpu-test` to execute the GPU integration suite.");
+    Ok(())
+}
+
+/// Run GPU integration tests for one or more suites. Suites map to
+/// `cargo test` invocations against `tests/gpu_*.rs` files (or the
+/// existing `tests/*_e2e.rs` set) with the right feature flags.
+///
+/// Each suite gates on `cuda-runtime-tests` plus its library feature,
+/// so a host without CUDA still compiles cleanly — the tests just
+/// don't run.
+fn gpu_test(args: Vec<String>) -> Result<()> {
+    let mut suites: Vec<&str> = if args.is_empty() {
+        vec!["all"]
+    } else {
+        args.iter().map(|s| s.as_str()).collect()
+    };
+    if suites.iter().any(|s| *s == "all") {
+        suites = vec![
+            "cublas", "cublaslt", "cudnn", "cufft", "curand", "cusolver", "cusparse", "cutensor",
+            "nccl", "nvrtc", "graph", "event", "memory", "cub", "cutlass", "flashattn",
+            "tensorrt", "telemetry",
+        ];
+    }
+    println!("==> gpu-test: {} suite(s)", suites.len());
+    let mut failed: Vec<String> = Vec::new();
+    for suite in suites {
+        let plan = gpu_test_plan(suite);
+        let Some(plan) = plan else {
+            eprintln!("  [skip] unknown suite `{}`", suite);
+            failed.push(format!("{} (unknown)", suite));
+            continue;
+        };
+        println!("  [{}] {} {}", suite, plan.crate_name, plan.features.join(","));
+        let status = Command::new(env!("CARGO"))
+            .args([
+                "test",
+                "-p",
+                plan.crate_name,
+                "--no-default-features",
+                "--features",
+                &plan.features.join(","),
+            ])
+            .args(plan.test_filter.iter().map(String::as_str))
+            .args(["--", "--ignored", "--nocapture"])
+            .status()
+            .with_context(|| format!("spawn cargo test for suite `{}`", suite))?;
+        if !status.success() {
+            failed.push(suite.into());
+        }
+    }
+    if !failed.is_empty() {
+        return Err(anyhow!(
+            "gpu-test: {} suite(s) failed: {}",
+            failed.len(),
+            failed.join(", ")
+        ));
+    }
+    println!("==> gpu-test: all suites passed");
+    Ok(())
+}
+
+/// Run criterion GPU benchmarks for a named set or all of them.
+fn gpu_bench(args: Vec<String>) -> Result<()> {
+    let benches: Vec<String> = if args.is_empty() {
+        vec!["sgemm_overhead".into(), "rng_throughput".into()]
+    } else {
+        args
+    };
+    println!("==> gpu-bench: {} bench(es)", benches.len());
+    for b in benches {
+        let features = match b.as_str() {
+            "rng_throughput" => "cuda-runtime-tests,curand",
+            _ => "cuda-runtime-tests",
+        };
+        println!("  [{}] features={}", b, features);
+        let status = Command::new(env!("CARGO"))
+            .args([
+                "bench",
+                "-p",
+                "atomr-accel-cuda",
+                "--no-default-features",
+                "--features",
+                features,
+                "--bench",
+                &b,
+            ])
+            .status()
+            .with_context(|| format!("spawn cargo bench `{}`", b))?;
+        if !status.success() {
+            return Err(anyhow!("bench `{}` failed", b));
+        }
+    }
+    Ok(())
+}
+
+struct GpuTestPlan {
+    crate_name: &'static str,
+    features: Vec<&'static str>,
+    test_filter: Vec<String>,
+}
+
+fn gpu_test_plan(suite: &str) -> Option<GpuTestPlan> {
+    let (crate_name, feats, filter): (&str, Vec<&str>, &str) = match suite {
+        "cublas" => ("atomr-accel-cuda", vec!["cuda-runtime-tests"], "sgemm_e2e"),
+        "cublaslt" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cublaslt", "f16"],
+            "",
+        ),
+        "cudnn" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cudnn", "f16"],
+            "",
+        ),
+        "cufft" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "cufft"], ""),
+        "curand" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "curand"], "rng_fill_e2e"),
+        "cusolver" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "cusolver"], ""),
+        "cusparse" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cusparse"],
+            "spmv_e2e",
+        ),
+        "cutensor" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cutensor"],
+            "contract_e2e",
+        ),
+        "nccl" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "nccl"], ""),
+        "nvrtc" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "nvrtc"], ""),
+        "graph" => ("atomr-accel-cuda", vec!["cuda-runtime-tests"], "graph"),
+        "event" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cuda-ipc"],
+            "event",
+        ),
+        "memory" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cuda-managed"],
+            "pinned_memcpy_e2e",
+        ),
+        "cub" => ("atomr-accel-cub", vec!["cuda-runtime-tests"], ""),
+        "cutlass" => ("atomr-accel-cutlass", vec!["cuda-runtime-tests"], ""),
+        "flashattn" => (
+            "atomr-accel-flashattn",
+            vec!["cuda-runtime-tests"],
+            "",
+        ),
+        "tensorrt" => (
+            "atomr-accel-tensorrt",
+            vec!["cuda-runtime-tests"],
+            "",
+        ),
+        "telemetry" => (
+            "atomr-accel-telemetry",
+            vec!["nvtx", "nvml", "cupti"],
+            "",
+        ),
+        _ => return None,
+    };
+    Some(GpuTestPlan {
+        crate_name,
+        features: feats,
+        test_filter: if filter.is_empty() {
+            Vec::new()
+        } else {
+            vec![filter.into()]
+        },
+    })
 }

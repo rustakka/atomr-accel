@@ -18,6 +18,10 @@ build = "build.rs"
 [features]
 default = []
 
+# Opt-in GPU integration tests (gated `#[ignore]` so `cargo test` skips
+# them by default). Run with `cargo xtask gpu-test tensorrt`.
+cuda-runtime-tests = []
+
 # Real link-and-load path against libnvinfer. Off-by-default so the
 # crate compiles and unit-tests on hosts without TensorRT installed.
 # When ON, build.rs probes LIBNVINFER_PATH then standard library
