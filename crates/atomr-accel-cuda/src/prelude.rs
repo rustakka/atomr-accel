@@ -128,6 +128,24 @@ pub use atomr_accel_tensorrt as tensorrt;
 #[cfg(feature = "cutlass")]
 pub use atomr_accel_cutlass as cutlass;
 
+/// Phase 7 FlashAttention v2 + v3 re-exports.
+#[cfg(feature = "flashattn")]
+pub mod flashattn {
+    pub use atomr_accel_flashattn::{
+        ChunkLayout, ChunkedPrefillRequest, CumulativeSeqlens, DType, DispatchError, DispatchKey,
+        DispatchTable, Fa2BwdRequest, Fa2FwdRequest, Fa3FwdRequest, FaBwdDispatch, FaFwdDispatch,
+        FaPagedFwdDispatch, FlashAttnActor, FlashAttnError, FlashAttnInner, FlashAttnMsg,
+        FlashAttnProps, GemmSupported, MaskKind, PersistentMode, PositionBias, SmArch,
+        VarlenFwdRequest, DISPATCH_TABLE,
+    };
+
+    #[cfg(feature = "flashattn-fp8")]
+    pub use atomr_accel_flashattn::{F8E4m3, F8E5m2, Fa3FwdFp8Request};
+
+    #[cfg(feature = "flashattn-paged")]
+    pub use atomr_accel_flashattn::{PagedAttentionRequest, PagedKvCache};
+}
+
 // Phase 9 — observability backends.
 #[cfg(feature = "nvtx-trace")]
 pub use atomr_accel_telemetry::nvtx::{Domain as NvtxDomain, NvtxKernelTrace};

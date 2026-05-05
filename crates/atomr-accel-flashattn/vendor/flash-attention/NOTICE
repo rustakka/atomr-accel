@@ -1,0 +1,48 @@
+atomr-accel-flashattn — vendored FlashAttention subset
+=======================================================
+
+This directory holds the *minimum viable subset* of the upstream
+FlashAttention csrc tree (`Dao-AILab/flash-attention`) needed to
+NVRTC-compile the FA2 + FA3 forward + backward kernels referenced by
+the dispatch table in `src/dispatch.rs`.
+
+Upstream pin
+------------
+- Repository:  https://github.com/Dao-AILab/flash-attention
+- Commit:      <pinned at vendor time, see VERSION file when populated>
+- License:     BSD-3-Clause (see ./LICENSE in this directory)
+
+Subset scope
+------------
+The vendored subset is restricted to:
+
+* `csrc/flash_attn/src/flash_fwd_*.cu`        (FA2 forward shapes)
+* `csrc/flash_attn/src/flash_bwd_*.cu`        (FA2 backward shapes)
+* `csrc/flash_attn/src/static_switch.h`       (dispatch macros)
+* `csrc/flash_attn/src/utils.h`               (fused-softmax helpers)
+* `csrc/flash_attn/src/kernel_traits.h`       (tile-shape templates)
+* `hopper/flash_fwd_*.cu`                     (FA3 forward, sm_90a)
+* `hopper/flash_bwd_*.cu`                     (FA3 backward, sm_90a)
+* `hopper/named_barrier.hpp`                  (warp-specialisation glue)
+* `hopper/utils.h`
+
+The Python launcher, PyTorch bindings, the ROCm path, and the
+TransformerEngine integration are intentionally *not* vendored — atomr
+calls the kernels directly through NVRTC + the Phase 0.6 cubin cache.
+
+Modifications
+-------------
+Where the upstream csrc references `<torch/extension.h>` / PyTorch C++
+helpers, the vendored copy is patched to use a small adapter layer
+(`include/atomr_flash_adapter.h`) that maps the `AccelDtype` /
+`GpuRef` types onto plain C++ pointers. The adapters live in
+`crates/atomr-accel-flashattn/include/` and are *not* part of the
+upstream-licensed subset — they are dual-licensed under
+Apache-2.0 (matching the rest of atomr-accel) and BSD-3-Clause.
+
+Compatibility
+-------------
+The vendored subset is API-compatible with FlashAttention v2.6.x and
+v3.0.x. Newer upstream commits may introduce kernel-name changes that
+shift the dispatch table; bump the pin and re-run the
+`dispatch::tests::dispatch_key_round_trip` self-test after re-vendoring.

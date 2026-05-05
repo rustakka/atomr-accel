@@ -114,6 +114,7 @@ dependencies = [
  "async-trait",
  "atomr-accel",
  "atomr-accel-cutlass",
+ "atomr-accel-flashattn",
  "atomr-accel-telemetry",
  "atomr-accel-tensorrt",
  "atomr-cluster-sharding",
@@ -168,6 +169,22 @@ dependencies = [
  "parking_lot",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "atomr-accel-flashattn"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-core",
+ "atomr-macros",
+ "cudarc",
+ "once_cell",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
