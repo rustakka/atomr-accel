@@ -1,13 +1,23 @@
-//! Managed (unified) memory.
+//! Managed (unified) memory + Phase 3 driver-API helpers.
 //!
-//! Memory accessible from host and any device with no explicit copy.
-//! Used for shared agent state across multiple devices.
-//!
-//! cudarc 0.19's runtime safe layer exposes the runtime API only
-//! at the `sys` level (`cudaMallocManaged`, `cudaMemPrefetchAsync`).
-//! F4 ships the actor + `ManagedRef<T>` surface; the actual
-//! `cudaMallocManaged` wrapping is the F4.x follow-up.
+//! - [`managed`] — `cudaMallocManaged` actor (`ManagedAllocatorActor`,
+//!   `ManagedRef<T>`, `ManagedFlags`, `ManagedStats`,
+//!   `PrefetchTarget`).
+//! - [`prefetch`] — `cuMemPrefetchAsync` wrapper.
+//! - [`advise`] — `cuMemAdvise` wrapper + the [`advise::MemAdvice`]
+//!   typed enum.
+//! - [`ipc`] — `cuIpcGetMemHandle` / `cuIpcOpenMemHandle` /
+//!   `cuIpcCloseMemHandle` (gated `cuda-ipc`).
 
-mod managed;
+pub mod advise;
+#[cfg(feature = "cuda-ipc")]
+pub mod ipc;
+pub mod managed;
+pub mod prefetch;
 
-pub use managed::{ManagedAllocatorActor, ManagedFlags, ManagedMsg, ManagedRef, ManagedStats};
+pub use advise::MemAdvice;
+pub use managed::{
+    ManagedAllocatorActor, ManagedFlags, ManagedMsg, ManagedRef, ManagedStats, PrefetchTarget,
+};
+#[cfg(feature = "cuda-ipc")]
+pub use ipc::{IpcMemHandle, OpenedMem};

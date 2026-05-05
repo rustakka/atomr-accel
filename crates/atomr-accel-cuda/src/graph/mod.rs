@@ -33,7 +33,97 @@ use crate::kernel::record::{FftR2COp, FftRecorder};
 #[cfg(feature = "curand")]
 use crate::kernel::record::{RngFillUniformOp, RngRecorder};
 
+pub mod child;
+#[cfg(feature = "graphs-conditional")]
+pub mod conditional;
+pub mod dot;
+pub mod exec_update;
+pub mod record;
+
+pub use child::ChildGraphOp;
+pub use dot::{export_dot, DotFlags};
+pub use exec_update::{exec_update, GraphExecUpdateOutcome};
+
 const LIB: &str = "graph";
+
+/// Record-side context handed to a [`GraphOpRecord`] impl. Carries
+/// the captured stream (so Phase-0.5 variants can keep using
+/// `RecordMode::enqueue_record`) plus, when available, the parent
+/// graph handle (so Phase-3 variants like `ChildGraphOp` can call
+/// `cuGraphAddChildGraphNode` directly).
+///
+/// Both `stream` and `parent_graph` are optional: tests / mock paths
+/// can build a context with neither and still get a typed
+/// `Unrecoverable` from any record impl that needs them.
+pub struct GraphRecordCtx<'a> {
+    stream: Option<&'a Arc<cudarc::driver::CudaStream>>,
+    parent_graph: driver_sys::CUgraph,
+}
+
+impl<'a> GraphRecordCtx<'a> {
+    pub fn new(
+        stream: &'a Arc<cudarc::driver::CudaStream>,
+        parent_graph: driver_sys::CUgraph,
+    ) -> Self {
+        Self {
+            stream: Some(stream),
+            parent_graph,
+        }
+    }
+
+    /// Mock-mode constructor: parent graph only, no stream.
+    pub fn mock(parent_graph: driver_sys::CUgraph) -> Self {
+        Self {
+            stream: None,
+            parent_graph,
+        }
+    }
+
+    pub fn stream(&self) -> Option<&Arc<cudarc::driver::CudaStream>> {
+        self.stream
+    }
+
+    pub fn parent_graph(&self) -> driver_sys::CUgraph {
+        self.parent_graph
+    }
+}
+
+/// Test-only mock-context builder. Carries a parent-graph handle and
+/// an optional captured stream. Use when verifying the routing of a
+/// `GraphOpRecord` impl without a live CUDA driver.
+#[doc(hidden)]
+pub struct MockGraphRecordCtx {
+    parent_graph: driver_sys::CUgraph,
+    stream: Option<Arc<cudarc::driver::CudaStream>>,
+}
+
+impl MockGraphRecordCtx {
+    pub fn new(parent_graph: driver_sys::CUgraph) -> Self {
+        Self {
+            parent_graph,
+            stream: None,
+        }
+    }
+
+    pub fn with_stream(mut self, stream: Arc<cudarc::driver::CudaStream>) -> Self {
+        self.stream = Some(stream);
+        self
+    }
+
+    pub fn as_ctx(&self) -> GraphRecordCtx<'_> {
+        GraphRecordCtx {
+            stream: self.stream.as_ref(),
+            parent_graph: self.parent_graph,
+        }
+    }
+}
+
+/// Phase 3 record-mode trait. Lighter than `RecordMode` (no
+/// associated `Op` type) — implementors are typically *one* op carrying
+/// the typed request inline.
+pub trait GraphOpRecord {
+    fn record(&self, ctx: &GraphRecordCtx<'_>) -> Result<(), GpuError>;
+}
 
 /// Send/Sync newtype around `Arc<CudaGraph>`. cudarc marks
 /// `CudaGraph` `!Sync` because of interior mutability via the CUDA
@@ -50,8 +140,15 @@ impl Clone for SendGraph {
 
 #[derive(Clone)]
 pub struct GraphHandle {
-    graph: SendGraph,
+    graph: Option<SendGraph>,
     generation: u64,
+    /// Synthetic-mode raw handles used by no-GPU tests. When `graph`
+    /// is `None` and these are non-null, the typed accessors return
+    /// these values directly.
+    #[doc(hidden)]
+    synthetic_cu_graph: driver_sys::CUgraph,
+    #[doc(hidden)]
+    synthetic_cu_graph_exec: driver_sys::CUgraphExec,
 }
 
 impl GraphHandle {
@@ -59,13 +156,57 @@ impl GraphHandle {
     /// with the current `DeviceState` generation.
     pub fn from_graph(graph: Arc<CudaGraph>, state: &Arc<DeviceState>) -> Self {
         Self {
-            graph: SendGraph(graph),
+            graph: Some(SendGraph(graph)),
             generation: state.generation(),
+            synthetic_cu_graph: std::ptr::null_mut(),
+            synthetic_cu_graph_exec: std::ptr::null_mut(),
         }
     }
 
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// Underlying `CUgraph` handle. Used by Phase 3 callers that need
+    /// to call sys-level APIs (`cuGraphAddChildGraphNode`,
+    /// `cuGraphDebugDotPrint`, etc.).
+    ///
+    /// # Safety
+    /// Returned value must not be destroyed; the handle is owned by
+    /// the wrapped `CudaGraph`.
+    pub fn cu_graph(&self) -> driver_sys::CUgraph {
+        if let Some(g) = self.graph.as_ref() {
+            g.0.cu_graph()
+        } else {
+            self.synthetic_cu_graph
+        }
+    }
+
+    /// Underlying `CUgraphExec` handle. Used by Phase 3 callers
+    /// (`cuGraphExecUpdate_v2`).
+    ///
+    /// # Safety
+    /// Same as [`Self::cu_graph`].
+    pub fn cu_graph_exec(&self) -> driver_sys::CUgraphExec {
+        if let Some(g) = self.graph.as_ref() {
+            g.0.cu_graph_exec()
+        } else {
+            self.synthetic_cu_graph_exec
+        }
+    }
+
+    /// Build a synthetic `GraphHandle` with null sys-level handles.
+    /// Test-only — the corresponding sys calls return `LibraryError`
+    /// (driver present) or `Unrecoverable` (no driver) without
+    /// panicking.
+    #[doc(hidden)]
+    pub fn synthetic_for_tests() -> Self {
+        Self {
+            graph: None,
+            generation: 0,
+            synthetic_cu_graph: std::ptr::null_mut(),
+            synthetic_cu_graph_exec: std::ptr::null_mut(),
+        }
     }
 }
 
@@ -367,7 +508,14 @@ impl Actor for GraphActor {
                         )));
                         return;
                     }
-                    let res = handle.graph.0.launch().map_err(|e| GpuError::LibraryError {
+                    let Some(graph) = handle.graph.as_ref() else {
+                        let _ = reply.send(Err(GpuError::Unrecoverable(
+                            "GraphActor::Launch: synthetic GraphHandle has no captured graph"
+                                .into(),
+                        )));
+                        return;
+                    };
+                    let res = graph.0.launch().map_err(|e| GpuError::LibraryError {
                         lib: LIB,
                         msg: format!("launch: {e}"),
                     });
