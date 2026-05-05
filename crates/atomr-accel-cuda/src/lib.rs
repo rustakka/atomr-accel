@@ -62,5 +62,5 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
-#[cfg(feature = "curand")]
+#[cfg(any(feature = "cufft", feature = "curand", feature = "cublaslt", feature = "cusolver"))]
 pub mod sys;

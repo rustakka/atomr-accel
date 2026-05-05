@@ -22,10 +22,12 @@ pub use crate::host::{
 };
 pub use crate::kernel::dispatch::{
     BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
-    CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
-    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch,
-    SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    CudnnDispatchCtx, DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx,
+    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch, SolverDispatchCtx, SparseDispatch,
+    SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
+#[cfg(feature = "cufft")]
+pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
 pub use crate::kernel::envelope;
 pub use crate::kernel::record::RecordMode;
 pub use crate::kernel::{BlasActor, BlasMsg};
@@ -76,7 +78,10 @@ pub use crate::kernel::{
 };
 
 #[cfg(feature = "cufft")]
-pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
+pub use crate::kernel::{
+    FftActor, FftCallbackKind, FftDirection, FftKind, FftMsg, FftPlan, FftPlanMany,
+    FftRequest, PlanKey,
+};
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};

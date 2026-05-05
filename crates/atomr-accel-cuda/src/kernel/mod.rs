@@ -26,10 +26,12 @@ pub mod record;
 
 pub use dispatch::{
     BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
-    CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
-    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch,
-    SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    CudnnDispatchCtx, DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx,
+    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch, SolverDispatchCtx, SparseDispatch,
+    SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
+#[cfg(feature = "cufft")]
+pub use dispatch::{FftDispatch, FftDispatchCtx};
 
 mod blas;
 
@@ -44,9 +46,12 @@ pub use cudnn_actor::{
 };
 
 #[cfg(feature = "cufft")]
-mod fft;
+pub mod fft;
 #[cfg(feature = "cufft")]
-pub use fft::{FftActor, FftKind, FftMsg, PlanKey};
+pub use fft::{
+    FftActor, FftCallbackKind, FftDirection, FftKind, FftMsg, FftPlan, FftPlanMany, FftRequest,
+    PlanKey,
+};
 
 #[cfg(feature = "curand")]
 pub mod rng;

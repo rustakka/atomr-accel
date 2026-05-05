@@ -102,6 +102,7 @@ thiserror    = { workspace = true }
 tracing      = { workspace = true }
 bitflags     = "2"
 lru          = "0.12"
+libloading   = "0.9"
 half         = { version = "2", optional = true }
 tokio-stream = "0.1"
 atomr-persistence = { workspace = true, optional = true }
@@ -142,6 +143,10 @@ required-features = ["cuda-runtime-tests", "curand", "curand-quasirandom"]
 
 [[example]]
 name = "fft_1d"
+required-features = ["cuda-runtime-tests", "cufft"]
+
+[[example]]
+name = "fft_3d"
 required-features = ["cuda-runtime-tests", "cufft"]
 
 [[example]]

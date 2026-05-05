@@ -277,24 +277,26 @@ pub struct CudnnDispatchCtx<'a> {
     pub _phantom: PhantomData<&'a ()>,
 }
 
-/// Boxed-dispatch trait for cuFFT ops.
-///
-/// TODO: populate impls when cuFFT is migrated in Phase 1.x.
-pub trait FftDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &FftDispatchCtx<'_>);
-}
-
-/// Per-call context for [`FftDispatch`].
-///
-/// TODO: populate the cuFFT plan cache when cuFFT is migrated in
-/// Phase 1.x.
+/// Per-execution context bundle handed to every [`FftDispatch::dispatch`].
+/// The actor packs its current stream + completion strategy + plan handle
+/// (already resolved against the LRU cache) so dispatch impls stay lean.
+#[cfg(feature = "cufft")]
 pub struct FftDispatchCtx<'a> {
     pub stream: &'a Arc<cudarc::driver::CudaStream>,
     pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+    /// Already-resolved cuFFT plan (`Arc<CudaFft>`). Type-erased to
+    /// `dyn Any` to keep this trait import-light; the actor downcasts
+    /// inside `kernel::fft`.
+    pub plan: Arc<dyn std::any::Any + Send + Sync>,
+}
+
+/// Dispatch trait for typed cuFFT requests (`FftRequest<T>` for
+/// `T: FftSupported`).
+#[cfg(feature = "cufft")]
+pub trait FftDispatch: Send + 'static {
+    fn dtype_kind(&self) -> DType;
+    fn plan_key(&self) -> crate::kernel::fft::PlanKey;
+    fn dispatch(self: Box<Self>, ctx: &FftDispatchCtx<'_>);
 }
 
 /// Erased payload accepted by `RngActor` via `RngMsg::Fill`.

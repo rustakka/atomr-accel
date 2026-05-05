@@ -114,6 +114,7 @@ dependencies = [
  "futures",
  "futures-util",
  "half",
+ "libloading",
  "lru",
  "parking_lot",
  "serde",

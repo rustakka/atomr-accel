@@ -4,5 +4,7 @@
 //! Each sub-module is feature-gated to match its cudarc parent so the
 //! crate still builds with the corresponding library disabled.
 
+#[cfg(feature = "cufft")]
+pub mod cufft;
 #[cfg(feature = "curand")]
 pub mod curand;
