@@ -23,6 +23,11 @@
 pub mod envelope;
 pub mod record;
 
+#[cfg(feature = "cufft")]
+pub mod dispatch;
+#[cfg(feature = "cufft")]
+pub use dispatch::{FftDispatch, FftDispatchCtx};
+
 mod blas;
 
 pub use blas::{BlasActor, BlasMsg};
@@ -36,9 +41,12 @@ pub use cudnn_actor::{
 };
 
 #[cfg(feature = "cufft")]
-mod fft;
+pub mod fft;
 #[cfg(feature = "cufft")]
-pub use fft::{FftActor, FftKind, FftMsg, PlanKey};
+pub use fft::{
+    FftActor, FftCallbackKind, FftDirection, FftKind, FftMsg, FftPlan, FftPlanMany, FftRequest,
+    PlanKey,
+};
 
 #[cfg(feature = "curand")]
 mod rng;

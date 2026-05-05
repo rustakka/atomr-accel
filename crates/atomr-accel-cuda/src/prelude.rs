@@ -62,7 +62,10 @@ pub use crate::kernel::{
 };
 
 #[cfg(feature = "cufft")]
-pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
+pub use crate::kernel::{
+    FftActor, FftCallbackKind, FftDirection, FftDispatch, FftKind, FftMsg, FftPlan, FftPlanMany,
+    FftRequest, PlanKey,
+};
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{RngActor, RngMsg};
