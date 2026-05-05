@@ -97,6 +97,7 @@ version = "0.1.0"
 dependencies = [
  "arc-swap",
  "async-trait",
+ "atomr-accel-tensorrt",
  "atomr-cluster-sharding",
  "atomr-config",
  "atomr-core",
@@ -170,6 +171,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomr-accel-tensorrt"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "atomr-config",
+ "atomr-core",
+ "atomr-macros",
+ "bitflags",
+ "cudarc",
+ "futures",
+ "parking_lot",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "atomr-accel-train"
 version = "0.1.0"
 dependencies = [
@@ -187,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-cluster"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-config",
@@ -204,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-cluster-metrics"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "atomr-cluster",
  "atomr-core",
@@ -215,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-cluster-sharding"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-cluster",
@@ -232,7 +251,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-config"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -242,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-core"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-config",
@@ -266,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-distributed-data"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-cluster",
@@ -279,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-macros"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -288,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-persistence"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-core",
@@ -300,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-remote"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-config",
@@ -321,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-streams"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-core",
@@ -336,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-telemetry"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-cluster",
@@ -360,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "atomr-testkit"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "atomr-config",
