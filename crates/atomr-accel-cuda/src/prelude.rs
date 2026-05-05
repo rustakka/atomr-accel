@@ -47,7 +47,11 @@ pub use crate::kernel::{Activation, BlasLtActor, BlasLtMsg};
 pub use crate::kernel::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};
 
 #[cfg(feature = "nccl")]
-pub use crate::kernel::{CollectiveActor, CollectiveMsg, ReduceOp};
+pub use crate::kernel::{
+    AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
+    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+};
 #[cfg(feature = "nccl")]
 pub use crate::multi_device::{NcclWorldActor, NcclWorldConfig, NcclWorldMsg};
 pub use crate::stream::{

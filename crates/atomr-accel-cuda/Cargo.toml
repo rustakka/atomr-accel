@@ -27,6 +27,18 @@ cusolver = ["cudarc/cusolver"]
 cusparse = ["cudarc/cusparse"]
 cutensor = ["cudarc/cutensor"]
 nccl     = ["cudarc/nccl"]
+# NCCL fp8 reduction (e4m3 / e5m2). Requires NCCL >= 2.20 at runtime;
+# the capability probe degrades gracefully on older drivers.
+nccl-fp8 = ["nccl"]
+# NVLS topology query / opt-in (NCCL >= 2.18). Currently a build-time
+# flag surfaced via NcclCapabilities; runtime probe is best-effort.
+nccl-nvls = ["nccl"]
+# cuBLASLt fp8 epilogue paths. Distinct from `nccl-fp8` — gates the
+# fp8 example in this crate.
+cublas-fp8 = ["cublaslt"]
+# NVTX placeholder — Phase 9 fills this in. Present so Phase 2
+# verification feature combinations resolve.
+nvtx     = []
 # cublaslt, curand, nvrtc are on-by-default in cudarc; the atomr-accel-cuda
 # feature gates the actor module compilation only.
 cublaslt = []
@@ -111,6 +123,14 @@ required-features = ["cuda-runtime-tests", "cufft"]
 [[example]]
 name = "jit_relu"
 required-features = ["cuda-runtime-tests", "nvrtc"]
+
+[[example]]
+name = "allgather_bf16"
+required-features = ["cuda-runtime-tests", "nccl", "f16"]
+
+[[example]]
+name = "reduce_scatter_fp8"
+required-features = ["cuda-runtime-tests", "nccl", "nccl-fp8", "f16", "cublas-fp8"]
 
 [[bench]]
 name = "sgemm_overhead"

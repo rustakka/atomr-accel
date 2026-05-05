@@ -20,6 +20,7 @@
 //! F3 adds: `SolverActor`, `BlasLtActor`, `NvrtcActor`.
 //! F4 adds: `CollectiveActor` (NCCL).
 
+pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
@@ -61,9 +62,13 @@ mod nvrtc;
 pub use nvrtc::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};
 
 #[cfg(feature = "nccl")]
-mod collective;
+pub mod collective;
 #[cfg(feature = "nccl")]
-pub use collective::{CollectiveActor, CollectiveMsg, ReduceOp};
+pub use collective::{
+    AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
+    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+};
 
 #[cfg(feature = "cusparse")]
 mod sparse;
