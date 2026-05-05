@@ -7,6 +7,8 @@
 pub mod cublas;
 #[cfg(feature = "cublaslt")]
 pub mod cublaslt;
+#[cfg(feature = "cudnn")]
+pub mod cudnn;
 #[cfg(feature = "cufft")]
 pub mod cufft;
 #[cfg(feature = "curand")]

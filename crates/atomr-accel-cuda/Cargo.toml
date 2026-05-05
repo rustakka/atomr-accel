@@ -194,6 +194,22 @@ required-features = ["cuda-runtime-tests", "nccl", "f16"]
 name = "reduce_scatter_fp8"
 required-features = ["cuda-runtime-tests", "nccl", "nccl-fp8", "f16", "cublas-fp8"]
 
+[[example]]
+name = "conv2d_nhwc_fp16"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "layernorm"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "rnn_lstm"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
+[[example]]
+name = "fused_mha_bf16"
+required-features = ["cuda-runtime-tests", "cudnn", "f16"]
+
 [[bench]]
 name = "sgemm_overhead"
 harness = false

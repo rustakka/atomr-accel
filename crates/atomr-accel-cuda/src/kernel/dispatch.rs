@@ -303,24 +303,34 @@ pub trait BlasLtDispatch: Send + 'static {
     fn dispatch(self: Box<Self>, ctx: &BlasLtDispatchCtx<'_>);
 }
 
-/// Boxed-dispatch trait for cuDNN ops (conv, norm, attention, …).
-///
-/// TODO: populate impls when cuDNN is migrated in Phase 2.x.
-pub trait CudnnDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &CudnnDispatchCtx<'_>);
-}
+/// `CudnnDispatch` is owned by `kernel::cudnn` (Phase 2 cuDNN).
+/// Re-exported here for symmetry with other actors' dispatch traits.
+#[cfg(feature = "cudnn")]
+pub use cudnn_dispatch::{CudnnDispatch, CudnnDispatchCtx};
 
-/// Per-call context for [`CudnnDispatch`].
-///
-/// TODO: populate `Arc<Cudnn>` and descriptor caches when cuDNN is
-/// migrated in Phase 2.x.
-pub struct CudnnDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+#[cfg(feature = "cudnn")]
+mod cudnn_dispatch {
+    use std::sync::Arc;
+
+    use parking_lot::Mutex;
+
+    use crate::completion::CompletionStrategy;
+
+    /// Context handed to a [`CudnnDispatch::dispatch`] call.
+    pub struct CudnnDispatchCtx<'a> {
+        pub handle: Arc<cudarc::cudnn::Cudnn>,
+        pub stream: Arc<cudarc::driver::CudaStream>,
+        pub completion: Arc<dyn CompletionStrategy>,
+        pub plan_cache: &'a Mutex<crate::kernel::cudnn::graph::PlanCache>,
+        pub workspace: &'a Mutex<Option<cudarc::driver::CudaSlice<u8>>>,
+    }
+
+    /// Dispatch trait for typed cuDNN ops.
+    pub trait CudnnDispatch: Send + 'static {
+        fn dtype_name(&self) -> &'static str;
+        fn op_kind(&self) -> &'static str;
+        fn dispatch(self: Box<Self>, ctx: &CudnnDispatchCtx<'_>);
+    }
 }
 
 /// Per-execution context bundle handed to every [`FftDispatch::dispatch`].

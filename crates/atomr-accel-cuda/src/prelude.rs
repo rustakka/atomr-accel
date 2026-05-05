@@ -21,12 +21,13 @@ pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
 pub use crate::kernel::dispatch::{
-    CudnnDispatch, CudnnDispatchCtx, DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx,
-    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SparseDispatch, SparseDispatchCtx, TensorDispatch,
-    TensorDispatchCtx,
+    DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch,
+    ScalarArg, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
+#[cfg(feature = "cudnn")]
+pub use crate::kernel::dispatch::{CudnnDispatch, CudnnDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
 #[cfg(feature = "nccl")]
@@ -91,8 +92,14 @@ pub use crate::stream::{
 
 #[cfg(feature = "cudnn")]
 pub use crate::kernel::{
-    ActivationKind, ActivationRequest, ConvForwardRequest, ConvParams, CudnnActor, CudnnMsg,
-    SoftmaxRequest,
+    ActivationFwdRequest, ActivationKind, ActivationRequest, AttentionMask, AttentionParams,
+    BatchNormRequest, ConvBwdDataRequest, ConvBwdFilterRequest, ConvDescParams, ConvForwardRequest,
+    ConvFwdRequest, ConvParams, CudnnActor, CudnnMsg, DropoutFwdRequest, EpilogueKind,
+    GroupNormRequest, InstanceNormRequest, LayerNormRequest, LrnFwdRequest, LrnParams,
+    MultiHeadAttnBwdRequest, MultiHeadAttnFwdRequest, NormBwdRequest, NormMode, NormPhase,
+    PoolBwdRequest, PoolFwdRequest, PoolMode, PoolParams, RnnBwdRequest, RnnDirection,
+    RnnFwdRequest, RnnMode, RnnParams, SoftmaxFwdRequest, SoftmaxMode, SoftmaxRequest,
+    TensorLayout,
 };
 
 #[cfg(feature = "cufft")]
