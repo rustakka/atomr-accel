@@ -24,7 +24,7 @@ use crate::completion::{CompletionStrategy, HostFnCompletion};
 use crate::device::{DeviceActor, DeviceConfig, DeviceMsg};
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
-use crate::kernel::{CollectiveActor, CollectiveMsg, ReduceOp};
+use crate::kernel::{AllReduceRequest, CollectiveActor, CollectiveMsg, ReduceOp};
 
 #[derive(Debug, Clone)]
 pub struct NcclWorldConfig {
@@ -219,11 +219,11 @@ impl NcclWorldActor {
                     ReduceOp::Min => ReduceOp::Min,
                     ReduceOp::Avg => ReduceOp::Avg,
                 };
-                c.tell(CollectiveMsg::AllReduceF32 {
+                c.tell(CollectiveMsg::Op(Box::new(AllReduceRequest::<f32> {
                     tensor: t,
                     op: op_clone,
                     reply: tx,
-                });
+                })));
                 rxs.push(rx);
             }
             let mut combined = Ok(());

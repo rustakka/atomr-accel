@@ -21,14 +21,16 @@ pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
 pub use crate::kernel::dispatch::{
-    CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
-    GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
-    SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    CudnnDispatch, CudnnDispatchCtx, DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx,
+    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SparseDispatch, SparseDispatchCtx, TensorDispatch,
+    TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "nccl")]
+pub use crate::kernel::dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 pub use crate::kernel::envelope;
 pub use crate::kernel::record::RecordMode;
 pub use crate::kernel::{BlasActor, BlasMsg};
@@ -75,7 +77,11 @@ pub use crate::kernel::{
 pub use crate::kernel::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};
 
 #[cfg(feature = "nccl")]
-pub use crate::kernel::{CollectiveActor, CollectiveMsg, ReduceOp};
+pub use crate::kernel::{
+    AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
+    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+};
 #[cfg(feature = "nccl")]
 pub use crate::multi_device::{NcclWorldActor, NcclWorldConfig, NcclWorldMsg};
 pub use crate::stream::{

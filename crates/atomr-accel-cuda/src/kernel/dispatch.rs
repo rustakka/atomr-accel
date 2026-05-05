@@ -406,24 +406,31 @@ pub struct TensorDispatchCtx<'a> {
     pub _phantom: PhantomData<&'a ()>,
 }
 
-/// Boxed-dispatch trait for NCCL collectives.
-///
-/// TODO: populate impls when NCCL is migrated in Phase 2.
+/// Alias used by the NCCL CollectiveDispatch (Phase 2). Maps onto the
+/// canonical `atomr_accel::DType`.
+#[cfg(feature = "nccl")]
+pub use atomr_accel::DType as DispatchDType;
+
+/// Boxed-dispatch trait for NCCL collectives. The `CollectiveActor`
+/// handles the message envelope; each typed request struct (e.g.
+/// `AllReduceRequest<T: NcclReduceSupported>`) implements this so the
+/// actor stays single-mailbox while the dtype dimension travels in the
+/// box.
+#[cfg(feature = "nccl")]
 pub trait CollectiveDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
+    fn dtype_kind(&self) -> DispatchDType;
+    fn device_id(&self) -> Option<u32>;
     fn dispatch(self: Box<Self>, ctx: &CollectiveDispatchCtx<'_>);
 }
 
-/// Per-call context for [`CollectiveDispatch`].
-///
-/// TODO: populate the NCCL communicator handle when NCCL is migrated
-/// in Phase 2.
+/// Per-call context handed to a `CollectiveDispatch::dispatch` impl.
+/// Carries the NCCL communicator (cudarc wraps it) plus the device
+/// state and completion strategy.
+#[cfg(feature = "nccl")]
 pub struct CollectiveDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
+    pub comm: &'a cudarc::nccl::Comm,
     pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+    pub completion: &'a Arc<dyn CompletionStrategy>,
 }
 
 #[cfg(test)]
@@ -533,9 +540,11 @@ mod tests {
         #[cfg(feature = "cufft")]
         fn _fft(_: Box<dyn FftDispatch>) {}
         fn _rng(_: Box<dyn RngDispatch>) {}
-        fn _solver(_: Box<dyn SolverDispatch>) {}
+        #[cfg(feature = "cusolver")]
+        fn _solver(_: Box<dyn crate::kernel::solver::SolverDispatch>) {}
         fn _sparse(_: Box<dyn SparseDispatch>) {}
         fn _tensor(_: Box<dyn TensorDispatch>) {}
+        #[cfg(feature = "nccl")]
         fn _coll(_: Box<dyn CollectiveDispatch>) {}
     }
 }

@@ -25,14 +25,16 @@ pub mod envelope;
 pub mod record;
 
 pub use dispatch::{
-    CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch, CudnnDispatchCtx, DevSliceArg,
-    GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SparseDispatch,
-    SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
+    CudnnDispatch, CudnnDispatchCtx, DevSliceArg, GemmDispatchCtx, NvrtcDispatchCtx,
+    NvrtcLaunchDispatch, RngDispatch, ScalarArg, SparseDispatch, SparseDispatchCtx, TensorDispatch,
+    TensorDispatchCtx,
 };
 #[cfg(feature = "cublaslt")]
 pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "nccl")]
+pub use dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 
 pub mod blas;
 
@@ -88,9 +90,13 @@ mod nvrtc;
 pub use nvrtc::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};
 
 #[cfg(feature = "nccl")]
-mod collective;
+pub mod collective;
 #[cfg(feature = "nccl")]
-pub use collective::{CollectiveActor, CollectiveMsg, ReduceOp};
+pub use collective::{
+    AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
+    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+};
 
 #[cfg(feature = "cusparse")]
 mod sparse;
