@@ -62,3 +62,5 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
+#[cfg(feature = "curand")]
+pub mod sys;

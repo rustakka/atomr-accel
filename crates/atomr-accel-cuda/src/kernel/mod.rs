@@ -27,7 +27,7 @@ pub mod record;
 pub use dispatch::{
     BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
     CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
-    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, RngDispatchCtx, ScalarArg, SolverDispatch,
+    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch,
     SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 
@@ -49,9 +49,9 @@ mod fft;
 pub use fft::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
-mod rng;
+pub mod rng;
 #[cfg(feature = "curand")]
-pub use rng::{RngActor, RngMsg};
+pub use rng::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
 
 #[cfg(feature = "cusolver")]
 mod solver;

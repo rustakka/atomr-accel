@@ -31,6 +31,15 @@ nccl     = ["cudarc/nccl"]
 # feature gates the actor module compilation only.
 cublaslt = []
 curand   = []
+# cuRAND host-API path: `curandCreateGeneratorHost` + the host-side
+# `curandGenerate*` family that fills *host* buffers (and copies).
+# Off by default; pulls only on extra feature gating in the actor.
+curand-host = ["curand"]
+# Quasi-random (Sobol/Scrambled-Sobol) generator support. cuRAND
+# exposes these as `CURAND_RNG_QUASI_*` rng-types — same FFI surface,
+# but they require `curandSetQuasiRandomGeneratorDimensions` and
+# don't accept a pseudo-seed. Off by default.
+curand-quasirandom = ["curand"]
 nvrtc    = []
 # NVTX range/event annotations layered on `KernelEnvelope`. Pulls in
 # cudarc's safe NVTX wrapper. When off, `KernelEnvelope::with_nvtx`
@@ -66,13 +75,11 @@ f8       = ["atomr-accel/f8"]
 # 4-bit float wrapper type (`F4E2m1`). Blackwell.
 f4       = ["atomr-accel/f4"]
 
-# Phase 1 per-library feature placeholders. Each new feature is empty
-# in this commit; the matching library's expansion agent activates it
-# alongside the kernel-actor changes in the relevant kernel/*.rs file.
+# Phase 1 per-library feature placeholders for libraries whose
+# expansion agents haven't landed yet (their flags will be activated
+# alongside their kernel-actor changes).
 cublas-fp8        = []   # cuBLAS Phase 1: gates fp8 GEMM via cuBLASLt sys layer
 cusolver-sp       = []   # cuSOLVER Phase 1: gates `cusolverSp` sparse-solver linkage
-curand-host       = []   # cuRAND Phase 1: gates host-API generator parallel to device-API
-curand-quasirandom = []  # cuRAND Phase 1: gates Sobol32/Sobol64/ScrambledSobol generators
 
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor"]
@@ -128,6 +135,10 @@ required-features = ["cuda-runtime-tests"]
 [[example]]
 name = "rng_uniform"
 required-features = ["cuda-runtime-tests", "curand"]
+
+[[example]]
+name = "rng_sobol"
+required-features = ["cuda-runtime-tests", "curand", "curand-quasirandom"]
 
 [[example]]
 name = "fft_1d"

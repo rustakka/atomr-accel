@@ -23,7 +23,7 @@ pub use crate::host::{
 pub use crate::kernel::dispatch::{
     BlasLtDispatch, BlasLtDispatchCtx, CollectiveDispatch, CollectiveDispatchCtx, CudnnDispatch,
     CudnnDispatchCtx, DevSliceArg, FftDispatch, FftDispatchCtx, GemmDispatch, GemmDispatchCtx,
-    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, RngDispatchCtx, ScalarArg, SolverDispatch,
+    NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg, SolverDispatch,
     SolverDispatchCtx, SparseDispatch, SparseDispatchCtx, TensorDispatch, TensorDispatchCtx,
 };
 pub use crate::kernel::envelope;
@@ -79,4 +79,4 @@ pub use crate::kernel::{
 pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
-pub use crate::kernel::{RngActor, RngMsg};
+pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};

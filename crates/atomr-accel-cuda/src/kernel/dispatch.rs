@@ -297,24 +297,20 @@ pub struct FftDispatchCtx<'a> {
     pub _phantom: PhantomData<&'a ()>,
 }
 
-/// Boxed-dispatch trait for cuRAND ops.
+/// Erased payload accepted by `RngActor` via `RngMsg::Fill`.
 ///
-/// TODO: populate impls when cuRAND is migrated in Phase 1.x.
+/// The actor takes the cuRAND generator lock and hands it to `fill` along
+/// with the stream + completion strategy. Implementors call
+/// `cudarc::curand::sys::curandGenerate*` (or the safe wrapper),
+/// keep-alive their `GpuRef<T>` via `kernel::envelope::run_kernel`,
+/// and reply on the embedded `oneshot` channel.
 pub trait RngDispatch: Send + 'static {
-    fn op_name(&self) -> &'static str;
-    fn dtype(&self) -> Option<DType>;
-    fn dispatch(self: Box<Self>, ctx: &RngDispatchCtx<'_>);
-}
-
-/// Per-call context for [`RngDispatch`].
-///
-/// TODO: populate `Arc<CudaRng>` when cuRAND is migrated in
-/// Phase 1.x.
-pub struct RngDispatchCtx<'a> {
-    pub stream: &'a Arc<cudarc::driver::CudaStream>,
-    pub completion: &'a Arc<dyn CompletionStrategy>,
-    pub state: &'a Arc<DeviceState>,
-    pub _phantom: PhantomData<&'a ()>,
+    fn fill(
+        self: Box<Self>,
+        generator: cudarc::curand::sys::curandGenerator_t,
+        stream: &Arc<cudarc::driver::CudaStream>,
+        completion: &Arc<dyn CompletionStrategy>,
+    ) -> Result<(), GpuError>;
 }
 
 /// Boxed-dispatch trait for cuSOLVER ops.

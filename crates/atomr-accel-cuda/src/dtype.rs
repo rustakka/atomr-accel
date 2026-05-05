@@ -78,6 +78,10 @@ pub trait SparseSupported: CudaDtype {}
 /// Capability marker — type may be a cuTENSOR contraction operand.
 pub trait TensorSupported: CudaDtype {}
 
+/// Capability marker — cuRAND integer-fill operand. `curandGenerate` produces u32,
+/// `curandGenerateLongLong` produces u64. Used by `Discrete` and raw-bit paths.
+pub trait RngIntSupported: CudaDtype {}
+
 macro_rules! impl_cuda_dtype {
     (
         $rust:ty,
@@ -210,6 +214,9 @@ impl FftSupported for half::f16 {}
 
 impl RngFloatSupported for f32 {}
 impl RngFloatSupported for f64 {}
+
+impl RngIntSupported for u32 {}
+impl RngIntSupported for u64 {}
 
 impl NcclReduceSupported for f32 {}
 impl NcclReduceSupported for f64 {}
