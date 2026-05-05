@@ -55,6 +55,21 @@ telemetry = ["dep:atomr-telemetry"]
 # requires `half`.
 f16      = ["cudarc/f16", "dep:half"]
 
+# Phase 5 Hopper / Blackwell intrinsics (TMA, WGMMA, cp.async, cluster
+# launch). Currently a no-op gate referenced by flashattn-fp8 — the
+# real Hopper module ships in the Phase 5 merge that lands alongside
+# this crate. Kept here so the verification step
+# `cargo build … --features flashattn,…,hopper` compiles cleanly.
+hopper          = []
+
+# Phase 7 FlashAttention v2 + v3 kernel templates. Pulls in the
+# `atomr-accel-flashattn` crate; re-exported via `prelude::flashattn`.
+flashattn       = ["dep:atomr-accel-flashattn"]
+# fp8 e4m3 / e5m2 paths in FlashAttention v3 (sm_90a only).
+flashattn-fp8   = ["flashattn", "atomr-accel-flashattn/fp8"]
+# Paged KV-cache attention (vLLM-style).
+flashattn-paged = ["flashattn", "atomr-accel-flashattn/paged"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
@@ -81,6 +96,7 @@ atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
 atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
+atomr-accel-flashattn = { path = "../atomr-accel-flashattn", version = "0.1.0", optional = true }
 serde        = { version = "1", features = ["derive"], optional = true }
 serde_json   = { version = "1", optional = true }
 

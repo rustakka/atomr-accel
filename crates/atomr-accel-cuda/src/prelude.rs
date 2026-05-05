@@ -66,3 +66,26 @@ pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{RngActor, RngMsg};
+
+/// Phase 7 FlashAttention v2 + v3 re-exports.
+///
+/// Available when the `flashattn` cargo feature is enabled. Lives in
+/// its own submodule to avoid colliding with Phase 6 CUTLASS prelude
+/// re-exports — neither side raises bare names like `DispatchKey` or
+/// `DispatchTable` into the top of the prelude.
+#[cfg(feature = "flashattn")]
+pub mod flashattn {
+    pub use atomr_accel_flashattn::{
+        ChunkLayout, ChunkedPrefillRequest, CumulativeSeqlens, DType, DispatchError, DispatchKey,
+        DispatchTable, Fa2BwdRequest, Fa2FwdRequest, Fa3FwdRequest, FaBwdDispatch, FaFwdDispatch,
+        FaPagedFwdDispatch, FlashAttnActor, FlashAttnError, FlashAttnInner, FlashAttnMsg,
+        FlashAttnProps, GemmSupported, MaskKind, PersistentMode, PositionBias, SmArch,
+        VarlenFwdRequest, DISPATCH_TABLE,
+    };
+
+    #[cfg(feature = "flashattn-fp8")]
+    pub use atomr_accel_flashattn::{F8E4m3, F8E5m2, Fa3FwdFp8Request};
+
+    #[cfg(feature = "flashattn-paged")]
+    pub use atomr_accel_flashattn::{PagedAttentionRequest, PagedKvCache};
+}

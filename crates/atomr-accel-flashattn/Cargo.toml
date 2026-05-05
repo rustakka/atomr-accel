@@ -1,0 +1,60 @@
+[package]
+name = "atomr-accel-flashattn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "FlashAttention v2 + v3 kernel templates for atomr-accel — fp16/bf16/fp8, causal, varlen, ALiBi, sliding window, sink tokens, MQA/GQA, paged KV-cache, and chunked prefill, dispatched through NVRTC + Phase 0.6 cubin cache."
+
+[features]
+default = []
+
+# Gates the FlashAttention v3 fp8 (e4m3 / e5m2) request paths. fp8
+# kernels target sm_90a only; the dispatch table refuses other arches
+# at request-construction time.
+fp8 = []
+
+# Gates the paged KV-cache attention paths (vLLM-style block table) and
+# the chunked-prefill helpers that consume it.
+paged = []
+
+# Gates `examples/` and tests that allocate a real CudaContext / launch
+# real kernels. Mirrors the `cuda-runtime-tests` feature on the main
+# CUDA crate. Off-by-default so the crate builds and unit-tests on
+# hosts without a GPU.
+cuda-runtime-tests = []
+
+[dependencies]
+# NOTE: this crate intentionally avoids a path dep on `atomr-accel-cuda`
+# — the cuda crate (optionally) re-exports us via its `flashattn`
+# feature, so a back-edge would form a cargo cycle. The `Real` actor
+# path (gated `cuda-runtime-tests`) holds opaque references that the
+# cuda crate populates via the Phase 0 `KernelChildren::register_extra`
+# slot.
+atomr-core       = { workspace = true }
+atomr-macros     = { workspace = true }
+cudarc           = { workspace = true }
+tokio            = { workspace = true }
+async-trait      = { workspace = true }
+parking_lot      = { workspace = true }
+thiserror        = { workspace = true }
+tracing          = { workspace = true }
+once_cell        = { workspace = true }
+
+[dev-dependencies]
+tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "fa2_fwd_bf16"
+required-features = ["cuda-runtime-tests"]
+
+[lib]
+path = "src/lib.rs"

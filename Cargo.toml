@@ -7,6 +7,7 @@ members = [
     "crates/atomr-accel-train",      # backend-agnostic training blueprints
     "crates/atomr-accel-agents",     # backend-agnostic LLM blueprints
     "crates/atomr-accel-cuda-realtime", # CUDA-specific realtime sims (NVRTC)
+    "crates/atomr-accel-flashattn",  # FlashAttention v2 + v3 kernel templates (Phase 7)
     "crates/atomr-accel-py",         # Python bindings
     "xtask",
 ]
@@ -25,14 +26,14 @@ keywords = ["cuda", "gpu", "atomr", "actor", "ml"]
 categories = ["concurrency", "asynchronous", "science", "hardware-support"]
 
 [workspace.dependencies]
-atomr-core             = { path = "../atomr/crates/atomr-core",             version = "0.1.0" }
-atomr-config           = { path = "../atomr/crates/atomr-config",           version = "0.1.0" }
-atomr-macros           = { path = "../atomr/crates/atomr-macros",           version = "0.1.0" }
-atomr-persistence      = { path = "../atomr/crates/atomr-persistence",      version = "0.1.0" }
-atomr-cluster-sharding = { path = "../atomr/crates/atomr-cluster-sharding", version = "0.1.0" }
-atomr-streams          = { path = "../atomr/crates/atomr-streams",          version = "0.1.0" }
-atomr-telemetry        = { path = "../atomr/crates/atomr-telemetry",        version = "0.1.0" }
-atomr-testkit          = { path = "../atomr/crates/atomr-testkit",          version = "0.1.0" }
+atomr-core             = { path = "../atomr/crates/atomr-core",             version = "0.3.0" }
+atomr-config           = { path = "../atomr/crates/atomr-config",           version = "0.3.0" }
+atomr-macros           = { path = "../atomr/crates/atomr-macros",           version = "0.3.0" }
+atomr-persistence      = { path = "../atomr/crates/atomr-persistence",      version = "0.3.0" }
+atomr-cluster-sharding = { path = "../atomr/crates/atomr-cluster-sharding", version = "0.3.0" }
+atomr-streams          = { path = "../atomr/crates/atomr-streams",          version = "0.3.0" }
+atomr-telemetry        = { path = "../atomr/crates/atomr-telemetry",        version = "0.3.0" }
+atomr-testkit          = { path = "../atomr/crates/atomr-testkit",          version = "0.3.0" }
 
 cudarc       = { version = "0.19.4", features = ["cuda-version-from-build-system", "fallback-latest"] }
 
