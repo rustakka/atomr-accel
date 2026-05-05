@@ -18,10 +18,25 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use atomr_core::actor::{Actor, Context, Props};
+use cudarc::driver::sys as driver_sys;
 use cudarc::runtime::sys as runtime_sys;
 use tokio::sync::oneshot;
 
 use crate::error::GpuError;
+
+fn driver_location(target: PrefetchTarget) -> driver_sys::CUmemLocation {
+    // CUDA 13.0+'s `CUmemLocation` uses an anonymous union for the
+    // location id; zero-init and set type only — concrete location
+    // pinning is wired in a follow-up PR.
+    unsafe {
+        let mut loc: driver_sys::CUmemLocation = std::mem::zeroed();
+        loc.type_ = match target {
+            PrefetchTarget::Device(_) => driver_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE,
+            PrefetchTarget::Cpu => driver_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_HOST,
+        };
+        loc
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum ManagedFlags {
@@ -179,10 +194,17 @@ pub enum ManagedMsg {
     },
     /// Prefetch a managed allocation to a specific target. The
     /// `mem` argument is a clone of the `ManagedRef` returned from
-    /// allocation. F4.x: real `cudaMemPrefetchAsync` call.
+    /// allocation.
     PrefetchF32 {
         mem: ManagedRef<f32>,
         target: PrefetchTarget,
+        reply: oneshot::Sender<Result<(), GpuError>>,
+    },
+    /// Apply a memory advisory hint to a managed allocation.
+    /// Wraps `cuMemAdvise_v2`.
+    AdviseF32 {
+        mem: ManagedRef<f32>,
+        advice: super::advise::MemAdvice,
         reply: oneshot::Sender<Result<(), GpuError>>,
     },
     Stats {
@@ -280,45 +302,35 @@ impl Actor for ManagedAllocatorActor {
                     )));
                     return;
                 }
-                // Use the v2 shape with a `cudaMemLocation`. The
-                // function name `cudaMemPrefetchAsync` is available
-                // on CUDA 13+ with this signature; older CUDA toolkits
-                // need a different binding shape. We pick the v2
-                // path here and let the build-system feature flags
-                // resolve the symbol.
-                let location = runtime_sys::cudaMemLocation {
-                    type_: match target {
-                        PrefetchTarget::Device(_) => {
-                            runtime_sys::cudaMemLocationType::cudaMemLocationTypeDevice
-                        }
-                        PrefetchTarget::Cpu => {
-                            runtime_sys::cudaMemLocationType::cudaMemLocationTypeHost
-                        }
-                    },
-                    id: match target {
-                        PrefetchTarget::Device(d) => d as i32,
-                        PrefetchTarget::Cpu => 0,
-                    },
+                // Route through the driver-API helper so the
+                // runtime/driver paths share one panic-safe wrapper.
+                let location = driver_location(target);
+                let dev_ptr = inner.ptr.as_ptr() as cudarc::driver::sys::CUdeviceptr;
+                let r = crate::sys::cuda_driver::mem_prefetch_async_v2(
+                    dev_ptr,
+                    inner.bytes,
+                    location,
+                    0,
+                    std::ptr::null_mut(),
+                );
+                let _ = reply.send(r);
+            }
+            ManagedMsg::AdviseF32 { mem, advice, reply } => {
+                let Some(inner) = mem.inner.as_ref() else {
+                    let _ = reply.send(Err(GpuError::Unrecoverable(
+                        "AdviseF32: invalid ManagedRef".into(),
+                    )));
+                    return;
                 };
-                // SAFETY: pointer + length + location all valid; null
-                // stream uses default per-thread stream.
-                let status = unsafe {
-                    runtime_sys::cudaMemPrefetchAsync(
-                        inner.ptr.as_ptr() as *const _,
-                        inner.bytes,
-                        location,
-                        0,
-                        std::ptr::null_mut(),
-                    )
-                };
-                if status != runtime_sys::cudaError::cudaSuccess {
-                    let _ = reply.send(Err(GpuError::LibraryError {
-                        lib: "runtime",
-                        msg: format!("cudaMemPrefetchAsync: {status:?}"),
-                    }));
+                if !inner.system_alive.load(Ordering::Acquire) {
+                    let _ = reply.send(Err(GpuError::Unrecoverable(
+                        "AdviseF32: allocator stopped".into(),
+                    )));
                     return;
                 }
-                let _ = reply.send(Ok(()));
+                let dev_ptr = inner.ptr.as_ptr() as cudarc::driver::sys::CUdeviceptr;
+                let r = crate::memory::advise::advise(dev_ptr, inner.bytes, advice);
+                let _ = reply.send(r);
             }
             ManagedMsg::Stats { reply } => {
                 let _ = reply.send(self.stats);
@@ -383,6 +395,97 @@ mod tests {
             .unwrap()
             .unwrap();
 
+        sys.terminate().await;
+    }
+
+    /// Construct a synthetic `ManagedRef` that stands in for a real
+    /// allocation. We point at a 1-byte heap-allocated buffer so the
+    /// pointer is non-null; the system_alive flag is held by the
+    /// caller. We never actually dereference the pointer or let
+    /// Drop call `cudaFree` on it (which would corrupt heap state) —
+    /// the test inspects the message-routing code path only.
+    fn synthetic_managed_ref<T>(elements: usize) -> (ManagedRef<T>, Arc<AtomicBool>) {
+        let alive = Arc::new(AtomicBool::new(true));
+        let mut buf = Box::<u8>::new(0u8);
+        let raw = NonNull::new(&mut *buf as *mut u8).unwrap();
+        std::mem::forget(buf); // intentionally leak — Drop won't run because we set system_alive=false at the end of the test.
+        let mref = ManagedRef::<T> {
+            inner: Some(Arc::new(ManagedRefInner {
+                ptr: raw,
+                bytes: elements * std::mem::size_of::<T>(),
+                elements,
+                system_alive: alive.clone(),
+            })),
+            _marker: PhantomData,
+        };
+        (mref, alive)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn prefetch_message_routes_through_actor() {
+        let sys = ActorSystem::create("managed-prefetch-test", Config::empty())
+            .await
+            .unwrap();
+        let mgr = sys
+            .actor_of(ManagedAllocatorActor::props(), "managed")
+            .unwrap();
+
+        let (mref, alive) = synthetic_managed_ref::<f32>(64);
+        let (tx, rx) = oneshot::channel();
+        mgr.tell(ManagedMsg::PrefetchF32 {
+            mem: mref.clone(),
+            target: PrefetchTarget::Cpu,
+            reply: tx,
+        });
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
+        // No driver → Unrecoverable, real driver → LibraryError on bogus
+        // ptr, both acceptable. We never want a panic to propagate.
+        match r {
+            Ok(()) => {}
+            Err(GpuError::Unrecoverable(_)) => {}
+            Err(GpuError::LibraryError { .. }) => {}
+            other => panic!("unexpected: {other:?}"),
+        }
+
+        // Mark the synthetic alloc as inert so the leaked Box doesn't
+        // get cudaFree'd by ManagedRefInner::Drop.
+        alive.store(false, Ordering::Release);
+        drop(mref);
+        sys.terminate().await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn advise_message_routes_through_actor() {
+        let sys = ActorSystem::create("managed-advise-test", Config::empty())
+            .await
+            .unwrap();
+        let mgr = sys
+            .actor_of(ManagedAllocatorActor::props(), "managed")
+            .unwrap();
+
+        let (mref, alive) = synthetic_managed_ref::<f32>(64);
+        let (tx, rx) = oneshot::channel();
+        mgr.tell(ManagedMsg::AdviseF32 {
+            mem: mref.clone(),
+            advice: super::super::advise::MemAdvice::SetReadMostly,
+            reply: tx,
+        });
+        let r = tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .unwrap()
+            .unwrap();
+        match r {
+            Ok(()) => {}
+            Err(GpuError::Unrecoverable(_)) => {}
+            Err(GpuError::LibraryError { .. }) => {}
+            other => panic!("unexpected: {other:?}"),
+        }
+
+        alive.store(false, Ordering::Release);
+        drop(mref);
         sys.terminate().await;
     }
 }

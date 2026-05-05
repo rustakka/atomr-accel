@@ -102,10 +102,26 @@ f8       = ["atomr-accel/f8"]
 # 4-bit float wrapper type (`F4E2m1`). Blackwell.
 f4       = ["atomr-accel/f4"]
 
+# Phase 3 driver-API gates.
+# - `cuda-ipc` enables the `EventActor` IPC variants and the
+#   `memory::ipc` `cuIpc*` FFI wrappers. Off by default because IPC
+#   handles cross process boundaries and exposes raw pointer state
+#   that's not always desired.
+# - `cuda-managed` makes the implicit Phase 0.4 managed-memory actor
+#   gate explicit: when off, `ManagedAllocatorActor` and
+#   `memory::{prefetch, advise}` aren't compiled.
+# - `graphs-conditional` turns on CUDA 12.4+ conditional graph node
+#   support (`cudaGraphConditionalNode`). Older drivers fall through
+#   to `Unrecoverable` at runtime even when this feature is on; the
+#   feature only gates compilation.
+cuda-ipc           = []
+cuda-managed       = []
+graphs-conditional = []
+
 # Convenience aggregates.
-core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor"]
+core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor", "cuda-managed"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
-full-cuda     = ["training-libs", "nccl"]
+full-cuda     = ["training-libs", "nccl", "cuda-ipc", "graphs-conditional"]
 
 [dependencies]
 atomr-core   = { workspace = true }
@@ -225,6 +241,14 @@ required-features = ["cuda-runtime-tests", "cudnn", "f16"]
 [[example]]
 name = "tensor_reduce"
 required-features = ["cuda-runtime-tests", "cutensor", "f16"]
+
+[[example]]
+name = "graph_conditional"
+required-features = ["cuda-runtime-tests", "graphs-conditional"]
+
+[[example]]
+name = "ipc_smoke"
+required-features = ["cuda-runtime-tests", "cuda-ipc"]
 
 [[bench]]
 name = "sgemm_overhead"

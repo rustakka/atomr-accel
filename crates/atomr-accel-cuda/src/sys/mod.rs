@@ -7,6 +7,7 @@
 pub mod cublas;
 #[cfg(feature = "cublaslt")]
 pub mod cublaslt;
+pub mod cuda_driver;
 #[cfg(feature = "cudnn")]
 pub mod cudnn;
 #[cfg(feature = "cufft")]

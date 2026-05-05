@@ -95,7 +95,7 @@ pub use blas_lt::{
 };
 
 #[cfg(feature = "nvrtc")]
-mod nvrtc;
+pub mod nvrtc;
 #[cfg(feature = "nvrtc")]
 pub use nvrtc::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts};
 
