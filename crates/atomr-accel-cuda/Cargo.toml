@@ -63,6 +63,19 @@ curand-host = ["curand"]
 # don't accept a pseudo-seed. Off by default.
 curand-quasirandom = ["curand"]
 nvrtc    = []
+# Phase 5 NVRTC v2 capability flags. `nvrtc-lto` enables `-dlto`
+# link-time-optimisation flags on `NvrtcOpts`; `nvrtc-async` opt-in
+# permits `NvrtcMsg::CompileAsync` to spawn Tokio blocking tasks.
+# Both are additive over `nvrtc`; the underlying API surfaces compile
+# without these features (the flags simply become inert).
+nvrtc-lto   = ["nvrtc"]
+nvrtc-async = ["nvrtc"]
+# Phase 5 Hopper / Blackwell primitives. `hopper` gates the
+# `crate::hopper` module (TMA descriptor builder, cluster launch
+# wrappers, wgmma / cp.async macro headers). `blackwell` layers on
+# the Blackwell-only intrinsics and target arch (sm_100 / sm_120).
+hopper      = []
+blackwell   = ["hopper"]
 # NVTX range/event annotations layered on `KernelEnvelope`. Pulls in
 # cudarc's safe NVTX wrapper. When off, `KernelEnvelope::with_nvtx`
 # stores the label but emits no calls (zero runtime cost).
@@ -249,6 +262,17 @@ required-features = ["cuda-runtime-tests", "graphs-conditional"]
 [[example]]
 name = "ipc_smoke"
 required-features = ["cuda-runtime-tests", "cuda-ipc"]
+
+# Phase 5: Hopper / Blackwell demos. Both are sm_90a-only at runtime;
+# the host-side validation paths build under the `hopper` feature
+# without a GPU.
+[[example]]
+name = "cluster_launch"
+required-features = ["cuda-runtime-tests", "hopper"]
+
+[[example]]
+name = "tma_load_store"
+required-features = ["cuda-runtime-tests", "hopper"]
 
 [[bench]]
 name = "sgemm_overhead"

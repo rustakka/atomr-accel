@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/atomr-accel",            # backend-agnostic core (umbrella)
     "crates/atomr-accel-cuda",       # NVIDIA CUDA implementation
+    "crates/atomr-accel-cub",        # CUB device-wide primitives (Phase 5)
     "crates/atomr-accel-patterns",   # backend-agnostic blueprints
     "crates/atomr-accel-train",      # backend-agnostic training blueprints
     "crates/atomr-accel-agents",     # backend-agnostic LLM blueprints
