@@ -113,6 +113,7 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "atomr-accel",
+ "atomr-accel-cutlass",
  "atomr-accel-telemetry",
  "atomr-accel-tensorrt",
  "atomr-cluster-sharding",
@@ -156,6 +157,16 @@ dependencies = [
  "parking_lot",
  "thiserror",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "atomr-accel-cutlass"
+version = "0.1.0"
+dependencies = [
+ "lru",
+ "parking_lot",
+ "thiserror",
  "tracing",
 ]
 

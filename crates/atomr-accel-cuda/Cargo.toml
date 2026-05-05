@@ -152,6 +152,15 @@ nvml       = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/nvml", "teleme
 cupti      = ["dep:atomr-accel-telemetry", "atomr-accel-telemetry/cupti", "telemetry"]
 observability-full = ["telemetry", "nvtx-trace", "nvml", "cupti"]
 
+# CUTLASS template-instantiation crate (Phase 6). `cutlass` pulls
+# the dependency in; `cutlass-evt` and `cutlass-grouped` opt the
+# downstream into the EVT and grouped-GEMM surfaces; `cutlass-prebuilt`
+# requests Strategy B (build.rs runs nvcc) — no-op if nvcc is missing.
+cutlass          = ["dep:atomr-accel-cutlass"]
+cutlass-prebuilt = ["cutlass", "atomr-accel-cutlass/cutlass-prebuilt"]
+cutlass-evt      = ["cutlass", "atomr-accel-cutlass/evt"]
+cutlass-grouped  = ["cutlass", "atomr-accel-cutlass/grouped"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor", "cuda-managed"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
@@ -189,6 +198,8 @@ bincode      = "1"
 dirs         = "5"
 # Phase 8 TensorRT crate (linked at runtime; libnvinfer is proprietary).
 atomr-accel-tensorrt = { path = "../atomr-accel-tensorrt", version = "0.1.0", optional = true }
+# Phase 6 CUTLASS template-instantiation crate (vendored headers + NVRTC).
+atomr-accel-cutlass = { path = "../atomr-accel-cutlass", version = "0.1.0", optional = true }
 
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

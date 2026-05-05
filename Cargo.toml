@@ -9,6 +9,7 @@ members = [
     "crates/atomr-accel-agents",     # backend-agnostic LLM blueprints
     "crates/atomr-accel-cuda-realtime", # CUDA-specific realtime sims (NVRTC)
     "crates/atomr-accel-tensorrt",   # TensorRT engine builder + runtime (Phase 8)
+    "crates/atomr-accel-cutlass",    # CUTLASS templates via NVRTC (Phase 6)
     "crates/atomr-accel-py",         # Python bindings
     "crates/atomr-accel-telemetry", # NVTX / NVML / CUPTI observability
     "xtask",

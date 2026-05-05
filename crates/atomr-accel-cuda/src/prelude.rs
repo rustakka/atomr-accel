@@ -120,15 +120,15 @@ pub use crate::kernel::{
 #[cfg(feature = "curand")]
 pub use crate::kernel::{Distribution, FillRequest, RngActor, RngGeneratorKind, RngMsg};
 
-/// TensorRT integration (Phase 8). Re-exports the sibling
-/// `atomr-accel-tensorrt` crate root so callers can `use
-/// atomr_accel_cuda::prelude::tensorrt::*` to pick up `TrtActor` /
-/// `TrtMsg` / `IBuilderConfig` alongside `DeviceActor`.
+/// TensorRT integration (Phase 8).
 #[cfg(feature = "tensorrt")]
 pub use atomr_accel_tensorrt as tensorrt;
 
-// Phase 9 — observability backends. Re-export the public surface
-// of `atomr-accel-telemetry`.
+/// CUTLASS template-instantiation crate (Phase 6).
+#[cfg(feature = "cutlass")]
+pub use atomr_accel_cutlass as cutlass;
+
+// Phase 9 — observability backends.
 #[cfg(feature = "nvtx-trace")]
 pub use atomr_accel_telemetry::nvtx::{Domain as NvtxDomain, NvtxKernelTrace};
 
