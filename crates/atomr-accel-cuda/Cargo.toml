@@ -55,6 +55,24 @@ telemetry = ["dep:atomr-telemetry"]
 # requires `half`.
 f16      = ["cudarc/f16", "dep:half"]
 
+# Phase 1.x: per-arch capability gates. `hopper` enables sm_90a-only
+# code paths (TMA, WGMMA, cluster, cp.async); `blackwell` enables
+# sm_100/sm_120 (fp4, EVT-on-Blackwell). The actual gated modules
+# land alongside Phase 1; the feature flags are pre-declared here so
+# downstream crates (atomr-accel-cutlass, atomr-accel-flash) can
+# express their per-arch contracts without a workspace-wide bump.
+hopper    = []
+blackwell = []
+
+# CUTLASS template-instantiation crate (Phase 6). `cutlass` pulls
+# the dependency in; `cutlass-evt` and `cutlass-grouped` opt the
+# downstream into the EVT and grouped-GEMM surfaces; `cutlass-prebuilt`
+# requests Strategy B (build.rs runs nvcc) — no-op if nvcc is missing.
+cutlass          = ["dep:atomr-accel-cutlass"]
+cutlass-prebuilt = ["cutlass", "atomr-accel-cutlass/cutlass-prebuilt"]
+cutlass-evt      = ["cutlass", "atomr-accel-cutlass/evt"]
+cutlass-grouped  = ["cutlass", "atomr-accel-cutlass/grouped"]
+
 # Convenience aggregates.
 core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
 training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
@@ -83,6 +101,7 @@ atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
 serde        = { version = "1", features = ["derive"], optional = true }
 serde_json   = { version = "1", optional = true }
+atomr-accel-cutlass = { path = "../atomr-accel-cutlass", version = "0.1.0", optional = true }
 
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

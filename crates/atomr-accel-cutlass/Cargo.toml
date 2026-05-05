@@ -1,0 +1,64 @@
+[package]
+name = "atomr-accel-cutlass"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords.workspace = true
+categories.workspace = true
+description = "CUTLASS kernel-template instantiation via NVRTC for atomr-accel. Provides GEMM, grouped GEMM, implicit-GEMM convolution, and EVT (epilogue visitor tree) actors that JIT CUTLASS C++ templates against the per-arch toolchain pinned by atomr-accel-cuda's NvrtcActor."
+
+[features]
+# Strategy A (default): NVRTC at runtime against vendored CUTLASS headers.
+default = []
+
+# Strategy B: build.rs runs nvcc over a generator and links a static lib
+# of pre-instantiated kernels. When this feature is OFF the build.rs is
+# a no-op probe.
+cutlass-prebuilt = []
+
+# Epilogue Visitor Tree (EVT) builder. Off by default because the
+# fused-epilogue surface (activation + bias + quantize + reduce) is
+# template-heavy and pulls in extra dependents. Pure host-side Rust;
+# does not require the CUDA toolkit.
+evt = []
+
+# Grouped / batched GEMM templates (CUTLASS 3.x grouped + variable-K
+# group-GEMM). Pure host-side Rust message types; the .cu emitter
+# only fires when an `NvrtcActor` is wired in.
+grouped = []
+
+[dependencies]
+# NOTE: atomr-accel-cutlass intentionally does NOT depend on
+# atomr-accel-cuda. The two crates are wired together by the
+# `atomr-accel-cuda` `cutlass` cargo feature (which adds *this* crate
+# as a dep, then re-exports it from the prelude). Reaching the other
+# direction would create a cyclic package dependency through the
+# workspace. Runtime wiring (CutlassActor → NvrtcActor) is done by
+# the user passing the `compile_sink` callback into `CutlassInner`.
+parking_lot = { workspace = true }
+thiserror   = { workspace = true }
+tracing     = { workspace = true }
+lru         = "0.12"
+
+[dev-dependencies]
+# Unit tests are CPU-only; no GPU runtime required.
+
+[build-dependencies]
+# Strategy B uses cc / nvcc. Kept as build-only and gated by feature
+# probe so the no-op default build doesn't pull these in at runtime.
+
+[lib]
+path = "src/lib.rs"
+
+[[example]]
+name = "cutlass_gemm_fp8"
+
+[[example]]
+name = "cutlass_grouped_gemm"
+required-features = ["grouped"]

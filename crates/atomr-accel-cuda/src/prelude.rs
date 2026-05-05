@@ -66,3 +66,10 @@ pub use crate::kernel::{FftActor, FftKind, FftMsg, PlanKey};
 
 #[cfg(feature = "curand")]
 pub use crate::kernel::{RngActor, RngMsg};
+
+/// CUTLASS template-instantiation crate (Phase 6). Re-exported under
+/// the `cutlass` feature so downstream code can write
+/// `atomr_accel_cuda::prelude::cutlass::CutlassActor` without an
+/// extra `Cargo.toml` line.
+#[cfg(feature = "cutlass")]
+pub use atomr_accel_cutlass as cutlass;
