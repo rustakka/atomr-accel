@@ -56,8 +56,8 @@ telemetry = ["dep:atomr-telemetry"]
 f16      = ["cudarc/f16", "dep:half"]
 
 # Convenience aggregates.
-core-libs     = ["cudnn", "cufft", "curand", "cusparse"]
-training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc", "cutensor"]
+core-libs     = ["cudnn", "cufft", "curand", "cusparse", "cutensor"]
+training-libs = ["core-libs", "cusolver", "cublaslt", "nvrtc"]
 full-cuda     = ["training-libs", "nccl"]
 
 [dependencies]

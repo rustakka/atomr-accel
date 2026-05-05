@@ -8,12 +8,14 @@
 //! - Holds the shared `Arc<DeviceState>` that outlives any single
 //!   `ContextActor` incarnation.
 
-use std::collections::VecDeque;
+use std::any::{Any, TypeId};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use atomr_core::actor::{Actor, ActorRef, Context, Props};
 use bitflags::bitflags;
+use parking_lot::RwLock;
 use tokio::sync::oneshot;
 use tracing::{debug, warn};
 
@@ -31,13 +33,22 @@ bitflags! {
     /// a library that wasn't compiled in is silently ignored.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct EnabledLibraries: u32 {
-        const BLAS    = 0b0000_0001;
-        const CUDNN   = 0b0000_0010;
-        const CUFFT   = 0b0000_0100;
-        const CURAND  = 0b0000_1000;
-        const CUSOLVER = 0b0001_0000;
-        const CUBLASLT = 0b0010_0000;
-        const NVRTC    = 0b0100_0000;
+        const BLAS     = 1 << 0;
+        const CUDNN    = 1 << 1;
+        const CUFFT    = 1 << 2;
+        const CURAND   = 1 << 3;
+        const CUSOLVER = 1 << 4;
+        const CUBLASLT = 1 << 5;
+        const NVRTC    = 1 << 6;
+        // Phase 0.8 — additional library + extension actor opt-ins.
+        const CUTENSOR   = 1 << 7;
+        const CUSPARSE   = 1 << 8;
+        const NCCL       = 1 << 9;
+        const CUTLASS    = 1 << 10;
+        const TENSORRT   = 1 << 11;
+        const FLASHATTN  = 1 << 12;
+        const CUB_THRUST = 1 << 13;
+        const TELEMETRY  = 1 << 14;
 
         const ALL = Self::BLAS.bits()
             | Self::CUDNN.bits()
@@ -45,7 +56,15 @@ bitflags! {
             | Self::CURAND.bits()
             | Self::CUSOLVER.bits()
             | Self::CUBLASLT.bits()
-            | Self::NVRTC.bits();
+            | Self::NVRTC.bits()
+            | Self::CUTENSOR.bits()
+            | Self::CUSPARSE.bits()
+            | Self::NCCL.bits()
+            | Self::CUTLASS.bits()
+            | Self::TENSORRT.bits()
+            | Self::FLASHATTN.bits()
+            | Self::CUB_THRUST.bits()
+            | Self::TELEMETRY.bits();
     }
 }
 
@@ -250,6 +269,14 @@ pub enum DeviceMsg {
 /// Set of kernel-actor refs spawned by a `ContextActor`. Each is
 /// `Some` only when both the cargo feature is compiled in and the
 /// `DeviceConfig::enabled_libraries` flag is set.
+///
+/// **Phase 0.8 extension.** In addition to the typed fields below
+/// (which keep existing call sites compiling), `KernelChildren`
+/// carries an open `extras` map keyed by [`TypeId`]. Future actor
+/// crates (`atomr-accel-cutlass`, `-tensorrt`, `-flashattn`,
+/// `-telemetry`, `-cub`) stash their `ActorRef` here so the device
+/// supervisor can hand them out via [`KernelChildren::extra`]
+/// without the core having to know their concrete message type.
 #[derive(Clone)]
 pub struct KernelChildren {
     pub blas: ActorRef<BlasMsg>,
@@ -259,6 +286,57 @@ pub struct KernelChildren {
     pub fft: Option<ActorRef<crate::kernel::FftMsg>>,
     #[cfg(feature = "curand")]
     pub rng: Option<ActorRef<crate::kernel::RngMsg>>,
+    /// TypeId-keyed registry for child actors not represented by a
+    /// typed field above. The `Arc<RwLock<…>>` keeps `KernelChildren`
+    /// `Clone` while letting later library crates register / look up
+    /// their own refs.
+    extras: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+}
+
+impl KernelChildren {
+    /// Construct a `KernelChildren` with the given `BlasActor` ref
+    /// and no library children or extras. Mirrors the `..Default::default()`
+    /// pattern used by callers but keeps `blas` mandatory.
+    pub fn new(blas: ActorRef<BlasMsg>) -> Self {
+        Self {
+            blas,
+            #[cfg(feature = "cudnn")]
+            cudnn: None,
+            #[cfg(feature = "cufft")]
+            fft: None,
+            #[cfg(feature = "curand")]
+            rng: None,
+            extras: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Register an extra child actor (or any `Send + Sync` handle) by
+    /// type. Future actor crates (`atomr-accel-cutlass`, `-tensorrt`,
+    /// `-flashattn`, `-telemetry`, `-cub`) stash their `ActorRef`
+    /// here so the device supervisor can route stop/restart messages.
+    ///
+    /// If a value of the same type is already registered, it is
+    /// overwritten — typical use is one-shot registration during
+    /// `ContextActor::run_init`.
+    pub fn register_extra<T: Any + Send + Sync>(&self, value: T) {
+        let mut g = self.extras.write();
+        g.insert(TypeId::of::<T>(), Arc::new(value));
+    }
+
+    /// Look up a previously registered extra by type. Returns a clone
+    /// of the stored `T` if and only if a value of that exact type
+    /// was registered.
+    pub fn extra<T: Any + Send + Sync + Clone>(&self) -> Option<T> {
+        let g = self.extras.read();
+        g.get(&TypeId::of::<T>())
+            .and_then(|v| v.clone().downcast::<T>().ok())
+            .map(|arc| (*arc).clone())
+    }
+
+    /// Number of registered extras (for stats / observability).
+    pub fn extras_len(&self) -> usize {
+        self.extras.read().len()
+    }
 }
 
 /// Body of a `DeviceMsg::Sgemm` request. Boxed because it's larger than
@@ -715,6 +793,165 @@ mod tests {
     use atomr_config::Config;
     use atomr_core::actor::ActorSystem;
     use std::time::Duration;
+
+    /// Phase 0.8 — bit values are part of the on-the-wire surface
+    /// (config files / persisted device specs). Lock them down so a
+    /// future re-ordering of the bitflag declaration is caught.
+    #[test]
+    fn enabled_libraries_bit_values_are_stable() {
+        assert_eq!(EnabledLibraries::BLAS.bits(), 1 << 0);
+        assert_eq!(EnabledLibraries::CUDNN.bits(), 1 << 1);
+        assert_eq!(EnabledLibraries::CUFFT.bits(), 1 << 2);
+        assert_eq!(EnabledLibraries::CURAND.bits(), 1 << 3);
+        assert_eq!(EnabledLibraries::CUSOLVER.bits(), 1 << 4);
+        assert_eq!(EnabledLibraries::CUBLASLT.bits(), 1 << 5);
+        assert_eq!(EnabledLibraries::NVRTC.bits(), 1 << 6);
+        // Phase 0.8 additions.
+        assert_eq!(EnabledLibraries::CUTENSOR.bits(), 1 << 7);
+        assert_eq!(EnabledLibraries::CUSPARSE.bits(), 1 << 8);
+        assert_eq!(EnabledLibraries::NCCL.bits(), 1 << 9);
+        assert_eq!(EnabledLibraries::CUTLASS.bits(), 1 << 10);
+        assert_eq!(EnabledLibraries::TENSORRT.bits(), 1 << 11);
+        assert_eq!(EnabledLibraries::FLASHATTN.bits(), 1 << 12);
+        assert_eq!(EnabledLibraries::CUB_THRUST.bits(), 1 << 13);
+        assert_eq!(EnabledLibraries::TELEMETRY.bits(), 1 << 14);
+    }
+
+    #[test]
+    fn enabled_libraries_round_trip_via_bits() {
+        let original = EnabledLibraries::BLAS
+            | EnabledLibraries::CUTENSOR
+            | EnabledLibraries::FLASHATTN
+            | EnabledLibraries::TELEMETRY;
+        let bits = original.bits();
+        let restored = EnabledLibraries::from_bits(bits)
+            .expect("known bits round-trip through from_bits");
+        assert_eq!(original, restored);
+        assert!(restored.contains(EnabledLibraries::FLASHATTN));
+        assert!(!restored.contains(EnabledLibraries::CUDNN));
+    }
+
+    #[test]
+    fn enabled_libraries_all_contains_every_phase_0_8_bit() {
+        let all = EnabledLibraries::ALL;
+        for bit in [
+            EnabledLibraries::BLAS,
+            EnabledLibraries::CUDNN,
+            EnabledLibraries::CUFFT,
+            EnabledLibraries::CURAND,
+            EnabledLibraries::CUSOLVER,
+            EnabledLibraries::CUBLASLT,
+            EnabledLibraries::NVRTC,
+            EnabledLibraries::CUTENSOR,
+            EnabledLibraries::CUSPARSE,
+            EnabledLibraries::NCCL,
+            EnabledLibraries::CUTLASS,
+            EnabledLibraries::TENSORRT,
+            EnabledLibraries::FLASHATTN,
+            EnabledLibraries::CUB_THRUST,
+            EnabledLibraries::TELEMETRY,
+        ] {
+            assert!(all.contains(bit), "ALL missing {bit:?}");
+        }
+    }
+
+    /// Phase 0.8 — `KernelChildren::register_extra` / `extra` round-trip.
+    /// Uses a dummy non-actor type because spawning a real actor here
+    /// would pull in the full ActorSystem and is unnecessary for the
+    /// API contract under test.
+    #[test]
+    fn kernel_children_extras_register_and_retrieve_by_type() {
+        // Build a KernelChildren manually using a dummy BlasActor ref.
+        // We can't easily construct an ActorRef<BlasMsg> outside an
+        // ActorSystem, so this test only touches the extras map by
+        // building it directly.
+        let extras: Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+
+        // Stand-in helper that mirrors KernelChildren::register_extra /
+        // extra / extras_len semantics but operates on the bare extras
+        // map. Keeping the test free of an ActorSystem dep.
+        fn register<T: Any + Send + Sync>(
+            map: &Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+            v: T,
+        ) {
+            map.write().insert(TypeId::of::<T>(), Arc::new(v));
+        }
+        fn lookup<T: Any + Send + Sync + Clone>(
+            map: &Arc<RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>>,
+        ) -> Option<T> {
+            map.read()
+                .get(&TypeId::of::<T>())
+                .and_then(|v| v.clone().downcast::<T>().ok())
+                .map(|arc| (*arc).clone())
+        }
+
+        #[derive(Clone, PartialEq, Eq, Debug)]
+        struct CutlassRef(u32);
+        #[derive(Clone, PartialEq, Eq, Debug)]
+        struct TensorRtRef(&'static str);
+
+        register(&extras, CutlassRef(7));
+        register(&extras, TensorRtRef("trt"));
+
+        assert_eq!(lookup::<CutlassRef>(&extras), Some(CutlassRef(7)));
+        assert_eq!(
+            lookup::<TensorRtRef>(&extras),
+            Some(TensorRtRef("trt"))
+        );
+        // Unregistered type returns None.
+        #[derive(Clone)]
+        struct Unknown;
+        assert!(lookup::<Unknown>(&extras).is_none());
+        assert_eq!(extras.read().len(), 2);
+
+        // Re-registering the same type overwrites.
+        register(&extras, CutlassRef(99));
+        assert_eq!(lookup::<CutlassRef>(&extras), Some(CutlassRef(99)));
+        assert_eq!(extras.read().len(), 2);
+    }
+
+    /// End-to-end exercise of the actual `KernelChildren` API by going
+    /// through a mock `DeviceActor` so we have a real `BlasActor` ref
+    /// to seed the struct.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn kernel_children_extras_via_snapshot() {
+        let sys = ActorSystem::create("kc_extras", Config::empty())
+            .await
+            .unwrap();
+        let dev = sys
+            .actor_of(DeviceActor::props(DeviceConfig::mock(0)), "dev0")
+            .unwrap();
+
+        // Wait for ContextReady by repeatedly probing SnapshotChildren.
+        let mut snap: Option<KernelChildren> = None;
+        for _ in 0..50 {
+            let (tx, rx) = oneshot::channel();
+            dev.tell(DeviceMsg::SnapshotChildren { reply: tx });
+            if let Ok(Some(c)) = rx.await {
+                snap = Some(c);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        let children = snap.expect("KernelChildren snapshot should arrive in mock mode");
+        assert_eq!(children.extras_len(), 0);
+
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        struct FakeCutlassRef(u64);
+        children.register_extra(FakeCutlassRef(42));
+        assert_eq!(children.extras_len(), 1);
+        assert_eq!(
+            children.extra::<FakeCutlassRef>(),
+            Some(FakeCutlassRef(42))
+        );
+        // Clones share the same extras map (Arc<RwLock<…>> inside).
+        let cloned = children.clone();
+        assert_eq!(cloned.extras_len(), 1);
+        assert_eq!(cloned.extra::<FakeCutlassRef>(), Some(FakeCutlassRef(42)));
+
+        sys.terminate().await;
+    }
 
     /// Smoke test — DeviceActor in mock mode should accept Allocate
     /// requests and reply (with an error from mock BlasActor or with a
