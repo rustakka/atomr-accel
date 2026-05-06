@@ -7,8 +7,10 @@ name: Release
 #
 # This workflow:
 #   1. Runs the local release-pipeline gate (`cargo xtask verify`).
-#   2. Builds Python wheels (manylinux x86_64, musllinux x86_64,
-#      macOS universal2, Windows x86_64) and an sdist.
+#   2. Builds Python wheels (manylinux x86_64 + aarch64, musllinux
+#      x86_64 + aarch64, macOS universal2, Windows x86_64) and an
+#      sdist. aarch64 Linux wheels are built natively on
+#      `ubuntu-22.04-arm` runners.
 #   3. Creates the GitHub Release with the artifacts attached.
 #   4. Publishes every publishable Rust crate to crates.io in
 #      dependency order (with rate-limit retry).
@@ -78,14 +80,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux glibc + musl, x86_64. ARM Linux users install from sdist.
+          # Linux glibc + musl, x86_64 + aarch64. maturin uses
+          # manylinux/musllinux containers under the hood; the
+          # `manylinux: auto` flag picks the right base image.
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             python-target: x86_64
             manylinux: auto
+          # aarch64 Linux glibc — built natively on a GitHub-hosted
+          # ARM runner so we don't have to cross-compile inside the
+          # x86_64 manylinux container. Mirrors the atomr workspace.
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            python-target: aarch64
+            manylinux: auto
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             python-target: x86_64
+            manylinux: musllinux_1_2
+          # aarch64 Linux musl — also built natively on the ARM
+          # runner, mirroring the glibc coverage.
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-musl
+            python-target: aarch64
             manylinux: musllinux_1_2
           # macOS — universal2 yields a single fat wheel covering
           # both x86_64 and arm64.

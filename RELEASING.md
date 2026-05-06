@@ -43,7 +43,7 @@ path-dep version pins inside `[workspace.dependencies]`, refreshes
 |----------------------------------|-------------------------------|--------------|
 | `ci.yml`                         | PRs + pushes to `main`        | fmt + clippy + test (8 feature configs) + verify gate + semver-checks (PR-only) + Python build/test + doc upload |
 | `version-bump.yml`               | Push to `main`                | Conventional-Commits → `cargo xtask bump` → commit `chore(release)` → tag `vX.Y.Z` |
-| `release.yml`                    | Tag `v*` push                 | xtask verify → build wheels (manylinux/macOS/Windows) + sdist → GitHub Release with auto-notes → publish-crates → publish-pypi |
+| `release.yml`                    | Tag `v*` push                 | xtask verify → build wheels (manylinux x86_64 + aarch64 / musllinux x86_64 + aarch64 / macOS universal2 / Windows x86_64) + sdist → GitHub Release with auto-notes → publish-crates → publish-pypi |
 | `docs.yml`                       | Push to `main`, tag `v*`      | rustdoc → GitHub Pages |
 
 `release.yml` honors three `workflow_dispatch` inputs for testing:

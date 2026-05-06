@@ -431,12 +431,12 @@ and the rationale for keeping it out of CI.
 ## Releasing
 
 `v*.*.*` git tags trigger a single `release.yml` pipeline that runs
-the verify gate, builds Python wheels (manylinux x86_64, musllinux
-x86_64, macOS universal2, Windows x86_64) + an sdist, creates a
-GitHub Release, publishes the workspace crates to crates.io in
-topological order, and uploads wheels + sdist to PyPI via trusted
-publishing. See [`RELEASING.md`](RELEASING.md) for the end-to-end
-flow.
+the verify gate, builds Python wheels (manylinux x86_64 + aarch64,
+musllinux x86_64 + aarch64, macOS universal2, Windows x86_64) + an
+sdist, creates a GitHub Release, publishes the workspace crates to
+crates.io in topological order, and uploads wheels + sdist to PyPI
+via trusted publishing. See [`RELEASING.md`](RELEASING.md) for the
+end-to-end flow.
 
 ## Learn more
 
