@@ -130,7 +130,9 @@ impl KernelTrace for NvtxKernelTrace {
         let msg = match CString::new(info.op_name) {
             Ok(c) => c,
             // Operation name contained a NUL — fall back to lib_tag.
-            Err(_) => CString::new(info.lib_tag).unwrap_or_else(|_| CString::new("kernel").unwrap()),
+            Err(_) => {
+                CString::new(info.lib_tag).unwrap_or_else(|_| CString::new("kernel").unwrap())
+            }
         };
         let attr = build_event(&msg);
         // Safety: `self.domain.handle` is alive for the lifetime of
@@ -142,12 +144,7 @@ impl KernelTrace for NvtxKernelTrace {
         })
     }
 
-    fn after_complete(
-        &self,
-        _info: &KernelInfo,
-        cookie: Box<dyn Any + Send>,
-        _duration: Duration,
-    ) {
+    fn after_complete(&self, _info: &KernelInfo, cookie: Box<dyn Any + Send>, _duration: Duration) {
         if let Ok(cookie) = cookie.downcast::<NvtxCookie>() {
             // `start` is observed only via the event-pair semantics
             // NVTX captures, but we keep it on the cookie so future

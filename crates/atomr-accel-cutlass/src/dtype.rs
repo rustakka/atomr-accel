@@ -141,7 +141,10 @@ impl SmArch {
     }
 
     pub fn supports_persistent_kernels(self) -> bool {
-        matches!(self, SmArch::Sm90 | SmArch::Sm90a | SmArch::Sm100 | SmArch::Sm120)
+        matches!(
+            self,
+            SmArch::Sm90 | SmArch::Sm90a | SmArch::Sm100 | SmArch::Sm120
+        )
     }
 }
 

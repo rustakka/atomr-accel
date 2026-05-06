@@ -143,8 +143,7 @@ pub fn build_conv_fwd_graph(
     match epilogue {
         EpilogueKind::None => {}
         EpilogueKind::Bias => {
-            let b_uid =
-                g.add_tensor(TensorSpec::new(4, dtype, bias_dims(y_dims), layout));
+            let b_uid = g.add_tensor(TensorSpec::new(4, dtype, bias_dims(y_dims), layout));
             let yb_uid = g.add_tensor(TensorSpec::new(5, dtype, y_dims.to_vec(), layout));
             g.add_op(OpSpec::Pointwise {
                 mode: PointwiseMode::Add,
@@ -157,8 +156,7 @@ pub fn build_conv_fwd_graph(
             });
         }
         EpilogueKind::BiasActivation(act) => {
-            let b_uid =
-                g.add_tensor(TensorSpec::new(4, dtype, bias_dims(y_dims), layout));
+            let b_uid = g.add_tensor(TensorSpec::new(4, dtype, bias_dims(y_dims), layout));
             let yb_uid = g.add_tensor(TensorSpec::new(5, dtype, y_dims.to_vec(), layout));
             g.add_op(OpSpec::Pointwise {
                 mode: PointwiseMode::Add,

@@ -177,10 +177,7 @@ pub struct Fp8Calibrator {
 #[cfg(feature = "tensorrt-fp8")]
 impl Fp8Calibrator {
     pub fn new(batches: Vec<Vec<CalibrationBinding>>) -> Self {
-        Self {
-            batches,
-            cursor: 0,
-        }
+        Self { batches, cursor: 0 }
     }
 }
 

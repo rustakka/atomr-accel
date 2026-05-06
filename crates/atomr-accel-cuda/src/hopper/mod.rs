@@ -52,8 +52,7 @@ pub const ATOMR_HOPPER_HEADER_REL_PATH: &str = "include/atomr_hopper.cuh";
 /// that strip the `include/` directory (e.g. crates.io binary
 /// publication of just the compiled lib).
 pub fn atomr_hopper_header_path() -> Option<std::path::PathBuf> {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(ATOMR_HOPPER_HEADER_REL_PATH);
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(ATOMR_HOPPER_HEADER_REL_PATH);
     if p.exists() {
         Some(p)
     } else {

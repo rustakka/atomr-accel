@@ -130,7 +130,9 @@ pub unsafe fn create_dn_vec<T: CudaDtype>(
     values: *mut std::ffi::c_void,
 ) -> Result<sys_cs::DnVecGuard, GpuError> {
     let mut descr: cs::cusparseDnVecDescr_t = std::ptr::null_mut();
-    let s = cs::cusparseCreateDnVec(&mut descr as *mut _, size, values, unsafe { std::mem::transmute::<u32, cs::cudaDataType_t>(T::cuda_data_type() as u32) });
+    let s = cs::cusparseCreateDnVec(&mut descr as *mut _, size, values, unsafe {
+        std::mem::transmute::<u32, cs::cudaDataType_t>(T::cuda_data_type() as u32)
+    });
     sys_cs::ok(s, "cusparseCreateDnVec")?;
     Ok(sys_cs::DnVecGuard(descr))
 }

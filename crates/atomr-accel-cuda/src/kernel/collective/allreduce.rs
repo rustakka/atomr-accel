@@ -50,13 +50,13 @@ impl<T: NcclReduceSupported> CollectiveDispatch for AllReduceRequest<T> {
                 return;
             }
         };
-        let res = ctx
-            .comm
-            .all_reduce_in_place(&mut owned, &op)
-            .map_err(|e| GpuError::LibraryError {
-                lib: LIB,
-                msg: format!("all_reduce: {e:?}"),
-            });
+        let res =
+            ctx.comm
+                .all_reduce_in_place(&mut owned, &op)
+                .map_err(|e| GpuError::LibraryError {
+                    lib: LIB,
+                    msg: format!("all_reduce: {e:?}"),
+                });
         let _ = reply.send(res.map(|_| ()));
         drop(owned);
     }

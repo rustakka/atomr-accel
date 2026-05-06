@@ -17,9 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let system = ActorSystem::create("atomr-accel-mha-bf16", Config::empty()).await?;
     let _device = system.actor_of(
-        DeviceActor::props(
-            DeviceConfig::new(0).with_libraries(EnabledLibraries::CUDNN),
-        ),
+        DeviceActor::props(DeviceConfig::new(0).with_libraries(EnabledLibraries::CUDNN)),
         "device-0",
     )?;
 

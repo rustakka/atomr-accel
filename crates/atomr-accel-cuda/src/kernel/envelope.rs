@@ -272,9 +272,7 @@ impl KernelEnvelope {
         // closure. The guard drops at the end of this block.
         let enqueue_result = {
             #[cfg(feature = "nvtx")]
-            let _nvtx_guard = self
-                .nvtx_range_name
-                .map(cudarc::nvtx::safe::scoped_range);
+            let _nvtx_guard = self.nvtx_range_name.map(cudarc::nvtx::safe::scoped_range);
             #[cfg(not(feature = "nvtx"))]
             let _ = self.nvtx_range_name;
 
@@ -624,18 +622,9 @@ mod tests {
         );
         assert_eq!(trace.enqueue_ok.load(Ordering::Relaxed), 1);
         assert_eq!(trace.enqueue_err.load(Ordering::Relaxed), 0);
-        assert_eq!(
-            trace.last_op.lock().unwrap().as_deref(),
-            Some("sgemm")
-        );
-        assert_eq!(
-            trace.last_lib.lock().unwrap().as_deref(),
-            Some("cublas")
-        );
-        assert_eq!(
-            trace.last_dtype.lock().unwrap().as_deref(),
-            Some("f32")
-        );
+        assert_eq!(trace.last_op.lock().unwrap().as_deref(), Some("sgemm"));
+        assert_eq!(trace.last_lib.lock().unwrap().as_deref(), Some("cublas"));
+        assert_eq!(trace.last_dtype.lock().unwrap().as_deref(), Some("f32"));
     }
 
     #[test]
@@ -645,9 +634,8 @@ mod tests {
             .with_op_name("conv2d_forward")
             .with_trace(trace.clone() as Arc<dyn KernelTrace>);
 
-        let (enqueue_res, report) = drive_envelope_trace(&env, || {
-            Err(GpuError::Driver("forced".into()))
-        });
+        let (enqueue_res, report) =
+            drive_envelope_trace(&env, || Err(GpuError::Driver("forced".into())));
         assert!(enqueue_res.is_err());
         // Driver errors get annotated to LibraryError.
         match report {

@@ -22,7 +22,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use atomr_core::actor::{Actor, Context, Props};
-use cudarc::driver::sys as driver_sys;
 use cudarc::driver::{CudaContext, CudaEvent, CudaStream};
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
@@ -30,6 +29,8 @@ use tokio::sync::oneshot;
 use crate::error::GpuError;
 #[cfg(feature = "cuda-ipc")]
 use crate::sys::cuda_driver;
+#[cfg(feature = "cuda-ipc")]
+use cudarc::driver::sys as driver_sys;
 
 const LIB: &str = "event";
 
@@ -96,9 +97,7 @@ impl IpcEventHandle {
     pub fn from_bytes(bytes: [u8; 64]) -> Self {
         let raw = driver_sys::CUipcEventHandle_st {
             // SAFETY: `[c_char; 64]` has the same layout as `[u8; 64]`.
-            reserved: unsafe {
-                std::mem::transmute::<[u8; 64], [std::ffi::c_char; 64]>(bytes)
-            },
+            reserved: unsafe { std::mem::transmute::<[u8; 64], [std::ffi::c_char; 64]>(bytes) },
         };
         Self { raw }
     }
@@ -269,12 +268,12 @@ fn handle_real(ctx: &Arc<CudaContext>, msg: EventMsg) {
     match msg {
         EventMsg::Create { reply } => {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                ctx.new_event(None).map(Event::from_cuda).map_err(|e| {
-                    GpuError::LibraryError {
+                ctx.new_event(None)
+                    .map(Event::from_cuda)
+                    .map_err(|e| GpuError::LibraryError {
                         lib: LIB,
                         msg: format!("new_event: {e}"),
-                    }
-                })
+                    })
             }))
             .unwrap_or_else(|_| {
                 Err(GpuError::Unrecoverable(
@@ -283,7 +282,11 @@ fn handle_real(ctx: &Arc<CudaContext>, msg: EventMsg) {
             });
             let _ = reply.send(r);
         }
-        EventMsg::Record { event, stream, reply } => {
+        EventMsg::Record {
+            event,
+            stream,
+            reply,
+        } => {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 event
                     .cuda_event()
@@ -300,7 +303,11 @@ fn handle_real(ctx: &Arc<CudaContext>, msg: EventMsg) {
             });
             let _ = reply.send(r);
         }
-        EventMsg::Wait { event, stream, reply } => {
+        EventMsg::Wait {
+            event,
+            stream,
+            reply,
+        } => {
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 stream
                     .wait(event.cuda_event())

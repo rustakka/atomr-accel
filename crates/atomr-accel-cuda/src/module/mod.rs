@@ -305,7 +305,10 @@ fn get_function(
 ) -> Result<FunctionHandle, GpuError> {
     let mut g = modules.lock();
     let m = g.get_mut(&handle.id).ok_or_else(|| {
-        GpuError::Unrecoverable(format!("ModuleActor::GetFunction: unknown module {}", handle.id))
+        GpuError::Unrecoverable(format!(
+            "ModuleActor::GetFunction: unknown module {}",
+            handle.id
+        ))
     })?;
     let cname = CString::new(name).map_err(|e| {
         GpuError::Unrecoverable(format!("ModuleActor::GetFunction: NUL in name: {e}"))
@@ -407,7 +410,7 @@ enum KernelArgScratch {
 impl KernelArgScratch {
     fn from_arg(
         arg: KernelArg,
-        keep_alive: &mut Vec<Arc<cudarc::driver::CudaSlice<u8>>>,
+        _keep_alive: &mut Vec<Arc<cudarc::driver::CudaSlice<u8>>>,
     ) -> Result<Self, GpuError> {
         // We only need the device pointer for the launch; the keep_alive
         // vec holds the Arc<CudaSlice> so the allocation stays live.

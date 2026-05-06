@@ -35,14 +35,6 @@ pub mod spmm;
 pub mod spmv;
 pub mod spsv;
 
-pub use convert::{ConvertKind, ConvertRequest, ConvertResult};
-pub use format::{SparseFormat, SparseMatrix};
-pub use sddmm::SddmmRequest;
-pub use spgemm::{SpGemmRequest, SpGemmResult};
-pub use spmm::{DenseOrder, SpMmRequest};
-pub use spmv::{SpMvOp, SpMvRequest};
-pub use spsv::{SpSvDiag, SpSvFill, SpSvRequest};
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -193,7 +185,8 @@ impl Actor for SparseActor {
                 completion,
                 workspace,
                 ..
-            } => {
+            } =>
+            {
                 #[allow(deprecated)]
                 match msg {
                     SparseMsg::Op(op) => {
@@ -784,34 +777,38 @@ mod tests {
 
         // Compile-only: the enum variant is constructible by name.
         fn _assemble<F>(_f: F) {}
-        _assemble(|csr: CsrMatrix,
-                   x: GpuRef<f32>,
-                   y: GpuRef<f32>,
-                   reply: oneshot::Sender<Result<(), GpuError>>| {
-            SparseMsg::SpMv {
-                csr,
-                x,
-                y,
-                alpha: 1.0,
-                beta: 0.0,
-                reply,
-            }
-        });
-        _assemble(|csr: CsrMatrix,
-                   b: GpuRef<f32>,
-                   c: GpuRef<f32>,
-                   reply: oneshot::Sender<Result<(), GpuError>>| {
-            SparseMsg::SpMm {
-                csr,
-                b,
-                c,
-                b_cols: 1,
-                ldb: 1,
-                ldc: 1,
-                alpha: 1.0,
-                beta: 0.0,
-                reply,
-            }
-        });
+        _assemble(
+            |csr: CsrMatrix,
+             x: GpuRef<f32>,
+             y: GpuRef<f32>,
+             reply: oneshot::Sender<Result<(), GpuError>>| {
+                SparseMsg::SpMv {
+                    csr,
+                    x,
+                    y,
+                    alpha: 1.0,
+                    beta: 0.0,
+                    reply,
+                }
+            },
+        );
+        _assemble(
+            |csr: CsrMatrix,
+             b: GpuRef<f32>,
+             c: GpuRef<f32>,
+             reply: oneshot::Sender<Result<(), GpuError>>| {
+                SparseMsg::SpMm {
+                    csr,
+                    b,
+                    c,
+                    b_cols: 1,
+                    ldb: 1,
+                    ldc: 1,
+                    alpha: 1.0,
+                    beta: 0.0,
+                    reply,
+                }
+            },
+        );
     }
 }

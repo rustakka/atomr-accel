@@ -26,9 +26,10 @@ use cudarc::curand::sys;
 /// Public mirror of [`sys::curandRngType_t`] so callers don't have to
 /// take a `cudarc::curand::sys::*` symbol on their public API. The
 /// numeric values match cuRAND.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub enum RngGeneratorKind {
     /// `CURAND_RNG_PSEUDO_DEFAULT` — XORWOW today; defined by cuRAND.
+    #[default]
     PseudoDefault,
     /// `CURAND_RNG_PSEUDO_PHILOX4_32_10`. Recommended high-quality
     /// pseudo-RNG. Counter-based, friendly to SIMD/SIMT.
@@ -80,12 +81,6 @@ impl RngGeneratorKind {
             Self::Sobol64 => sys::curandRngType_t::CURAND_RNG_QUASI_SOBOL64,
             Self::ScrambledSobol64 => sys::curandRngType_t::CURAND_RNG_QUASI_SCRAMBLED_SOBOL64,
         }
-    }
-}
-
-impl Default for RngGeneratorKind {
-    fn default() -> Self {
-        Self::PseudoDefault
     }
 }
 

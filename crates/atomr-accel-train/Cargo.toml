@@ -16,8 +16,8 @@ description = "Distributed training blueprints on atomr-accel-cuda: DataParallel
 atomr-core         = { workspace = true }
 atomr-config       = { workspace = true }
 atomr-macros       = { workspace = true }
-atomr-accel-cuda         = { path = "../atomr-accel-cuda", version = "0.3.0" }
-atomr-accel-patterns = { path = "../atomr-accel-patterns", version = "0.3.0" }
+atomr-accel-cuda         = { path = "../atomr-accel-cuda", version = "0.3.1" }
+atomr-accel-patterns = { path = "../atomr-accel-patterns", version = "0.3.1" }
 async-trait        = { workspace = true }
 tokio              = { workspace = true }
 parking_lot        = { workspace = true }

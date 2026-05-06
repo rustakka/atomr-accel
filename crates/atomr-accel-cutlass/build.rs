@@ -44,8 +44,7 @@ fn main() {
         }
     }
 
-    let prebuilt_requested =
-        std::env::var_os("CARGO_FEATURE_CUTLASS_PREBUILT").is_some();
+    let prebuilt_requested = std::env::var_os("CARGO_FEATURE_CUTLASS_PREBUILT").is_some();
 
     if !prebuilt_requested {
         // Strategy A — nothing more to do.

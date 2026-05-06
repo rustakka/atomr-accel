@@ -14,12 +14,12 @@
 use std::ffi::c_void;
 use std::ptr;
 
+#[cfg(test)]
+use cudarc::cublaslt::sys::cublasLtMatmulDescOpaque_t;
 use cudarc::cublaslt::sys::{
     cublasLtMatmulDescAttributes_t, cublasLtMatmulDesc_t, cublasLtMatmulPreferenceAttributes_t,
     cublasLtMatmulPreferenceOpaque_t, cublasLtMatmulPreference_t, cublasStatus_t,
 };
-#[cfg(test)]
-use cudarc::cublaslt::sys::cublasLtMatmulDescOpaque_t;
 
 /// Map a `cublasStatus_t` into an `Err(String)` for the cuBLASLt
 /// status codes we care about. We don't go through `CublasError` here

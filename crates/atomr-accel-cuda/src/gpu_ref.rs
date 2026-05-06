@@ -157,8 +157,7 @@ impl<T> GpuRef<T> {
         // count returns to 1 — which `Box::leak` of the surrounding
         // request guarantees never happens.
         use std::mem::MaybeUninit;
-        let boxed: Box<MaybeUninit<cudarc::driver::CudaSlice<T>>> =
-            Box::new(MaybeUninit::uninit());
+        let boxed: Box<MaybeUninit<cudarc::driver::CudaSlice<T>>> = Box::new(MaybeUninit::uninit());
         let leaked: *mut MaybeUninit<cudarc::driver::CudaSlice<T>> = Box::into_raw(boxed);
         // SAFETY: the pointer is valid (just-allocated heap) and we
         // forge an Arc whose strong count is 1. The contract above

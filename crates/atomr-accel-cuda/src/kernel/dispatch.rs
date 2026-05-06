@@ -32,7 +32,6 @@
 //! variant.
 
 use std::any::Any;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use cudarc::driver::{CudaSlice, DeviceRepr, LaunchArgs, PushKernelArg};
@@ -460,26 +459,39 @@ mod cutensor_dispatch {
 
     impl WorkspacePool {
         pub fn new(stream: Arc<cudarc::driver::CudaStream>) -> Self {
-            Self { stream, buckets: Mutex::new(Vec::new()) }
+            Self {
+                stream,
+                buckets: Mutex::new(Vec::new()),
+            }
         }
 
         pub fn ensure(&self, n: usize) -> Result<usize, GpuError> {
-            if n == 0 { return Ok(0); }
+            if n == 0 {
+                return Ok(0);
+            }
             let bucket_size = n.next_power_of_two();
             let mut g = self.buckets.lock();
             if g.iter().any(|b| b.size == bucket_size) {
                 return Ok(bucket_size);
             }
-            let slice = self.stream.alloc_zeros::<u8>(bucket_size)
+            let slice = self
+                .stream
+                .alloc_zeros::<u8>(bucket_size)
                 .map_err(|e| GpuError::OutOfMemory(format!("cutensor workspace: {e}")))?;
-            g.push(Bucket { size: bucket_size, slice });
+            g.push(Bucket {
+                size: bucket_size,
+                slice,
+            });
             Ok(bucket_size)
         }
 
         pub fn with_bucket<F, R>(&self, n: usize, f: F) -> Option<R>
-        where F: FnOnce(&mut cudarc::driver::CudaSlice<u8>) -> R,
+        where
+            F: FnOnce(&mut cudarc::driver::CudaSlice<u8>) -> R,
         {
-            if n == 0 { return None; }
+            if n == 0 {
+                return None;
+            }
             let bucket_size = n.next_power_of_two();
             let mut g = self.buckets.lock();
             let b = g.iter_mut().find(|b| b.size == bucket_size)?;
@@ -550,8 +562,7 @@ mod tests {
             self.d
         }
         fn dispatch(self: Box<Self>, _ctx: &NvrtcDispatchCtx<'_>) {
-            self.called
-                .store(true, std::sync::atomic::Ordering::SeqCst);
+            self.called.store(true, std::sync::atomic::Ordering::SeqCst);
         }
     }
 

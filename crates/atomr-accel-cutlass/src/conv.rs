@@ -251,7 +251,8 @@ mod tests {
         assert_eq!(wgrad.kind_name(), "wgrad");
 
         // Layout swap changes the key.
-        let fwd_nchw = ConvFwdRequest::<F16>::new(shape, SmArch::Sm80).with_layout(ConvLayout::Nchw);
+        let fwd_nchw =
+            ConvFwdRequest::<F16>::new(shape, SmArch::Sm80).with_layout(ConvLayout::Nchw);
         assert_ne!(fwd.plan_key(), fwd_nchw.plan_key());
     }
 }

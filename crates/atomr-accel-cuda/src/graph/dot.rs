@@ -47,9 +47,7 @@ pub fn export_dot(graph: &GraphHandle, flags: DotFlags) -> Result<String, GpuErr
         // C string.
         unsafe { driver_sys::cuGraphDebugDotPrint(cu_graph, cpath.as_ptr(), flags.bits()) }
     }))
-    .map_err(|_| {
-        GpuError::Unrecoverable("export_dot: CUDA driver not loadable".into())
-    })?;
+    .map_err(|_| GpuError::Unrecoverable("export_dot: CUDA driver not loadable".into()))?;
     if s != driver_sys::cudaError_enum::CUDA_SUCCESS {
         return Err(GpuError::LibraryError {
             lib: LIB,

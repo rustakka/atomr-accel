@@ -177,10 +177,7 @@ mod tests {
         for op in ops {
             for dt in dtypes {
                 let k = crate::kernel_key(op.op_name(), dt);
-                assert!(
-                    seen.insert(k.clone()),
-                    "kernel_key collision: {k}"
-                );
+                assert!(seen.insert(k.clone()), "kernel_key collision: {k}");
             }
         }
         assert_eq!(seen.len(), ops.len() * dtypes.len());

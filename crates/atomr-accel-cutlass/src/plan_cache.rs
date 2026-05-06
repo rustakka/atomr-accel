@@ -348,7 +348,7 @@ mod tests {
         // PlanKey size is 4 bytes (template_id padded) + 24 bytes
         // payload — guarded so a future struct-layout change can't
         // accidentally explode the cache memory budget.
-        assert!(PlanKey::SIZE_BYTES <= 64);
+        const _: () = assert!(PlanKey::SIZE_BYTES <= 64);
 
         // Distinct shapes -> distinct keys.
         assert_ne!(k(1), k(2));

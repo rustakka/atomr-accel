@@ -786,8 +786,8 @@ mod tests {
             | EnabledLibraries::FLASHATTN
             | EnabledLibraries::TELEMETRY;
         let bits = original.bits();
-        let restored = EnabledLibraries::from_bits(bits)
-            .expect("known bits round-trip through from_bits");
+        let restored =
+            EnabledLibraries::from_bits(bits).expect("known bits round-trip through from_bits");
         assert_eq!(original, restored);
         assert!(restored.contains(EnabledLibraries::FLASHATTN));
         assert!(!restored.contains(EnabledLibraries::CUDNN));
@@ -857,10 +857,7 @@ mod tests {
         register(&extras, TensorRtRef("trt"));
 
         assert_eq!(lookup::<CutlassRef>(&extras), Some(CutlassRef(7)));
-        assert_eq!(
-            lookup::<TensorRtRef>(&extras),
-            Some(TensorRtRef("trt"))
-        );
+        assert_eq!(lookup::<TensorRtRef>(&extras), Some(TensorRtRef("trt")));
         // Unregistered type returns None.
         #[derive(Clone)]
         struct Unknown;
@@ -903,10 +900,7 @@ mod tests {
         struct FakeCutlassRef(u64);
         children.register_extra(FakeCutlassRef(42));
         assert_eq!(children.extras_len(), 1);
-        assert_eq!(
-            children.extra::<FakeCutlassRef>(),
-            Some(FakeCutlassRef(42))
-        );
+        assert_eq!(children.extra::<FakeCutlassRef>(), Some(FakeCutlassRef(42)));
         // Clones share the same extras map (Arc<RwLock<…>> inside).
         let cloned = children.clone();
         assert_eq!(cloned.extras_len(), 1);

@@ -4,6 +4,7 @@
 //!   mode (since the mock ContextActor doesn't have a stream).
 //! - The legacy `Allocate` alias still works.
 //! - `Stats` and `SnapshotContext` reply meaningful values.
+#![allow(deprecated)]
 
 use std::time::Duration;
 use tokio::sync::oneshot;

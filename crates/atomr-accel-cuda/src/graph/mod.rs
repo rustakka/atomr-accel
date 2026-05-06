@@ -78,7 +78,10 @@ pub struct MockGraphRecordCtx {
 
 impl MockGraphRecordCtx {
     pub fn new(parent_graph: driver_sys::CUgraph) -> Self {
-        Self { parent_graph, stream: None }
+        Self {
+            parent_graph,
+            stream: None,
+        }
     }
 
     pub fn with_stream(mut self, stream: Arc<cudarc::driver::CudaStream>) -> Self {

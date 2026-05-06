@@ -337,7 +337,8 @@ pub(crate) fn build_plan<T: TensorSupported>(
     algo: Option<ct_sys::cutensorAlgo_t>,
 ) -> Result<CachedPlan, GpuError> {
     let h = handle.lock();
-    let dt: cudarc::cutensor::sys::cudaDataType_t = unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
+    let dt: cudarc::cutensor::sys::cudaDataType_t =
+        unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
     let cd = resolve_compute_desc(compute);
 
     let stride_ptr = |v: &Vec<i64>| {
@@ -433,7 +434,11 @@ pub(crate) fn build_plan<T: TensorSupported>(
 
     let chosen_algo = algo.unwrap_or(ct_sys::cutensorAlgo_t::CUTENSOR_ALGO_DEFAULT);
     let pref = unsafe {
-        ct_result::create_plan_preference(h.0, chosen_algo, ct_sys::cutensorJitMode_t::CUTENSOR_JIT_MODE_NONE)
+        ct_result::create_plan_preference(
+            h.0,
+            chosen_algo,
+            ct_sys::cutensorJitMode_t::CUTENSOR_JIT_MODE_NONE,
+        )
     }
     .map_err(|e| {
         unsafe {
@@ -517,7 +522,10 @@ mod tests {
         );
         assert_eq!(key32.dtype_tag, "f32");
         assert_eq!(key32.op_kind, OpKind::Contract);
-        assert_eq!(key32.compute_desc_tag, compute_desc_tag(ComputeDesc::MinF32));
+        assert_eq!(
+            key32.compute_desc_tag,
+            compute_desc_tag(ComputeDesc::MinF32)
+        );
 
         let key64 = build_contract_key(
             <f64 as atomr_accel::AccelDtype>::NAME,
@@ -537,8 +545,14 @@ mod tests {
         assert_ne!(key32, key64);
 
         // Default compute descriptor per dtype.
-        assert_eq!(default_compute_for::<f32>().tag(), ComputeDesc::MinF32.tag());
-        assert_eq!(default_compute_for::<f64>().tag(), ComputeDesc::MinF64.tag());
+        assert_eq!(
+            default_compute_for::<f32>().tag(),
+            ComputeDesc::MinF32.tag()
+        );
+        assert_eq!(
+            default_compute_for::<f64>().tag(),
+            ComputeDesc::MinF64.tag()
+        );
 
         #[cfg(feature = "f16")]
         {

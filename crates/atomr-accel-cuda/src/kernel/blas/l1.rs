@@ -73,7 +73,7 @@ where
             // Scope the SyncOnDrop guards so they release the
             // borrow on x_slice/y_owned before we move them into
             // the keep-alive tuple.
-            let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
             let (y_ptr, _y_rec) = y_owned.device_ptr_mut(&stream);
             // SAFETY: handle valid; pointers/length come from a
             // generation-checked GpuRef.
@@ -311,37 +311,30 @@ where
     // We drive a manual variant of run_kernel so the success arm can
     // forward the host-side scalar back to the caller.
     let (inner_tx, inner_rx) = oneshot::channel::<Result<(), GpuError>>();
-    envelope::run_kernel(
-        LIB,
-        ctx.stream,
-        ctx.completion,
-        (),
-        inner_tx,
-        move || {
-            let res = {
-                let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
-                // SAFETY: result_ptr is a valid host pointer to
-                // T::Scalar; the stream callback fires after the
-                // kernel has populated it.
-                unsafe {
-                    syscublas::nrm2_ex(
-                        *cublas.handle(),
-                        n,
-                        x_ptr,
-                        T::cuda_data_type(),
-                        incx,
-                        result_ptr,
-                        scalar_dt,
-                        exec_dt,
-                    )
-                }
-            };
-            match res {
-                Ok(()) => Ok((cublas, x_slice)),
-                Err(e) => Err(e),
+    envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), inner_tx, move || {
+        let res = {
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
+            // SAFETY: result_ptr is a valid host pointer to
+            // T::Scalar; the stream callback fires after the
+            // kernel has populated it.
+            unsafe {
+                syscublas::nrm2_ex(
+                    *cublas.handle(),
+                    n,
+                    x_ptr,
+                    T::cuda_data_type(),
+                    incx,
+                    result_ptr,
+                    scalar_dt,
+                    exec_dt,
+                )
             }
-        },
-    );
+        };
+        match res {
+            Ok(()) => Ok((cublas, x_slice)),
+            Err(e) => Err(e),
+        }
+    });
     let _ = stream_for_kernel; // silence unused while the pattern matches the other ops
     let _ = completion;
     tokio::spawn(async move {
@@ -424,38 +417,31 @@ where
 
     let final_reply = reply;
     let (inner_tx, inner_rx) = oneshot::channel::<Result<(), GpuError>>();
-    envelope::run_kernel(
-        LIB,
-        ctx.stream,
-        ctx.completion,
-        (),
-        inner_tx,
-        move || {
-            let res = {
-                let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
-                let (y_ptr, _y_rec) = (&*y_slice).device_ptr(&stream);
-                unsafe {
-                    syscublas::dot_ex(
-                        *cublas.handle(),
-                        n,
-                        x_ptr,
-                        T::cuda_data_type(),
-                        incx,
-                        y_ptr,
-                        T::cuda_data_type(),
-                        incy,
-                        result_ptr,
-                        scalar_dt,
-                        exec_dt,
-                    )
-                }
-            };
-            match res {
-                Ok(()) => Ok((cublas, x_slice, y_slice)),
-                Err(e) => Err(e),
+    envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), inner_tx, move || {
+        let res = {
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
+            let (y_ptr, _y_rec) = (*y_slice).device_ptr(&stream);
+            unsafe {
+                syscublas::dot_ex(
+                    *cublas.handle(),
+                    n,
+                    x_ptr,
+                    T::cuda_data_type(),
+                    incx,
+                    y_ptr,
+                    T::cuda_data_type(),
+                    incy,
+                    result_ptr,
+                    scalar_dt,
+                    exec_dt,
+                )
             }
-        },
-    );
+        };
+        match res {
+            Ok(()) => Ok((cublas, x_slice, y_slice)),
+            Err(e) => Err(e),
+        }
+    });
     tokio::spawn(async move {
         match inner_rx.await {
             Ok(Ok(())) => {
@@ -525,34 +511,27 @@ where
     let exec_dt = T::cuda_data_type();
     let final_reply = reply;
     let (inner_tx, inner_rx) = oneshot::channel::<Result<(), GpuError>>();
-    envelope::run_kernel(
-        LIB,
-        ctx.stream,
-        ctx.completion,
-        (),
-        inner_tx,
-        move || {
-            let res = {
-                let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
-                unsafe {
-                    syscublas::asum_ex(
-                        *cublas.handle(),
-                        n,
-                        x_ptr,
-                        T::cuda_data_type(),
-                        incx,
-                        result_ptr,
-                        scalar_dt,
-                        exec_dt,
-                    )
-                }
-            };
-            match res {
-                Ok(()) => Ok((cublas, x_slice)),
-                Err(e) => Err(e),
+    envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), inner_tx, move || {
+        let res = {
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
+            unsafe {
+                syscublas::asum_ex(
+                    *cublas.handle(),
+                    n,
+                    x_ptr,
+                    T::cuda_data_type(),
+                    incx,
+                    result_ptr,
+                    scalar_dt,
+                    exec_dt,
+                )
             }
-        },
-    );
+        };
+        match res {
+            Ok(()) => Ok((cublas, x_slice)),
+            Err(e) => Err(e),
+        }
+    });
     tokio::spawn(async move {
         match inner_rx.await {
             Ok(Ok(())) => {
@@ -626,45 +605,38 @@ where
     let result_ptr = (&mut *result_box) as *mut i32;
     let final_reply = reply;
     let (inner_tx, inner_rx) = oneshot::channel::<Result<(), GpuError>>();
-    envelope::run_kernel(
-        LIB,
-        ctx.stream,
-        ctx.completion,
-        (),
-        inner_tx,
-        move || {
-            let res = {
-                let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
-                if find_min {
-                    unsafe {
-                        syscublas::iamin_ex(
-                            *cublas.handle(),
-                            n,
-                            x_ptr,
-                            T::cuda_data_type(),
-                            incx,
-                            result_ptr,
-                        )
-                    }
-                } else {
-                    unsafe {
-                        syscublas::iamax_ex(
-                            *cublas.handle(),
-                            n,
-                            x_ptr,
-                            T::cuda_data_type(),
-                            incx,
-                            result_ptr,
-                        )
-                    }
+    envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), inner_tx, move || {
+        let res = {
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
+            if find_min {
+                unsafe {
+                    syscublas::iamin_ex(
+                        *cublas.handle(),
+                        n,
+                        x_ptr,
+                        T::cuda_data_type(),
+                        incx,
+                        result_ptr,
+                    )
                 }
-            };
-            match res {
-                Ok(()) => Ok((cublas, x_slice)),
-                Err(e) => Err(e),
+            } else {
+                unsafe {
+                    syscublas::iamax_ex(
+                        *cublas.handle(),
+                        n,
+                        x_ptr,
+                        T::cuda_data_type(),
+                        incx,
+                        result_ptr,
+                    )
+                }
             }
-        },
-    );
+        };
+        match res {
+            Ok(()) => Ok((cublas, x_slice)),
+            Err(e) => Err(e),
+        }
+    });
     tokio::spawn(async move {
         match inner_rx.await {
             Ok(Ok(())) => {
@@ -715,12 +687,7 @@ impl BlasL1Dispatch for IaminRequest<f32> {
         // IaminRequest<T> has the same field shape as IamaxRequest<T>;
         // collapse via a helper.
         let IaminRequest { n, x, incx, reply } = *self;
-        let req = IamaxRequest::<f32> {
-            n,
-            x,
-            incx,
-            reply,
-        };
+        let req = IamaxRequest::<f32> { n, x, incx, reply };
         dispatch_iamax_impl::<f32>(req, ctx, true);
     }
 }
@@ -734,12 +701,7 @@ impl BlasL1Dispatch for IaminRequest<f64> {
     }
     fn dispatch(self: Box<Self>, ctx: &BlasDispatchCtx<'_>) {
         let IaminRequest { n, x, incx, reply } = *self;
-        let req = IamaxRequest::<f64> {
-            n,
-            x,
-            incx,
-            reply,
-        };
+        let req = IamaxRequest::<f64> { n, x, incx, reply };
         dispatch_iamax_impl::<f64>(req, ctx, true);
     }
 }
@@ -788,7 +750,7 @@ where
     let stream = ctx.stream.clone();
     envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), reply, move || {
         let res = {
-            let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
             let (y_ptr, _y_rec) = y_owned.device_ptr_mut(&stream);
             unsafe {
                 syscublas::copy_ex(
@@ -1086,8 +1048,8 @@ fn scalar_data_type<T: CudaDtype>() -> cudarc::cublas::sys::cudaDataType_t {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::gemm::tests_helpers::gpu_ref_stub;
+    use super::*;
     use tokio::sync::oneshot;
 
     #[test]

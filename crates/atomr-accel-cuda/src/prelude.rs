@@ -20,22 +20,22 @@ pub use crate::graph::{
 pub use crate::host::{
     PinnedBuf, PinnedBufferPool, PinnedBufferPoolConfig, PinnedPoolMsg, PinnedPoolStats,
 };
+#[cfg(feature = "cublaslt")]
+pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
+#[cfg(feature = "nccl")]
+pub use crate::kernel::dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
+#[cfg(feature = "cudnn")]
+pub use crate::kernel::dispatch::{CudnnDispatch, CudnnDispatchCtx};
 pub use crate::kernel::dispatch::{
     DevSliceArg, GemmDispatch, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch,
     ScalarArg,
 };
-#[cfg(feature = "cusparse")]
-pub use crate::kernel::dispatch::{SparseDispatch, SparseDispatchCtx, SendSparseHandle, SparseOp};
-#[cfg(feature = "cublaslt")]
-pub use crate::kernel::dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
-#[cfg(feature = "cudnn")]
-pub use crate::kernel::dispatch::{CudnnDispatch, CudnnDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use crate::kernel::dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "cusparse")]
+pub use crate::kernel::dispatch::{SendSparseHandle, SparseDispatch, SparseDispatchCtx, SparseOp};
 #[cfg(feature = "cutensor")]
 pub use crate::kernel::dispatch::{TensorDispatch, TensorDispatchCtx};
-#[cfg(feature = "nccl")]
-pub use crate::kernel::dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 pub use crate::kernel::envelope;
 pub use crate::kernel::record::RecordMode;
 pub use crate::kernel::{BlasActor, BlasMsg};
@@ -73,14 +73,14 @@ pub use crate::kernel::{CsrMatrix, SparseActor, SparseMsg};
 pub use crate::dtype::TensorSupported;
 #[cfg(feature = "cutensor")]
 pub use crate::kernel::{
-    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
-    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest, OperandSpec,
+    PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
 };
 
 #[cfg(feature = "cublaslt")]
 pub use crate::kernel::{
-    Activation, BlasLtActor, BlasLtMsg, Epilogue, HeuristicCacheRef, MatmulRequest, ScaleSet,
-    BlasLtWorkspacePool,
+    Activation, BlasLtActor, BlasLtMsg, BlasLtWorkspacePool, Epilogue, HeuristicCacheRef,
+    MatmulRequest, ScaleSet,
 };
 
 #[cfg(feature = "nvrtc")]
@@ -89,8 +89,8 @@ pub use crate::kernel::{KernelArg, KernelHandle, NvrtcActor, NvrtcMsg, NvrtcOpts
 #[cfg(feature = "nccl")]
 pub use crate::kernel::{
     AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
-    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
-    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported, PreMulSumOp,
+    RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
 };
 #[cfg(feature = "nccl")]
 pub use crate::multi_device::{NcclWorldActor, NcclWorldConfig, NcclWorldMsg};
@@ -113,8 +113,8 @@ pub use crate::kernel::{
 
 #[cfg(feature = "cufft")]
 pub use crate::kernel::{
-    FftActor, FftCallbackKind, FftDirection, FftKind, FftMsg, FftPlan, FftPlanMany,
-    FftRequest, PlanKey,
+    FftActor, FftCallbackKind, FftDirection, FftKind, FftMsg, FftPlan, FftPlanMany, FftRequest,
+    PlanKey,
 };
 
 #[cfg(feature = "curand")]

@@ -24,21 +24,21 @@ pub mod dispatch;
 pub mod envelope;
 pub mod record;
 
+#[cfg(feature = "cublaslt")]
+pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
+#[cfg(feature = "nccl")]
+pub use dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
+#[cfg(feature = "cudnn")]
+pub use dispatch::{CudnnDispatch, CudnnDispatchCtx};
 pub use dispatch::{
     DevSliceArg, GemmDispatchCtx, NvrtcDispatchCtx, NvrtcLaunchDispatch, RngDispatch, ScalarArg,
 };
-#[cfg(feature = "cusparse")]
-pub use dispatch::{SparseDispatch, SparseDispatchCtx, SendSparseHandle, SparseOp};
-#[cfg(feature = "cublaslt")]
-pub use dispatch::{BlasLtDispatch, BlasLtDispatchCtx};
-#[cfg(feature = "cudnn")]
-pub use dispatch::{CudnnDispatch, CudnnDispatchCtx};
 #[cfg(feature = "cufft")]
 pub use dispatch::{FftDispatch, FftDispatchCtx};
+#[cfg(feature = "cusparse")]
+pub use dispatch::{SendSparseHandle, SparseDispatch, SparseDispatchCtx, SparseOp};
 #[cfg(feature = "cutensor")]
 pub use dispatch::{TensorDispatch, TensorDispatchCtx, WorkspacePool};
-#[cfg(feature = "nccl")]
-pub use dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 
 pub mod blas;
 
@@ -104,8 +104,8 @@ pub mod collective;
 #[cfg(feature = "nccl")]
 pub use collective::{
     AllGatherRequest, AllReduceRequest, AllToAllRequest, AllToAllvRequest, BroadcastRequest,
-    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported,
-    PreMulSumOp, RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
+    CollectiveActor, CollectiveMsg, GroupGuard, NcclCapabilities, NcclReduceSupported, PreMulSumOp,
+    RecvRequest, ReduceOp, ReduceRequest, ReduceScatterRequest, SendRequest,
 };
 
 #[cfg(feature = "cusparse")]
@@ -117,6 +117,6 @@ pub use sparse::{CsrMatrix, SparseActor, SparseMsg};
 pub mod tensor;
 #[cfg(feature = "cutensor")]
 pub use tensor::{
-    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest,
-    OperandSpec, PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
+    ComputeDesc, ContractRequest, ElementwiseBinaryRequest, ElementwiseTrinaryRequest, OperandSpec,
+    PermutationRequest, ReductionRequest, TensorActor, TensorMsg, TensorSpec,
 };

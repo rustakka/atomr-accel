@@ -175,8 +175,19 @@ pub unsafe fn sgeam(
     ldc: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasSgeam(
-        handle, transa, transb, m, n, alpha, a as *const _, lda, beta, b as *const _, ldb,
-        c as *mut _, ldc,
+        handle,
+        transa,
+        transb,
+        m,
+        n,
+        alpha,
+        a as *const _,
+        lda,
+        beta,
+        b as *const _,
+        ldb,
+        c as *mut _,
+        ldc,
     );
     check(status, "cublasSgeam")
 }
@@ -198,8 +209,19 @@ pub unsafe fn dgeam(
     ldc: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasDgeam(
-        handle, transa, transb, m, n, alpha, a as *const _, lda, beta, b as *const _, ldb,
-        c as *mut _, ldc,
+        handle,
+        transa,
+        transb,
+        m,
+        n,
+        alpha,
+        a as *const _,
+        lda,
+        beta,
+        b as *const _,
+        ldb,
+        c as *mut _,
+        ldc,
     );
     check(status, "cublasDgeam")
 }
@@ -219,7 +241,17 @@ pub unsafe fn ssyrk(
     ldc: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasSsyrk_v2(
-        handle, uplo, trans, n, k, alpha, a as *const _, lda, beta, c as *mut _, ldc,
+        handle,
+        uplo,
+        trans,
+        n,
+        k,
+        alpha,
+        a as *const _,
+        lda,
+        beta,
+        c as *mut _,
+        ldc,
     );
     check(status, "cublasSsyrk_v2")
 }
@@ -239,7 +271,17 @@ pub unsafe fn dsyrk(
     ldc: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasDsyrk_v2(
-        handle, uplo, trans, n, k, alpha, a as *const _, lda, beta, c as *mut _, ldc,
+        handle,
+        uplo,
+        trans,
+        n,
+        k,
+        alpha,
+        a as *const _,
+        lda,
+        beta,
+        c as *mut _,
+        ldc,
     );
     check(status, "cublasDsyrk_v2")
 }
@@ -260,7 +302,18 @@ pub unsafe fn strsm(
     ldb: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasStrsm_v2(
-        handle, side, uplo, trans, diag, m, n, alpha, a as *const _, lda, b as *mut _, ldb,
+        handle,
+        side,
+        uplo,
+        trans,
+        diag,
+        m,
+        n,
+        alpha,
+        a as *const _,
+        lda,
+        b as *mut _,
+        ldb,
     );
     check(status, "cublasStrsm_v2")
 }
@@ -281,7 +334,18 @@ pub unsafe fn dtrsm(
     ldb: c_int,
 ) -> Result<(), GpuError> {
     let status = sys::cublasDtrsm_v2(
-        handle, side, uplo, trans, diag, m, n, alpha, a as *const _, lda, b as *mut _, ldb,
+        handle,
+        side,
+        uplo,
+        trans,
+        diag,
+        m,
+        n,
+        alpha,
+        a as *const _,
+        lda,
+        b as *mut _,
+        ldb,
     );
     check(status, "cublasDtrsm_v2")
 }
@@ -579,7 +643,16 @@ pub unsafe fn copy_ex(
     y_type: cudaDataType,
     incy: c_int,
 ) -> Result<(), GpuError> {
-    let status = sys::cublasCopyEx(handle, n, x as *const _, x_type, incx, y as *mut _, y_type, incy);
+    let status = sys::cublasCopyEx(
+        handle,
+        n,
+        x as *const _,
+        x_type,
+        incx,
+        y as *mut _,
+        y_type,
+        incy,
+    );
     check(status, "cublasCopyEx")
 }
 
@@ -594,7 +667,16 @@ pub unsafe fn swap_ex(
     y_type: cudaDataType,
     incy: c_int,
 ) -> Result<(), GpuError> {
-    let status = sys::cublasSwapEx(handle, n, x as *mut _, x_type, incx, y as *mut _, y_type, incy);
+    let status = sys::cublasSwapEx(
+        handle,
+        n,
+        x as *mut _,
+        x_type,
+        incx,
+        y as *mut _,
+        y_type,
+        incy,
+    );
     check(status, "cublasSwapEx")
 }
 

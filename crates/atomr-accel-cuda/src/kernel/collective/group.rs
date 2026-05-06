@@ -88,12 +88,10 @@ impl GroupGuard {
         if self.inert {
             return Ok(());
         }
-        group_end()
-            .map(|_| ())
-            .map_err(|e| GpuError::LibraryError {
-                lib: LIB,
-                msg: format!("group_end: {e:?}"),
-            })
+        group_end().map(|_| ()).map_err(|e| GpuError::LibraryError {
+            lib: LIB,
+            msg: format!("group_end: {e:?}"),
+        })
     }
 }
 

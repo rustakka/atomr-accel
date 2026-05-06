@@ -445,7 +445,10 @@ fn gpu_probe() -> Result<()> {
     // 3. nvidia-smi device list (safe — no allocations)
     print!("  nvidia-smi: ");
     match Command::new("nvidia-smi")
-        .args(["--query-gpu=index,name,compute_cap", "--format=csv,noheader"])
+        .args([
+            "--query-gpu=index,name,compute_cap",
+            "--format=csv,noheader",
+        ])
         .output()
     {
         Ok(out) if out.status.success() => {
@@ -477,10 +480,15 @@ fn gpu_probe() -> Result<()> {
         ("TensorRT", "libnvinfer.so.10"),
     ];
     for (name, soname) in libs {
-        let found = ["/usr/lib/x86_64-linux-gnu", "/usr/local/cuda/lib64", "/usr/lib64"]
-            .iter()
-            .any(|p| Path::new(p).join(soname).exists());
-        println!("    {:<14} {}  ({})",
+        let found = [
+            "/usr/lib/x86_64-linux-gnu",
+            "/usr/local/cuda/lib64",
+            "/usr/lib64",
+        ]
+        .iter()
+        .any(|p| Path::new(p).join(soname).exists());
+        println!(
+            "    {:<14} {}  ({})",
             name,
             if found { "FOUND" } else { "—" },
             soname,
@@ -505,11 +513,26 @@ fn gpu_test(args: Vec<String>) -> Result<()> {
     } else {
         args.iter().map(|s| s.as_str()).collect()
     };
-    if suites.iter().any(|s| *s == "all") {
+    if suites.contains(&"all") {
         suites = vec![
-            "cublas", "cublaslt", "cudnn", "cufft", "curand", "cusolver", "cusparse", "cutensor",
-            "nccl", "nvrtc", "graph", "event", "memory", "cub", "cutlass", "flashattn",
-            "tensorrt", "telemetry",
+            "cublas",
+            "cublaslt",
+            "cudnn",
+            "cufft",
+            "curand",
+            "cusolver",
+            "cusparse",
+            "cutensor",
+            "nccl",
+            "nvrtc",
+            "graph",
+            "event",
+            "memory",
+            "cub",
+            "cutlass",
+            "flashattn",
+            "tensorrt",
+            "telemetry",
         ];
     }
     println!("==> gpu-test: {} suite(s)", suites.len());
@@ -521,7 +544,12 @@ fn gpu_test(args: Vec<String>) -> Result<()> {
             failed.push(format!("{} (unknown)", suite));
             continue;
         };
-        println!("  [{}] {} {}", suite, plan.crate_name, plan.features.join(","));
+        println!(
+            "  [{}] {} {}",
+            suite,
+            plan.crate_name,
+            plan.features.join(",")
+        );
         let status = Command::new(env!("CARGO"))
             .args([
                 "test",
@@ -604,8 +632,16 @@ fn gpu_test_plan(suite: &str) -> Option<GpuTestPlan> {
             "",
         ),
         "cufft" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "cufft"], ""),
-        "curand" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "curand"], "rng_fill_e2e"),
-        "cusolver" => ("atomr-accel-cuda", vec!["cuda-runtime-tests", "cusolver"], ""),
+        "curand" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "curand"],
+            "rng_fill_e2e",
+        ),
+        "cusolver" => (
+            "atomr-accel-cuda",
+            vec!["cuda-runtime-tests", "cusolver"],
+            "",
+        ),
         "cusparse" => (
             "atomr-accel-cuda",
             vec!["cuda-runtime-tests", "cusparse"],
@@ -631,21 +667,9 @@ fn gpu_test_plan(suite: &str) -> Option<GpuTestPlan> {
         ),
         "cub" => ("atomr-accel-cub", vec!["cuda-runtime-tests"], ""),
         "cutlass" => ("atomr-accel-cutlass", vec!["cuda-runtime-tests"], ""),
-        "flashattn" => (
-            "atomr-accel-flashattn",
-            vec!["cuda-runtime-tests"],
-            "",
-        ),
-        "tensorrt" => (
-            "atomr-accel-tensorrt",
-            vec!["cuda-runtime-tests"],
-            "",
-        ),
-        "telemetry" => (
-            "atomr-accel-telemetry",
-            vec!["nvtx", "nvml", "cupti"],
-            "",
-        ),
+        "flashattn" => ("atomr-accel-flashattn", vec!["cuda-runtime-tests"], ""),
+        "tensorrt" => ("atomr-accel-tensorrt", vec!["cuda-runtime-tests"], ""),
+        "telemetry" => ("atomr-accel-telemetry", vec!["nvtx", "nvml", "cupti"], ""),
         _ => return None,
     };
     Some(GpuTestPlan {

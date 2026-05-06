@@ -231,7 +231,8 @@ fn build_plan<T: TensorSupported>(
     op_a: ct_sys::cutensorOperator_t,
 ) -> Result<CachedPlan, GpuError> {
     let h = handle.lock();
-    let dt: cudarc::cutensor::sys::cudaDataType_t = unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
+    let dt: cudarc::cutensor::sys::cudaDataType_t =
+        unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
     let cd = resolve_compute_desc(compute);
     let stride_ptr = |v: &Vec<i64>| {
         if v.is_empty() {

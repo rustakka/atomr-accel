@@ -239,10 +239,10 @@ impl TensorMapDescriptor {
         if self.global_address % 16 != 0 {
             return Err(TmaEncodeError::UnalignedAddress(self.global_address));
         }
-        if self.global_dim.iter().any(|&d| d == 0) {
+        if self.global_dim.contains(&0) {
             return Err(TmaEncodeError::ZeroDim("global_dim"));
         }
-        if self.box_dim.iter().any(|&d| d == 0) {
+        if self.box_dim.contains(&0) {
             return Err(TmaEncodeError::ZeroDim("box_dim"));
         }
         Ok(())
@@ -323,8 +323,15 @@ impl fmt::Display for TmaEncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TmaEncodeError::BadRank(r) => write!(f, "TMA rank {r} out of [1,5]"),
-            TmaEncodeError::Mismatch { what, expected, got } => {
-                write!(f, "TMA descriptor: {what}.len() = {got}, expected {expected}")
+            TmaEncodeError::Mismatch {
+                what,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "TMA descriptor: {what}.len() = {got}, expected {expected}"
+                )
             }
             TmaEncodeError::UnalignedAddress(a) => {
                 write!(f, "TMA global_address 0x{a:x} is not 16-byte aligned")
@@ -387,7 +394,10 @@ mod tests {
         bad.box_dim.push(32);
         assert!(matches!(
             bad.validate().unwrap_err(),
-            TmaEncodeError::Mismatch { what: "box_dim", .. }
+            TmaEncodeError::Mismatch {
+                what: "box_dim",
+                ..
+            }
         ));
 
         // Rank 0 — reject.
@@ -442,7 +452,10 @@ mod tests {
         ];
         let mut seen = std::collections::HashSet::new();
         for d in dts {
-            assert!(seen.insert(d.as_u32()), "duplicate dtype discriminant for {d:?}");
+            assert!(
+                seen.insert(d.as_u32()),
+                "duplicate dtype discriminant for {d:?}"
+            );
         }
     }
 }

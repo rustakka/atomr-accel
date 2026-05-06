@@ -74,6 +74,11 @@ impl std::fmt::Debug for CutlassMsg {
     }
 }
 
+/// Closure invoked for every rendered `.cu` source — typically wired
+/// to `atomr-accel-cuda::kernel::NvrtcActor::Compile` when the
+/// downstream binary opts into `nvrtc`.
+pub type CompileSink = Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
+
 /// Inner state of a [`CutlassActor`].
 pub struct CutlassInner {
     pub plan_cache: Arc<PlanCache>,
@@ -82,7 +87,7 @@ pub struct CutlassInner {
     /// `Box<dyn Fn ...>` so the cutlass crate doesn't pull
     /// `atomr-accel-cuda::nvrtc` into its compile graph when the
     /// feature is off.
-    pub compile_sink: Option<Arc<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>>,
+    pub compile_sink: Option<CompileSink>,
     /// Counter of dispatched messages — exposed for the
     /// `actor::tests::cutlass_msg_constructs` test and for telemetry.
     pub dispatched: Mutex<u64>,
@@ -201,7 +206,9 @@ pub struct CutlassProps {
 
 impl CutlassProps {
     pub fn new(plan_cache_capacity: usize) -> Self {
-        Self { plan_cache_capacity }
+        Self {
+            plan_cache_capacity,
+        }
     }
 
     pub fn create(self) -> CutlassActor {
@@ -212,7 +219,7 @@ impl CutlassProps {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dtype::{F16, SmArch};
+    use crate::dtype::{SmArch, F16};
     use crate::gemm::{GemmRequest, GemmShape};
     use crate::plan_cache::PlanKey;
 
@@ -229,10 +236,7 @@ mod tests {
 
         // Conv
         use crate::conv::{ConvFwdRequest, ConvShape};
-        let conv = ConvFwdRequest::<F16>::new(
-            ConvShape::nhwc(1, 8, 8, 16, 32, 3, 3),
-            SmArch::Sm80,
-        );
+        let conv = ConvFwdRequest::<F16>::new(ConvShape::nhwc(1, 8, 8, 16, 32, 3, 3), SmArch::Sm80);
         let conv_key = conv.plan_key();
         actor.handle(CutlassMsg::Conv(Box::new(conv)));
         assert_eq!(actor.inner().dispatched(), 2);

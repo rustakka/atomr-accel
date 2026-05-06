@@ -7,6 +7,7 @@
 //! `py.allow_threads`. Async wrappers can be layered in later by
 //! returning the underlying tokio future via
 //! `pyo3_async_runtimes::tokio::future_into_py`.
+#![allow(deprecated)]
 
 use std::time::Duration;
 

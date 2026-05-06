@@ -86,11 +86,7 @@ impl Epilogue {
     pub fn uses_bias(self) -> bool {
         matches!(
             self,
-            Self::Bias
-                | Self::ReluBias
-                | Self::ReluAuxBias
-                | Self::GeluBias
-                | Self::GeluAuxBias
+            Self::Bias | Self::ReluBias | Self::ReluAuxBias | Self::GeluBias | Self::GeluAuxBias
         )
     }
 
@@ -130,7 +126,10 @@ mod tests {
     #[test]
     fn epilogue_round_trip() {
         let cases = [
-            (Epilogue::None, cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DEFAULT),
+            (
+                Epilogue::None,
+                cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DEFAULT,
+            ),
             (Epilogue::Relu, cublasLtEpilogue_t::CUBLASLT_EPILOGUE_RELU),
             (Epilogue::Bias, cublasLtEpilogue_t::CUBLASLT_EPILOGUE_BIAS),
             (

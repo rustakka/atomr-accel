@@ -12,7 +12,7 @@ use cudarc::cublas::{Gemv, GemvConfig};
 use cudarc::driver::{DevicePtr, DevicePtrMut};
 use tokio::sync::oneshot;
 
-use crate::dtype::{CudaDtype, GemvSupported, GerSupported};
+use crate::dtype::{GemvSupported, GerSupported};
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::dispatch::{BlasDispatchCtx, BlasL2Dispatch};
@@ -232,8 +232,8 @@ where
     let stream = ctx.stream.clone();
     envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), reply, move || {
         let res = {
-            let (x_ptr, _x_rec) = (&*x_slice).device_ptr(&stream);
-            let (y_ptr, _y_rec) = (&*y_slice).device_ptr(&stream);
+            let (x_ptr, _x_rec) = (*x_slice).device_ptr(&stream);
+            let (y_ptr, _y_rec) = (*y_slice).device_ptr(&stream);
             let (a_ptr, _a_rec) = a_owned.device_ptr_mut(&stream);
             unsafe {
                 T::call(
@@ -283,8 +283,8 @@ impl BlasL2Dispatch for GerRequest<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::gemm::tests_helpers::gpu_ref_stub;
+    use super::*;
     use tokio::sync::oneshot;
 
     #[test]

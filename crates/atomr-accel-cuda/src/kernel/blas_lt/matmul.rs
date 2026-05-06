@@ -165,7 +165,9 @@ impl BlasLtDispatch for MatmulRequest<crate::dtype::F8E4m3> {
         DTypeKind::F8E4m3
     }
     fn dispatch(self: Box<Self>, _ctx: &BlasLtDispatchCtx<'_>) {
-        <crate::dtype::F8E4m3 as UnsupportedMatmulPath>::dispatch_unsupported(self.reply, "fp8e4m3");
+        <crate::dtype::F8E4m3 as UnsupportedMatmulPath>::dispatch_unsupported(
+            self.reply, "fp8e4m3",
+        );
     }
 }
 
@@ -175,7 +177,9 @@ impl BlasLtDispatch for MatmulRequest<crate::dtype::F8E5m2> {
         DTypeKind::F8E5m2
     }
     fn dispatch(self: Box<Self>, _ctx: &BlasLtDispatchCtx<'_>) {
-        <crate::dtype::F8E5m2 as UnsupportedMatmulPath>::dispatch_unsupported(self.reply, "fp8e5m2");
+        <crate::dtype::F8E5m2 as UnsupportedMatmulPath>::dispatch_unsupported(
+            self.reply, "fp8e5m2",
+        );
     }
 }
 
@@ -218,16 +222,18 @@ where
     // Touch the heuristic cache so we record at least an empty entry
     // for this shape. (Real heuristic search lands when we move off
     // cudarc's safe `Matmul` API onto the sys-level descriptor path.)
-    let _entry = ctx.heuristic.get(&crate::kernel::blas_lt::heuristic::HeuristicKey::new(
-        m,
-        n,
-        k,
-        T::KIND,
-        transa,
-        transb,
-        epilogue,
-        ctx.sm_arch,
-    ));
+    let _entry = ctx
+        .heuristic
+        .get(&crate::kernel::blas_lt::heuristic::HeuristicKey::new(
+            m,
+            n,
+            k,
+            T::KIND,
+            transa,
+            transb,
+            epilogue,
+            ctx.sm_arch,
+        ));
 
     // Map the curated Epilogue back to cudarc's safe `Activation`
     // (cudarc's safe API only exposes Relu/Gelu for now). Other
@@ -356,7 +362,10 @@ mod tests {
         #[cfg(feature = "f16")]
         {
             assert_eq!(<half::f16 as atomr_accel::AccelDtype>::KIND, DTypeKind::F16);
-            assert_eq!(<half::bf16 as atomr_accel::AccelDtype>::KIND, DTypeKind::Bf16);
+            assert_eq!(
+                <half::bf16 as atomr_accel::AccelDtype>::KIND,
+                DTypeKind::Bf16
+            );
         }
         // Suppress unused-warning on the unreachable helper.
         let _ = make_request::<f32> as fn() -> MatmulRequest<f32>;

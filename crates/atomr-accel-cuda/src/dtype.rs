@@ -22,9 +22,9 @@
 //! compile because `i64: GemmSupported` has no impl.
 
 use cudarc::cublas::sys as cublas_sys;
-use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 #[cfg(feature = "cudnn")]
 use cudarc::cudnn::sys as cudnn_sys;
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 #[cfg(feature = "nccl")]
 use cudarc::nccl::sys as nccl_sys;
 
@@ -85,11 +85,17 @@ impl atomr_accel::AccelDtype for F8E4m3 {
     const SIZE: usize = 1;
     const NAME: &'static str = "f8_e4m3";
     #[inline]
-    fn zero() -> Self { F8E4m3(0x00) }
+    fn zero() -> Self {
+        F8E4m3(0x00)
+    }
     #[inline]
-    fn one() -> Self { F8E4m3(0x38) }
+    fn one() -> Self {
+        F8E4m3(0x38)
+    }
     #[inline]
-    fn nan() -> Option<Self> { Some(F8E4m3(0x7f)) }
+    fn nan() -> Option<Self> {
+        Some(F8E4m3(0x7f))
+    }
 }
 
 #[cfg(feature = "f8")]
@@ -99,11 +105,17 @@ impl atomr_accel::AccelDtype for F8E5m2 {
     const SIZE: usize = 1;
     const NAME: &'static str = "f8_e5m2";
     #[inline]
-    fn zero() -> Self { F8E5m2(0x00) }
+    fn zero() -> Self {
+        F8E5m2(0x00)
+    }
     #[inline]
-    fn one() -> Self { F8E5m2(0x3c) }
+    fn one() -> Self {
+        F8E5m2(0x3c)
+    }
     #[inline]
-    fn nan() -> Option<Self> { Some(F8E5m2(0x7e)) }
+    fn nan() -> Option<Self> {
+        Some(F8E5m2(0x7e))
+    }
 }
 
 /// CUDA-specific layer over [`AccelDtype`].
@@ -320,7 +332,9 @@ mod fp8_impls {
             cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
         }
         #[inline]
-        fn cuda_type_name() -> &'static str { "__nv_fp8_e4m3" }
+        fn cuda_type_name() -> &'static str {
+            "__nv_fp8_e4m3"
+        }
         #[cfg(feature = "cudnn")]
         #[inline]
         fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {
@@ -343,7 +357,9 @@ mod fp8_impls {
             cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
         }
         #[inline]
-        fn cuda_type_name() -> &'static str { "__nv_fp8_e5m2" }
+        fn cuda_type_name() -> &'static str {
+            "__nv_fp8_e5m2"
+        }
         #[cfg(feature = "cudnn")]
         #[inline]
         fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {

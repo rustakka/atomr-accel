@@ -72,9 +72,8 @@ pub fn mem_prefetch_async_v2(
 ) -> Result<(), GpuError> {
     guarded("cuMemPrefetchAsync_v2", || {
         // SAFETY: pointer + length validity is the caller's contract.
-        let s = unsafe {
-            driver_sys::cuMemPrefetchAsync_v2(dev_ptr, count, location, flags, stream)
-        };
+        let s =
+            unsafe { driver_sys::cuMemPrefetchAsync_v2(dev_ptr, count, location, flags, stream) };
         driver_check(s, "cuMemPrefetchAsync_v2")
     })
 }
@@ -125,9 +124,7 @@ pub fn ipc_open_mem_handle_v2(
     guarded("cuIpcOpenMemHandle_v2", || {
         let mut dptr: driver_sys::CUdeviceptr = 0;
         // SAFETY: out-pointer + caller-supplied handle.
-        let s = unsafe {
-            driver_sys::cuIpcOpenMemHandle_v2(&mut dptr as *mut _, handle, flags)
-        };
+        let s = unsafe { driver_sys::cuIpcOpenMemHandle_v2(&mut dptr as *mut _, handle, flags) };
         driver_check(s, "cuIpcOpenMemHandle_v2")?;
         Ok(dptr)
     })
@@ -178,9 +175,7 @@ pub fn ipc_open_event_handle(
 /// outlive the returned `CUmodule` for the duration of any pending
 /// kernel launch — the driver may keep references to embedded
 /// strings.
-pub fn module_load_data(
-    image: *const std::ffi::c_void,
-) -> Result<driver_sys::CUmodule, GpuError> {
+pub fn module_load_data(image: *const std::ffi::c_void) -> Result<driver_sys::CUmodule, GpuError> {
     guarded("cuModuleLoadData", || {
         let mut m: driver_sys::CUmodule = std::ptr::null_mut();
         // SAFETY: out-pointer; image is a caller-owned slice of bytes.
@@ -205,9 +200,7 @@ pub fn module_get_function(
     guarded("cuModuleGetFunction", || {
         let mut f: driver_sys::CUfunction = std::ptr::null_mut();
         // SAFETY: out-pointer; name is a caller-owned C string.
-        let s = unsafe {
-            driver_sys::cuModuleGetFunction(&mut f as *mut _, m, name.as_ptr())
-        };
+        let s = unsafe { driver_sys::cuModuleGetFunction(&mut f as *mut _, m, name.as_ptr()) };
         driver_check(s, "cuModuleGetFunction")?;
         Ok(f)
     })

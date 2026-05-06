@@ -577,10 +577,7 @@ fn handle_compile(
 ) -> Result<KernelHandle, GpuError> {
     let src_hash = hash_src(&src);
     let opts_flags = opts.build_flags();
-    let arch = opts
-        .arch
-        .map(|a| a.compute_capability())
-        .unwrap_or(0);
+    let arch = opts.arch.map(|a| a.compute_capability()).unwrap_or(0);
     let cache_key = NvrtcCacheKey {
         source_hash: hash_source(&src),
         arch,
@@ -590,12 +587,12 @@ fn handle_compile(
 
     // Step 1: in-memory module cache (per actor lifetime).
     if let Some(m) = modules.lock().get(&src_hash).cloned() {
-        let func = m.0.load_function(&kernel_name).map_err(|e| {
-            GpuError::LibraryError {
-                lib: LIB,
-                msg: format!("load_function {kernel_name}: {e}"),
-            }
-        })?;
+        let func =
+            m.0.load_function(&kernel_name)
+                .map_err(|e| GpuError::LibraryError {
+                    lib: LIB,
+                    msg: format!("load_function {kernel_name}: {e}"),
+                })?;
         return Ok(KernelHandle {
             func: Arc::new(func),
             generation: state.generation(),
@@ -707,12 +704,11 @@ pub fn compile_to_ptx(
             return Ok((hit.ptx.clone(), hit.cubin.clone()));
         }
     }
-    let compiled = compile_ptx_with_opts(src, opts.into_cudarc()).map_err(|e| {
-        GpuError::LibraryError {
+    let compiled =
+        compile_ptx_with_opts(src, opts.into_cudarc()).map_err(|e| GpuError::LibraryError {
             lib: LIB,
             msg: format!("compile_ptx: {e}"),
-        }
-    })?;
+        })?;
     let ptx = compiled.to_src().into_bytes();
     let cubin: Option<Vec<u8>> = None;
     if let Some(cache) = disk_cache {
@@ -777,11 +773,7 @@ fn handle_launch(
         // SAFETY: kernel signature must match args; user contract.
         for arg in args.iter() {
             match arg {
-                KernelArg::DevSlice(b) => {
-                    if let Err(e) = b.push(&mut builder) {
-                        return Err(e);
-                    }
-                }
+                KernelArg::DevSlice(b) => b.push(&mut builder)?,
                 KernelArg::Scalar(b) => {
                     b.push(&mut builder);
                 }
@@ -935,13 +927,13 @@ mod tests {
         let msg = NvrtcMsg::CompileAsync {
             src: "extern \"C\" __global__ void k() {}".into(),
             kernel_name: "k".into(),
-            opts: NvrtcOpts::default()
-                .with_lto()
-                .with_cpp_std(CppStd::Cpp17),
+            opts: NvrtcOpts::default().with_lto().with_cpp_std(CppStd::Cpp17),
             reply: tx,
         };
         match msg {
-            NvrtcMsg::CompileAsync { src, kernel_name, .. } => {
+            NvrtcMsg::CompileAsync {
+                src, kernel_name, ..
+            } => {
                 assert!(src.contains("__global__"));
                 assert_eq!(kernel_name, "k");
             }

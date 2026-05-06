@@ -61,6 +61,4 @@ pub use builder::{
 };
 pub use engine::{EnginePlan, TrtEngine, TrtRefitter};
 pub use error::TrtError;
-pub use runtime::{
-    EnqueueRequest, ExecutionBindings, ExecutionContext, TensorShape, TrtRuntime,
-};
+pub use runtime::{EnqueueRequest, ExecutionBindings, ExecutionContext, TensorShape, TrtRuntime};

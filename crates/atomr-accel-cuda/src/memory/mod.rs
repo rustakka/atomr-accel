@@ -16,8 +16,8 @@ pub mod managed;
 pub mod prefetch;
 
 pub use advise::MemAdvice;
+#[cfg(feature = "cuda-ipc")]
+pub use ipc::{IpcMemHandle, OpenedMem};
 pub use managed::{
     ManagedAllocatorActor, ManagedFlags, ManagedMsg, ManagedRef, ManagedStats, PrefetchTarget,
 };
-#[cfg(feature = "cuda-ipc")]
-pub use ipc::{IpcMemHandle, OpenedMem};

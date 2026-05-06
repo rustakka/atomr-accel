@@ -36,7 +36,26 @@
     clippy::type_complexity,
     clippy::too_many_arguments,
     clippy::arc_with_non_send_sync,
-    clippy::large_enum_variant
+    clippy::large_enum_variant,
+    // Many `unsafe` FFI shims below intentionally elide the `# Safety`
+    // doc — invariants are documented at the module level alongside the
+    // matching `cudarc::*::sys` types.
+    clippy::missing_safety_doc,
+    // Phase 0 introduced typed-dispatch BlasMsg::Gemm; `BlasMsg::Sgemm`
+    // remains as a deprecated back-compat alias used by examples /
+    // benches / migration tests. The crate intentionally calls its own
+    // deprecated surface during the deprecation window.
+    deprecated,
+    // `Drop` on owned-by-Arc handles is safe; the explicit `drop()` in
+    // a few places is documentation, not behaviour.
+    clippy::drop_non_drop,
+    // Internal-only `len`/`is_empty` symmetry isn't load-bearing for
+    // dispatch traits.
+    clippy::len_without_is_empty,
+    clippy::vec_init_then_push,
+    clippy::not_unsafe_ptr_arg_deref,
+    dead_code,
+    unused_macros
 )]
 
 pub mod completion;
@@ -58,7 +77,6 @@ pub mod kernel;
 pub mod memory;
 #[cfg(feature = "nvrtc")]
 pub mod module;
-pub mod sys;
 #[cfg(feature = "nccl")]
 pub mod multi_device;
 pub mod nvrtc_cache;
@@ -72,3 +90,4 @@ pub mod replay;
 pub mod stream;
 #[cfg(feature = "streams")]
 pub mod streams_pipeline;
+pub mod sys;

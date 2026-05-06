@@ -35,7 +35,7 @@ impl From<driver_sys::CUgraphExecUpdateResult> for GraphExecUpdateOutcome {
             // We classify everything except success as TopologyChanged
             // for the conservative "must reinstantiate" path; the Other
             // bucket is reserved for future granularity.
-            2 | 3 | 4 | 5 | 6 | 7 | 8 => GraphExecUpdateOutcome::TopologyChanged,
+            2..=8 => GraphExecUpdateOutcome::TopologyChanged,
             _ => GraphExecUpdateOutcome::Other,
         }
     }

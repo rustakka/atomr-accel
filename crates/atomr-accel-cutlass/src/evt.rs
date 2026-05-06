@@ -28,7 +28,10 @@ pub enum EpilogueOp {
     Tanh,
     /// Per-tensor / per-channel quantize. CUTLASS template parameter
     /// `cutlass::epilogue::thread::Quantize`.
-    Quantize { out_dtype: CutlassDtype, per_channel: bool },
+    Quantize {
+        out_dtype: CutlassDtype,
+        per_channel: bool,
+    },
     /// Add a residual tensor read from device memory.
     ResidualAdd { dtype: CutlassDtype },
     /// Reduce per-row (sum / max). Used by softmax fusions.
@@ -163,7 +166,9 @@ impl EpilogueVisitorTree {
             match op {
                 EpilogueOp::BiasAdd { dtype }
                 | EpilogueOp::ResidualAdd { dtype }
-                | EpilogueOp::Quantize { out_dtype: dtype, .. } => {
+                | EpilogueOp::Quantize {
+                    out_dtype: dtype, ..
+                } => {
                     dtype.short_name().hash(&mut h);
                 }
                 EpilogueOp::Reduce { kind } => kind.short_name().hash(&mut h),
@@ -220,8 +225,10 @@ impl EvtBuilder {
     }
 
     pub fn quantize(mut self, out_dtype: CutlassDtype, per_channel: bool) -> Self {
-        self.ops
-            .push(EpilogueOp::Quantize { out_dtype, per_channel });
+        self.ops.push(EpilogueOp::Quantize {
+            out_dtype,
+            per_channel,
+        });
         self
     }
 
@@ -262,7 +269,9 @@ mod tests {
         assert!(!tree.is_empty());
         assert_eq!(
             tree.ops()[1],
-            EpilogueOp::BiasAdd { dtype: CutlassDtype::F16 }
+            EpilogueOp::BiasAdd {
+                dtype: CutlassDtype::F16
+            }
         );
 
         let rendered = tree.render();
@@ -296,8 +305,15 @@ mod tests {
 
         // Push API parity.
         let pushed = EvtBuilder::new()
-            .push(EpilogueOp::Reduce { kind: ReduceKind::Sum })
+            .push(EpilogueOp::Reduce {
+                kind: ReduceKind::Sum,
+            })
             .build();
-        assert_eq!(pushed.ops()[0], EpilogueOp::Reduce { kind: ReduceKind::Sum });
+        assert_eq!(
+            pushed.ops()[0],
+            EpilogueOp::Reduce {
+                kind: ReduceKind::Sum
+            }
+        );
     }
 }

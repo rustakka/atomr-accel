@@ -34,10 +34,15 @@ fn cub_kernel_source_cache_round_trip() {
     let mut cache = KernelSourceCache::default();
     let ptx_blob: Arc<Vec<u8>> = Arc::new(b"// fake PTX".to_vec());
     cache.insert("reduce_sum", "f32", ptx_blob.clone());
-    let got = cache.get("reduce_sum", "f32").expect("cache miss after insert");
+    let got = cache
+        .get("reduce_sum", "f32")
+        .expect("cache miss after insert");
     assert_eq!(&*got, &*ptx_blob, "round-trip mismatch");
     assert_eq!(cache.len(), 1);
-    assert!(cache.get("reduce_sum", "f64").is_none(), "dtype namespace bleed");
+    assert!(
+        cache.get("reduce_sum", "f64").is_none(),
+        "dtype namespace bleed"
+    );
 
     // Op-name distinctness: every reduction op produces a different cache key.
     let ops = [
@@ -54,7 +59,11 @@ fn cub_kernel_source_cache_round_trip() {
         .collect();
     keys.sort();
     keys.dedup();
-    assert_eq!(keys.len(), ops.len(), "kernel keys collide across reduction ops");
+    assert_eq!(
+        keys.len(),
+        ops.len(),
+        "kernel keys collide across reduction ops"
+    );
 
     println!("[cub] kernel_source_cache round-trip + 6 distinct reduction-op keys verified");
 }

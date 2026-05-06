@@ -38,9 +38,7 @@ pub enum ConditionalKind {
 impl ConditionalKind {
     fn raw(self) -> driver_sys::CUgraphConditionalNodeType {
         match self {
-            ConditionalKind::If => {
-                driver_sys::CUgraphConditionalNodeType::CU_GRAPH_COND_TYPE_IF
-            }
+            ConditionalKind::If => driver_sys::CUgraphConditionalNodeType::CU_GRAPH_COND_TYPE_IF,
             ConditionalKind::While => {
                 driver_sys::CUgraphConditionalNodeType::CU_GRAPH_COND_TYPE_WHILE
             }

@@ -88,7 +88,6 @@ fn validate_csr(c: &CsrMatrix) -> Result<(), GpuError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn spmv_op_records() {

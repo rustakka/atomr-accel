@@ -19,9 +19,7 @@ use crate::kernel::dispatch::{TensorDispatch, TensorDispatchCtx};
 use crate::kernel::envelope;
 use crate::kernel::tensor::compute_desc::{compute_desc_tag, resolve_compute_desc, ComputeDesc};
 use crate::kernel::tensor::contract::OperandSpec;
-use crate::kernel::tensor::plan_cache::{
-    hash_i32s, hash_i64s, CachedPlan, OpKind, PlanKey,
-};
+use crate::kernel::tensor::plan_cache::{hash_i32s, hash_i64s, CachedPlan, OpKind, PlanKey};
 use crate::kernel::tensor::SendHandle;
 use crate::sys::cutensor as ct_local;
 
@@ -128,7 +126,16 @@ fn execute<T: TensorSupported>(req: ReductionRequest<T>, ctx: &TensorDispatchCtx
     };
 
     let key = build_reduction_key::<T>(&a, &c, alignment, compute, op_reduce);
-    let cached = match get_or_build_plan::<T>(&ctx.handle, &ctx.plan_cache, &key, &a, &c, alignment, compute, op_reduce) {
+    let cached = match get_or_build_plan::<T>(
+        &ctx.handle,
+        &ctx.plan_cache,
+        &key,
+        &a,
+        &c,
+        alignment,
+        compute,
+        op_reduce,
+    ) {
         Ok(p) => p,
         Err(e) => {
             let _ = reply.send(Err(e));
@@ -225,7 +232,8 @@ pub fn build_reduction_key_raw(
         alignment,
         // Fold the reduction operator into the compute-desc tag so two
         // shapes-only-equal-but-op-different requests don't collide.
-        compute_desc_tag: compute_desc_tag(compute) ^ ((op_reduce as u32).wrapping_mul(0x9E37_79B9)),
+        compute_desc_tag: compute_desc_tag(compute)
+            ^ ((op_reduce as u32).wrapping_mul(0x9E37_79B9)),
         dtype_tag,
         algo: 0,
     }
@@ -279,7 +287,8 @@ fn build_plan<T: TensorSupported>(
     op_reduce: ct_sys::cutensorOperator_t,
 ) -> Result<CachedPlan, GpuError> {
     let h = handle.lock();
-    let dt: cudarc::cutensor::sys::cudaDataType_t = unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
+    let dt: cudarc::cutensor::sys::cudaDataType_t =
+        unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
     let cd = resolve_compute_desc(compute);
     let stride_ptr = |v: &Vec<i64>| {
         if v.is_empty() {

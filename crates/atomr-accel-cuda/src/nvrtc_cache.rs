@@ -181,25 +181,13 @@ impl NvrtcCache {
 
         {
             let mut f = fs::File::create(&tmp_path).map_err(|e| {
-                GpuError::Unrecoverable(format!(
-                    "NvrtcCache: create {}: {}",
-                    tmp_path.display(),
-                    e
-                ))
+                GpuError::Unrecoverable(format!("NvrtcCache: create {}: {}", tmp_path.display(), e))
             })?;
             f.write_all(&bytes).map_err(|e| {
-                GpuError::Unrecoverable(format!(
-                    "NvrtcCache: write {}: {}",
-                    tmp_path.display(),
-                    e
-                ))
+                GpuError::Unrecoverable(format!("NvrtcCache: write {}: {}", tmp_path.display(), e))
             })?;
             f.sync_all().map_err(|e| {
-                GpuError::Unrecoverable(format!(
-                    "NvrtcCache: fsync {}: {}",
-                    tmp_path.display(),
-                    e
-                ))
+                GpuError::Unrecoverable(format!("NvrtcCache: fsync {}: {}", tmp_path.display(), e))
             })?;
         }
 

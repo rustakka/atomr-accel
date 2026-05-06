@@ -292,7 +292,8 @@ fn build_binary_plan<T: TensorSupported>(
     op_ac: ct_sys::cutensorOperator_t,
 ) -> Result<CachedPlan, GpuError> {
     let h = handle.lock();
-    let dt: cudarc::cutensor::sys::cudaDataType_t = unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
+    let dt: cudarc::cutensor::sys::cudaDataType_t =
+        unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
     let cd = resolve_compute_desc(compute);
     let stride_ptr = |v: &Vec<i64>| {
         if v.is_empty() {
@@ -679,9 +680,8 @@ pub fn build_trinary_key_raw(
     modes.extend_from_slice(modes_c);
     modes.push(i32::MIN);
     modes.extend_from_slice(modes_d);
-    let mut extents = Vec::with_capacity(
-        extent_a.len() + extent_b.len() + extent_c.len() + extent_d.len() + 4,
-    );
+    let mut extents =
+        Vec::with_capacity(extent_a.len() + extent_b.len() + extent_c.len() + extent_d.len() + 4);
     extents.extend_from_slice(extent_a);
     extents.push(i64::MIN);
     extents.extend_from_slice(extent_b);
@@ -749,7 +749,8 @@ fn build_trinary_plan<T: TensorSupported>(
     op_abc: ct_sys::cutensorOperator_t,
 ) -> Result<CachedPlan, GpuError> {
     let h = handle.lock();
-    let dt: cudarc::cutensor::sys::cudaDataType_t = unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
+    let dt: cudarc::cutensor::sys::cudaDataType_t =
+        unsafe { std::mem::transmute(T::cuda_data_type() as u32) };
     let cd = resolve_compute_desc(compute);
     let stride_ptr = |v: &Vec<i64>| {
         if v.is_empty() {

@@ -7,11 +7,13 @@
 
 use std::sync::Arc;
 
-use cudarc::cublas::sys::{cublasDiagType_t, cublasFillMode_t, cublasOperation_t, cublasSideMode_t};
+use cudarc::cublas::sys::{
+    cublasDiagType_t, cublasFillMode_t, cublasOperation_t, cublasSideMode_t,
+};
 use cudarc::driver::{sys::CUdeviceptr, DevicePtr, DevicePtrMut};
 use tokio::sync::oneshot;
 
-use crate::dtype::{CudaDtype, GeamSupported, SyrkSupported, TrsmSupported};
+use crate::dtype::{GeamSupported, SyrkSupported, TrsmSupported};
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::dispatch::{BlasDispatchCtx, BlasL3Dispatch};
@@ -143,8 +145,8 @@ where
     let stream = ctx.stream.clone();
     envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), reply, move || {
         let res = {
-            let (a_ptr, _a_rec) = (&*a_slice).device_ptr(&stream);
-            let (b_ptr, _b_rec) = (&*b_slice).device_ptr(&stream);
+            let (a_ptr, _a_rec) = (*a_slice).device_ptr(&stream);
+            let (b_ptr, _b_rec) = (*b_slice).device_ptr(&stream);
             let (c_ptr, _c_rec) = c_owned.device_ptr_mut(&stream);
             unsafe {
                 T::call(
@@ -305,7 +307,7 @@ where
     let stream = ctx.stream.clone();
     envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), reply, move || {
         let res = {
-            let (a_ptr, _a_rec) = (&*a_slice).device_ptr(&stream);
+            let (a_ptr, _a_rec) = (*a_slice).device_ptr(&stream);
             let (c_ptr, _c_rec) = c_owned.device_ptr_mut(&stream);
             unsafe {
                 T::call(
@@ -469,7 +471,7 @@ where
     let stream = ctx.stream.clone();
     envelope::run_kernel(LIB, ctx.stream, ctx.completion, (), reply, move || {
         let res = {
-            let (a_ptr, _a_rec) = (&*a_slice).device_ptr(&stream);
+            let (a_ptr, _a_rec) = (*a_slice).device_ptr(&stream);
             let (b_ptr, _b_rec) = b_owned.device_ptr_mut(&stream);
             unsafe {
                 T::call(
@@ -521,8 +523,8 @@ impl BlasL3Dispatch for TrsmRequest<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::gemm::tests_helpers::gpu_ref_stub;
+    use super::*;
     use tokio::sync::oneshot;
 
     #[test]

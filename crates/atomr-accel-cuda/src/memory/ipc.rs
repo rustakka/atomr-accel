@@ -38,9 +38,7 @@ impl IpcMemHandle {
     pub fn from_bytes(bytes: [u8; 64]) -> Self {
         let raw = driver_sys::CUipcMemHandle_st {
             // SAFETY: layout-compatible.
-            reserved: unsafe {
-                std::mem::transmute::<[u8; 64], [std::ffi::c_char; 64]>(bytes)
-            },
+            reserved: unsafe { std::mem::transmute::<[u8; 64], [std::ffi::c_char; 64]>(bytes) },
         };
         Self { raw }
     }
@@ -97,8 +95,7 @@ pub fn get_mem_handle(dev_ptr: driver_sys::CUdeviceptr) -> Result<IpcMemHandle, 
 /// `OpenedMem` so callers can build a typed slice on top.
 pub fn open_mem_handle(handle: IpcMemHandle, bytes: usize) -> Result<OpenedMem, GpuError> {
     let dev_ptr = cuda_driver::ipc_open_mem_handle_v2(
-        handle.raw,
-        // CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS = 1
+        handle.raw, // CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS = 1
         1,
     )?;
     Ok(OpenedMem { dev_ptr, bytes })

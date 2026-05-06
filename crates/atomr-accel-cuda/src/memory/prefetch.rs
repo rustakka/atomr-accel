@@ -60,13 +60,7 @@ mod tests {
             loc.type_ = driver_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_HOST;
             loc
         };
-        let r = cuda_driver::mem_prefetch_async_v2(
-            0,
-            0,
-            host_loc,
-            0,
-            std::ptr::null_mut(),
-        );
+        let r = cuda_driver::mem_prefetch_async_v2(0, 0, host_loc, 0, std::ptr::null_mut());
         // Either Unrecoverable (no driver) or LibraryError (driver
         // present, rejects null) — both acceptable.
         match r {

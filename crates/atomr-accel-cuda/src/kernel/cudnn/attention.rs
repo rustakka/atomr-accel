@@ -15,9 +15,7 @@ use crate::dtype::CudnnSupported;
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::cudnn::conv::dtype_tag;
-use crate::kernel::cudnn::graph::{
-    DtypeTag, OpSpec, OperationGraphSpec, TensorLayout, TensorSpec,
-};
+use crate::kernel::cudnn::graph::{DtypeTag, OpSpec, OperationGraphSpec, TensorLayout, TensorSpec};
 use crate::kernel::dispatch::{CudnnDispatch, CudnnDispatchCtx};
 
 /// Mask kind applied to the attention scores.
@@ -182,8 +180,7 @@ pub fn build_mha_fwd_graph(
     let k_uid = g.add_tensor(TensorSpec::new(2, dtype, k_dims, layout));
     let v_uid = g.add_tensor(TensorSpec::new(3, dtype, v_dims, layout));
     let qk_uid = g.add_tensor(TensorSpec::new(4, dtype, qk_dims.clone(), layout).virtualized());
-    let qk_softmax_uid =
-        g.add_tensor(TensorSpec::new(5, dtype, qk_dims, layout).virtualized());
+    let qk_softmax_uid = g.add_tensor(TensorSpec::new(5, dtype, qk_dims, layout).virtualized());
     let o_uid = g.add_tensor(TensorSpec::new(6, dtype, o_dims, layout));
 
     // QK^T
@@ -261,8 +258,7 @@ mod tests {
 
     #[test]
     fn mha_fwd_bwd_request_round_trip() {
-        let p = AttentionParams::new(2, 128, 128, 8, 8, 64)
-            .with_mask(AttentionMask::Causal);
+        let p = AttentionParams::new(2, 128, 128, 8, 8, 64).with_mask(AttentionMask::Causal);
         let g_fwd = build_mha_fwd_graph(DtypeTag::Bf16, &p, TensorLayout::NchwPacked);
         // Q, K, V, QK, QK_softmax, O
         assert_eq!(g_fwd.tensors.len(), 6);
@@ -282,8 +278,8 @@ mod tests {
         // (mask wires into the variant pack at execute time, not the
         // descriptor digest). Verify the params struct still records
         // it.
-        let p2 = AttentionParams::new(2, 128, 128, 8, 8, 64)
-            .with_mask(AttentionMask::SlidingWindow(64));
+        let p2 =
+            AttentionParams::new(2, 128, 128, 8, 8, 64).with_mask(AttentionMask::SlidingWindow(64));
         assert!(matches!(p2.mask, AttentionMask::SlidingWindow(64)));
     }
 }

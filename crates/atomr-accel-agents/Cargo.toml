@@ -16,7 +16,7 @@ description = "Agentic / LLM GPU actor blueprints on atomr-accel-cuda: RagPipeli
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
 atomr-macros = { workspace = true }
-atomr-accel-cuda   = { path = "../atomr-accel-cuda", version = "0.3.0" }
+atomr-accel-cuda   = { path = "../atomr-accel-cuda", version = "0.3.1" }
 async-trait  = { workspace = true }
 tokio        = { workspace = true }
 parking_lot  = { workspace = true }

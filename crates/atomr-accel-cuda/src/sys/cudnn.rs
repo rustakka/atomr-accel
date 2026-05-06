@@ -55,9 +55,7 @@ unsafe impl Send for BackendDescriptor {}
 
 impl BackendDescriptor {
     /// `cudnnBackendCreateDescriptor`.
-    pub fn create(
-        kind: cudnn_sys::cudnnBackendDescriptorType_t,
-    ) -> Result<Self, GpuError> {
+    pub fn create(kind: cudnn_sys::cudnnBackendDescriptorType_t) -> Result<Self, GpuError> {
         let mut raw: cudnn_sys::cudnnBackendDescriptor_t = std::ptr::null_mut();
         let s = unsafe { cudnn_sys::cudnnBackendCreateDescriptor(kind, &mut raw) };
         check(s, "cudnnBackendCreateDescriptor")?;
@@ -221,8 +219,7 @@ impl BackendDescriptor {
         name: cudnn_sys::cudnnBackendAttributeName_t,
         subs: &[&BackendDescriptor],
     ) -> Result<(), GpuError> {
-        let raws: Vec<cudnn_sys::cudnnBackendDescriptor_t> =
-            subs.iter().map(|s| s.raw).collect();
+        let raws: Vec<cudnn_sys::cudnnBackendDescriptor_t> = subs.iter().map(|s| s.raw).collect();
         unsafe {
             self.set_attribute_raw(
                 name,

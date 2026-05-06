@@ -6,9 +6,7 @@
 //! example logs + exits 0 — so it still exercises the build /
 //! type-check path in CI.
 
-use atomr_accel_telemetry::cupti::{
-    ActivityCategory, CuptiBootstrap, CuptiMsg, CuptiSession,
-};
+use atomr_accel_telemetry::cupti::{ActivityCategory, CuptiBootstrap, CuptiMsg, CuptiSession};
 use tokio::sync::oneshot;
 
 #[tokio::main(flavor = "current_thread")]

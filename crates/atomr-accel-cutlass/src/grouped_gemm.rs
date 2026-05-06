@@ -163,7 +163,7 @@ impl<T: GemmSupported> CutlassGroupedGemmDispatch for GroupedGemmRequest<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dtype::{F16, F8E4m3};
+    use crate::dtype::{F8E4m3, F16};
 
     #[test]
     fn grouped_gemm_request_round_trip() {

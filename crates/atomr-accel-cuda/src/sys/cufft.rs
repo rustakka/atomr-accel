@@ -49,8 +49,7 @@ type CufftXtSetCallbackFn = unsafe extern "C" fn(
     caller_info: *mut *mut c_void,
 ) -> cufftResult;
 
-type CufftXtClearCallbackFn =
-    unsafe extern "C" fn(plan: cufftHandle, cb_type: i32) -> cufftResult;
+type CufftXtClearCallbackFn = unsafe extern "C" fn(plan: cufftHandle, cb_type: i32) -> cufftResult;
 
 struct XtSyms {
     set_cb: Option<libloading::Symbol<'static, CufftXtSetCallbackFn>>,
@@ -73,11 +72,7 @@ const CUFFT_LIB_CANDIDATES: &[&str] = &["libcufft.so", "libcufft.so.11", "libcuf
 const CUFFT_LIB_CANDIDATES: &[&str] = &["libcufft.dylib"];
 
 #[cfg(target_os = "windows")]
-const CUFFT_LIB_CANDIDATES: &[&str] = &[
-    "cufft64_11.dll",
-    "cufft64_10.dll",
-    "cufft64_9.dll",
-];
+const CUFFT_LIB_CANDIDATES: &[&str] = &["cufft64_11.dll", "cufft64_10.dll", "cufft64_9.dll"];
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 const CUFFT_LIB_CANDIDATES: &[&str] = &[];
@@ -95,12 +90,22 @@ fn load_xt_syms() -> Result<XtSyms, String> {
                 let set_cb = unsafe {
                     lib.get::<CufftXtSetCallbackFn>(b"cufftXtSetCallback\0")
                         .ok()
-                        .map(|s| std::mem::transmute::<libloading::Symbol<'_, CufftXtSetCallbackFn>, libloading::Symbol<'static, CufftXtSetCallbackFn>>(s))
+                        .map(|s| {
+                            std::mem::transmute::<
+                                libloading::Symbol<'_, CufftXtSetCallbackFn>,
+                                libloading::Symbol<'static, CufftXtSetCallbackFn>,
+                            >(s)
+                        })
                 };
                 let clear_cb = unsafe {
                     lib.get::<CufftXtClearCallbackFn>(b"cufftXtClearCallback\0")
                         .ok()
-                        .map(|s| std::mem::transmute::<libloading::Symbol<'_, CufftXtClearCallbackFn>, libloading::Symbol<'static, CufftXtClearCallbackFn>>(s))
+                        .map(|s| {
+                            std::mem::transmute::<
+                                libloading::Symbol<'_, CufftXtClearCallbackFn>,
+                                libloading::Symbol<'static, CufftXtClearCallbackFn>,
+                            >(s)
+                        })
                 };
                 return Ok(XtSyms {
                     set_cb,
@@ -168,10 +173,7 @@ pub unsafe fn xt_set_callback(
 ///
 /// # Safety
 /// `plan` must be a live cuFFT handle.
-pub unsafe fn xt_clear_callback(
-    plan: cufftHandle,
-    cb_type: CufftXtCallbackType,
-) -> cufftResult {
+pub unsafe fn xt_clear_callback(plan: cufftHandle, cb_type: CufftXtCallbackType) -> cufftResult {
     let syms = match xt_syms() {
         Ok(s) => s,
         Err(_) => return fail_not_supported(),

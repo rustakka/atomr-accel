@@ -3,11 +3,11 @@
 
 #[cfg(feature = "grouped")]
 fn main() {
+    use atomr_accel_cutlass::dtype::F16;
     use atomr_accel_cutlass::{
         CutlassActor, CutlassMsg, GemmShape, GroupedGemmRequest, GroupedGemmShape, GroupedLayout,
         SmArch,
     };
-    use atomr_accel_cutlass::dtype::F16;
 
     let actor = CutlassActor::new(8);
     let shapes = vec![

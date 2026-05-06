@@ -27,9 +27,9 @@ use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::dispatch::{CollectiveDispatch, CollectiveDispatchCtx};
 
+pub mod all_to_all;
 pub mod allgather;
 pub mod allreduce;
-pub mod all_to_all;
 pub mod broadcast;
 pub mod capabilities;
 pub mod custom_op;
@@ -38,8 +38,8 @@ pub mod p2p;
 pub mod reduce;
 pub mod reduce_scatter;
 
-pub use allgather::AllGatherRequest;
 pub use all_to_all::{AllToAllRequest, AllToAllvRequest};
+pub use allgather::AllGatherRequest;
 pub use allreduce::AllReduceRequest;
 pub use broadcast::BroadcastRequest;
 pub use capabilities::{probe_capabilities, NcclCapabilities};
@@ -117,7 +117,9 @@ pub enum CollectiveMsg {
     /// Legacy alias preserved for back-compat. New callers should
     /// build `AllReduceRequest<f32>` and ship via
     /// [`CollectiveMsg::Op`].
-    #[deprecated(note = "use CollectiveMsg::Op(Box::new(AllReduceRequest::<f32> { ... })) instead")]
+    #[deprecated(
+        note = "use CollectiveMsg::Op(Box::new(AllReduceRequest::<f32> { ... })) instead"
+    )]
     AllReduceF32 {
         tensor: GpuRef<f32>,
         op: ReduceOp,
@@ -127,7 +129,9 @@ pub enum CollectiveMsg {
     /// Legacy alias preserved for back-compat. New callers should
     /// build `BroadcastRequest<f32>` and ship via
     /// [`CollectiveMsg::Op`].
-    #[deprecated(note = "use CollectiveMsg::Op(Box::new(BroadcastRequest::<f32> { ... })) instead")]
+    #[deprecated(
+        note = "use CollectiveMsg::Op(Box::new(BroadcastRequest::<f32> { ... })) instead"
+    )]
     BroadcastF32 {
         data: GpuRef<f32>,
         root: usize,
@@ -300,11 +304,7 @@ fn handle_legacy(comm: &SendComm, msg: CollectiveMsg) {
         CollectiveMsg::AllReduceF32 { tensor, op, reply } => {
             // Route through the typed dispatcher so behaviour matches
             // `Op(AllReduceRequest::<f32>)`.
-            let req = AllReduceRequest::<f32> {
-                tensor,
-                op,
-                reply,
-            };
+            let req = AllReduceRequest::<f32> { tensor, op, reply };
             let dummy_state = Arc::new(crate::device::DeviceState::new(0));
             let dummy_comp: Arc<dyn CompletionStrategy> =
                 Arc::new(crate::completion::HostFnCompletion::new());
@@ -316,11 +316,7 @@ fn handle_legacy(comm: &SendComm, msg: CollectiveMsg) {
             Box::new(req).dispatch(&ctx);
         }
         CollectiveMsg::BroadcastF32 { data, root, reply } => {
-            let req = BroadcastRequest::<f32> {
-                data,
-                root,
-                reply,
-            };
+            let req = BroadcastRequest::<f32> { data, root, reply };
             let dummy_state = Arc::new(crate::device::DeviceState::new(0));
             let dummy_comp: Arc<dyn CompletionStrategy> =
                 Arc::new(crate::completion::HostFnCompletion::new());
@@ -354,7 +350,7 @@ mod tests {
         let _ = state;
         let _ = tx; // tx is consumed below by the matcher; nothing
                     // actually has to construct GpuRef.
-        // Confirm the variants can at least be referenced statically.
+                    // Confirm the variants can at least be referenced statically.
         let _ = std::mem::size_of::<CollectiveMsg>();
         let _ = std::any::TypeId::of::<CollectiveMsg>();
     }

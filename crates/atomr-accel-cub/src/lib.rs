@@ -95,11 +95,12 @@ pub struct KernelSourceCache {
 
 impl KernelSourceCache {
     pub fn get(&self, op: &str, dtype: &str) -> Option<Arc<Vec<u8>>> {
-        self.inner.get(&(op.to_string(), dtype.to_string())).cloned()
+        self.inner
+            .get(&(op.to_string(), dtype.to_string()))
+            .cloned()
     }
     pub fn insert(&mut self, op: &str, dtype: &str, ptx: Arc<Vec<u8>>) {
-        self.inner
-            .insert((op.to_string(), dtype.to_string()), ptx);
+        self.inner.insert((op.to_string(), dtype.to_string()), ptx);
     }
     pub fn len(&self) -> usize {
         self.inner.len()
@@ -203,9 +204,7 @@ impl Actor for CubActor {
 }
 
 fn mock_reply(msg: CubMsg) {
-    let err = || {
-        GpuError::Unrecoverable("CubActor in mock mode (no GPU available)".into())
-    };
+    let err = || GpuError::Unrecoverable("CubActor in mock mode (no GPU available)".into());
     match msg {
         CubMsg::Reduce(d) => d.cancel(err()),
         CubMsg::Scan(d) => d.cancel(err()),

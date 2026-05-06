@@ -13,7 +13,7 @@ use cudarc::cublas::sys::cublasOperation_t;
 use cudarc::cublas::{Gemm, GemmConfig};
 use tokio::sync::oneshot;
 
-use crate::dtype::{CudaDtype, GemmSupported};
+use crate::dtype::GemmSupported;
 use crate::error::GpuError;
 use crate::gpu_ref::GpuRef;
 use crate::kernel::dispatch::{BlasDispatchCtx, GemmDispatch};

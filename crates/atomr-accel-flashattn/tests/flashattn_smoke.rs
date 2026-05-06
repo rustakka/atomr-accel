@@ -26,17 +26,66 @@ fn flashattn_dispatch_table_covers_canonical_configurations() {
     // Canonical configurations the table must serve.
     let cases: &[(SmArch, DType, u32, bool, bool, &str)] = &[
         // Ampere training defaults
-        (SmArch::Sm80, DType::F16,  64, true,  false, "fa2 ampere f16 hd=64 causal"),
-        (SmArch::Sm80, DType::Bf16, 128, true,  false, "fa2 ampere bf16 hd=128 causal"),
+        (
+            SmArch::Sm80,
+            DType::F16,
+            64,
+            true,
+            false,
+            "fa2 ampere f16 hd=64 causal",
+        ),
+        (
+            SmArch::Sm80,
+            DType::Bf16,
+            128,
+            true,
+            false,
+            "fa2 ampere bf16 hd=128 causal",
+        ),
         // Ada Lovelace inference
-        (SmArch::Sm89, DType::F16,  128, false, true,  "fa2 ada f16 varlen"),
+        (
+            SmArch::Sm89,
+            DType::F16,
+            128,
+            false,
+            true,
+            "fa2 ada f16 varlen",
+        ),
         // Hopper training
-        (SmArch::Sm90a, DType::Bf16, 128, true,  false, "fa3 hopper bf16 causal"),
-        (SmArch::Sm90a, DType::Bf16, 256, true,  false, "fa3 hopper bf16 hd=256 causal"),
+        (
+            SmArch::Sm90a,
+            DType::Bf16,
+            128,
+            true,
+            false,
+            "fa3 hopper bf16 causal",
+        ),
+        (
+            SmArch::Sm90a,
+            DType::Bf16,
+            256,
+            true,
+            false,
+            "fa3 hopper bf16 hd=256 causal",
+        ),
         // Hopper fp8 inference
-        (SmArch::Sm90a, DType::F8E4m3, 128, true, false, "fa3 hopper fp8e4m3 causal"),
+        (
+            SmArch::Sm90a,
+            DType::F8E4m3,
+            128,
+            true,
+            false,
+            "fa3 hopper fp8e4m3 causal",
+        ),
         // Hopper varlen + sliding window (sliding window is set via DispatchKey field)
-        (SmArch::Sm90a, DType::Bf16, 128, true,  true,  "fa3 hopper bf16 varlen+causal"),
+        (
+            SmArch::Sm90a,
+            DType::Bf16,
+            128,
+            true,
+            true,
+            "fa3 hopper bf16 varlen+causal",
+        ),
     ];
 
     let mut covered = 0;
@@ -63,7 +112,10 @@ fn flashattn_dispatch_table_covers_canonical_configurations() {
 
     println!(
         "[flashattn] dispatch coverage: {}/{} canonical configs ({} missing: {:?})",
-        covered, cases.len(), missing.len(), missing
+        covered,
+        cases.len(),
+        missing.len(),
+        missing
     );
 
     // Assertion: at least Ampere f16/bf16 causal MUST be in the table —

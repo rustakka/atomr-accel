@@ -82,8 +82,8 @@ pub use conv::{
     ConvBwdDataRequest, ConvBwdFilterRequest, ConvDescParams, ConvFwdRequest, EpilogueKind,
 };
 pub use graph::{
-    cache_key, CachedPlan, DtypeTag, NormMode, NormPhase, OpSpec, OperationGraphSpec,
-    PlanCache, PlanCacheKey, PointwiseMode, PoolKind, ReduceOp, TensorLayout, TensorSpec,
+    cache_key, CachedPlan, DtypeTag, NormMode, NormPhase, OpSpec, OperationGraphSpec, PlanCache,
+    PlanCacheKey, PointwiseMode, PoolKind, ReduceOp, TensorLayout, TensorSpec,
     DEFAULT_PLAN_CACHE_SIZE,
 };
 pub use norm::{

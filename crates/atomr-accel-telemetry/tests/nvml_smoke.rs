@@ -39,5 +39,8 @@ async fn nvml_snapshot_returns_nonempty_device_list() {
         "[nvml] device 0: {} | gpu_temp_c={:?} | mem_used={}MB / {}MB",
         name, dev0.temperature_gpu_c, used_mb, total_mb,
     );
-    assert!(!name.is_empty() || dev0.uuid.is_some(), "device 0 had no name and no UUID");
+    assert!(
+        !name.is_empty() || dev0.uuid.is_some(),
+        "device 0 had no name and no UUID"
+    );
 }

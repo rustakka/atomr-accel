@@ -291,10 +291,8 @@ impl NvmlLib {
                         *s
                     };
                     let nvml_device_get_count_v2 = unsafe {
-                        let s: libloading::Symbol<
-                            '_,
-                            unsafe extern "C" fn(*mut c_uint) -> c_int,
-                        > = library.get(b"nvmlDeviceGetCount_v2\0")?;
+                        let s: libloading::Symbol<'_, unsafe extern "C" fn(*mut c_uint) -> c_int> =
+                            library.get(b"nvmlDeviceGetCount_v2\0")?;
                         *s
                     };
                     let nvml_device_get_handle_by_index_v2 = unsafe {
@@ -356,7 +354,11 @@ fn poll_once(lib: &NvmlLib) -> Result<NvmlSnapshot, NvmlError> {
         let mut handle: *mut c_void = std::ptr::null_mut();
         let status = unsafe { (lib.nvml_device_get_handle_by_index_v2)(i, &mut handle) };
         if status != 0 {
-            warn!(idx = i, code = status, "nvmlDeviceGetHandleByIndex_v2 failed");
+            warn!(
+                idx = i,
+                code = status,
+                "nvmlDeviceGetHandleByIndex_v2 failed"
+            );
             continue;
         }
         let mut device = NvmlDeviceSnapshot {

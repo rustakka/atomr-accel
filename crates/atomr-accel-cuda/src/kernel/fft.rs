@@ -458,14 +458,14 @@ impl<T: FftSupported> FftDispatch for FftRequest<T> {
             // device pointers stay valid. The dtype matches because
             // the plan was created with `kind`'s cufftType — so we
             // pick the matching exec entry point at runtime.
-            let res =
-                unsafe { exec_kernel(&plan, &src_arc, &dst_arc, kind, direction, &stream_for_exec) };
-            res.map(|_| (src_arc, dst_arc, plan)).map_err(|e| {
-                GpuError::LibraryError {
+            let res = unsafe {
+                exec_kernel(&plan, &src_arc, &dst_arc, kind, direction, &stream_for_exec)
+            };
+            res.map(|_| (src_arc, dst_arc, plan))
+                .map_err(|e| GpuError::LibraryError {
                     lib: LIB,
                     msg: format!("exec_{:?}: {:?}", kind, e),
-                }
-            })
+                })
         });
     }
 }
@@ -672,10 +672,7 @@ impl FftActor {
             let mut g = plans.lock();
             g.cache.put(key, plan.clone());
         }
-        Ok(FftPlan {
-            key,
-            inner: plan,
-        })
+        Ok(FftPlan { key, inner: plan })
     }
 
     fn get_or_create_plan(&self, key: PlanKey) -> Result<Arc<CudaFft>, GpuError> {
@@ -706,7 +703,12 @@ fn build_simple_plan(
     stream: &Arc<cudarc::driver::CudaStream>,
 ) -> Result<CudaFft, cudarc::cufft::result::CufftError> {
     match key.rank {
-        1 => CudaFft::plan_1d(key.dims[0], key.kind.cufft_type(), key.batch, stream.clone()),
+        1 => CudaFft::plan_1d(
+            key.dims[0],
+            key.kind.cufft_type(),
+            key.batch,
+            stream.clone(),
+        ),
         2 => CudaFft::plan_2d(
             key.dims[0],
             key.dims[1],
@@ -815,8 +817,7 @@ impl Actor for FftActor {
                 dst,
                 reply,
             } => {
-                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::R2C, batch))
-                {
+                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::R2C, batch)) {
                     Ok(p) => p,
                     Err(e) => {
                         let _ = reply.send(Err(e));
@@ -856,8 +857,7 @@ impl Actor for FftActor {
                 dst,
                 reply,
             } => {
-                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::C2R, batch))
-                {
+                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::C2R, batch)) {
                     Ok(p) => p,
                     Err(e) => {
                         let _ = reply.send(Err(e));
@@ -907,8 +907,7 @@ impl Actor for FftActor {
                 dst,
                 reply,
             } => {
-                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::C2C, batch))
-                {
+                let plan = match self.get_or_create_plan(PlanKey::plan_1d(n, FftKind::C2C, batch)) {
                     Ok(p) => p,
                     Err(e) => {
                         let _ = reply.send(Err(e));
@@ -1124,10 +1123,7 @@ mod tests {
         // Inserting k3 evicts the LRU (k1, since k2 was just touched).
         cache.put(k3, ());
         assert!(cache.get(&k3).is_some());
-        assert!(
-            cache.get(&k1).is_none(),
-            "k1 should have been LRU-evicted"
-        );
+        assert!(cache.get(&k1).is_none(), "k1 should have been LRU-evicted");
         assert!(cache.get(&k2).is_some());
     }
 

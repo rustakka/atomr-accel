@@ -65,7 +65,10 @@ pub enum GemmEpilogue {
 
 impl Default for GemmEpilogue {
     fn default() -> Self {
-        GemmEpilogue::Linear { alpha: 1.0, beta: 0.0 }
+        GemmEpilogue::Linear {
+            alpha: 1.0,
+            beta: 0.0,
+        }
     }
 }
 
@@ -149,9 +152,7 @@ impl<T: GemmSupported> GemmRequest<T> {
     /// Deprecated 5-argument constructor. Pre-Phase-6 callers passed
     /// `(m, n, k, layout, alpha)`; we keep this path so out-of-tree
     /// downstreams compile against the 0.3.0 API surface.
-    #[deprecated(
-        note = "use `GemmRequest::new(shape, arch)` plus the builder methods instead"
-    )]
+    #[deprecated(note = "use `GemmRequest::new(shape, arch)` plus the builder methods instead")]
     pub fn legacy(m: u32, n: u32, k: u32, layout: GemmLayout, alpha: f32) -> Self {
         let mut req = Self::new(GemmShape::new(m, n, k), SmArch::Sm80);
         req.layout_a = layout;
@@ -257,7 +258,7 @@ pub struct RefitMsg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dtype::{Bf16, F16, F4E2m1, F8E4m3, F8E5m2};
+    use crate::dtype::{Bf16, F4E2m1, F8E4m3, F8E5m2, F16};
 
     #[test]
     fn gemm_request_round_trip_for_every_dtype() {
@@ -274,8 +275,11 @@ mod tests {
         assert_eq!(req.dtype(), CutlassDtype::F64);
 
         // f16 / bf16
-        let req = GemmRequest::<F16>::new(GemmShape::new(64, 64, 64), SmArch::Sm80)
-            .with_layouts(GemmLayout::ColMajor, GemmLayout::RowMajor, GemmLayout::RowMajor);
+        let req = GemmRequest::<F16>::new(GemmShape::new(64, 64, 64), SmArch::Sm80).with_layouts(
+            GemmLayout::ColMajor,
+            GemmLayout::RowMajor,
+            GemmLayout::RowMajor,
+        );
         let key1 = req.plan_key();
         let req2 = GemmRequest::<F16>::new(GemmShape::new(64, 64, 64), SmArch::Sm80);
         assert_ne!(key1, req2.plan_key());
@@ -284,7 +288,10 @@ mod tests {
 
         // fp8 e4m3 / e5m2 — Hopper
         let req = GemmRequest::<F8E4m3>::new(GemmShape::new(128, 128, 128), SmArch::Sm90a)
-            .with_epilogue(GemmEpilogue::LinearReLU { alpha: 1.0, beta: 0.0 });
+            .with_epilogue(GemmEpilogue::LinearReLU {
+                alpha: 1.0,
+                beta: 0.0,
+            });
         assert_eq!(req.dtype(), CutlassDtype::F8E4m3);
         assert!(req.persistent);
         let _ = GemmRequest::<F8E5m2>::new(GemmShape::new(64, 64, 64), SmArch::Sm90a);

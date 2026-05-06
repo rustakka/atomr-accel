@@ -11,6 +11,7 @@
 //!
 //! Compare to `examples/sgemm.rs` (gated behind `--features cuda-runtime-tests`)
 //! for the real GPU path.
+#![allow(deprecated)]
 
 use std::time::Duration;
 
