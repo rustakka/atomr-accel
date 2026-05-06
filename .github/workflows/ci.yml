@@ -21,18 +21,15 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sibling atomr
-        uses: actions/checkout@v4
-        with:
-          repository: rustakka/atomr
-          path: atomr
-      - name: Checkout atomr-accel
-        uses: actions/checkout@v4
-        with:
-          path: atomr-accel
+      - uses: actions/checkout@v4
+        with: { path: atomr-accel }
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
-      - run: cargo fmt --all -- --check
+      # Invoke rustfmt directly on tracked .rs files instead of `cargo fmt
+      # --all`. The latter walks path-dep workspaces (sibling atomr) and
+      # would format their sources too — coupling our CI to a repo we
+      # don't own. All workspace members inherit edition 2021.
+      - run: git ls-files -z '*.rs' | xargs -0 rustfmt --check --edition 2021
         working-directory: atomr-accel
 
   clippy:
