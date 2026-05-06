@@ -200,6 +200,10 @@ fn write_workspace_version(path: &Path, version: &str) -> Result<()> {
 /// declare `atomr-accel-cuda = { path = "...", version = "..." }` and
 /// crates.io resolves against the version pin on publish — they
 /// must move in lockstep with the workspace version.
+///
+/// Path-deps whose target is the sibling `atomr/` workspace are NOT
+/// rewritten — atomr has its own release cadence and its versions
+/// must not be mutated by an atomr-accel bump.
 fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<()> {
     let text = std::fs::read_to_string(path)?;
     let block_start = match text.find("[workspace.dependencies]") {
@@ -217,9 +221,9 @@ fn write_workspace_deps_versions(path: &Path, prev: &str, next: &str) -> Result<
     let mut new_block = String::with_capacity(block.len());
     for line in block.split_inclusive('\n') {
         // Only rewrite intra-workspace path-deps. Don't touch external
-        // deps that happen to share the previous version string.
-        let is_internal_path =
-            line.contains("path = \"crates/") || line.contains("path = \"../atomr/crates/");
+        // deps (sibling atomr/ workspace, crates.io versions) that
+        // happen to share the previous version string.
+        let is_internal_path = line.contains("path = \"crates/");
         if is_internal_path && line.contains(&needle) {
             new_block.push_str(&line.replace(&needle, &replacement));
         } else {

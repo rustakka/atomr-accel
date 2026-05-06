@@ -178,7 +178,7 @@ full-cuda     = ["training-libs", "nccl", "cuda-ipc", "graphs-conditional"]
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
 atomr-macros = { workspace = true }
-atomr-accel  = { path = "../atomr-accel", version = "0.3.1", default-features = false }
+atomr-accel  = { path = "../atomr-accel", version = "0.3.2", default-features = false }
 cudarc       = { workspace = true }
 tokio        = { workspace = true }
 async-trait  = { workspace = true }
@@ -197,8 +197,8 @@ atomr-persistence = { workspace = true, optional = true }
 atomr-cluster-sharding = { workspace = true, optional = true }
 atomr-streams = { workspace = true, optional = true }
 atomr-telemetry = { workspace = true, optional = true }
-atomr-accel-telemetry = { path = "../atomr-accel-telemetry", version = "0.3.1", optional = true, default-features = false }
-atomr-accel-flashattn = { path = "../atomr-accel-flashattn", version = "0.3.1", optional = true }
+atomr-accel-telemetry = { path = "../atomr-accel-telemetry", version = "0.3.2", optional = true, default-features = false }
+atomr-accel-flashattn = { path = "../atomr-accel-flashattn", version = "0.3.2", optional = true }
 serde        = { version = "1", features = ["derive"] }
 serde_json   = { version = "1", optional = true }
 # NVRTC persistent kernel cache (Phase 0.6). `bincode = "1"` for the
@@ -206,9 +206,9 @@ serde_json   = { version = "1", optional = true }
 bincode      = "1"
 dirs         = "5"
 # Phase 8 TensorRT crate (linked at runtime; libnvinfer is proprietary).
-atomr-accel-tensorrt = { path = "../atomr-accel-tensorrt", version = "0.3.1", optional = true }
+atomr-accel-tensorrt = { path = "../atomr-accel-tensorrt", version = "0.3.2", optional = true }
 # Phase 6 CUTLASS template-instantiation crate (vendored headers + NVRTC).
-atomr-accel-cutlass = { path = "../atomr-accel-cutlass", version = "0.3.1", optional = true }
+atomr-accel-cutlass = { path = "../atomr-accel-cutlass", version = "0.3.2", optional = true }
 
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
