@@ -309,8 +309,38 @@ fn write_pyproject_version(path: &Path, version: &str) -> Result<()> {
 
 fn verify() -> Result<()> {
     let cargo = env!("CARGO");
+
+    // fmt runs rustfmt directly on tracked .rs files. `cargo fmt --all`
+    // would walk path-dep workspaces (sibling atomr) and format their
+    // sources too — coupling our verify gate to a repo we don't own.
+    // All workspace members inherit edition 2021.
+    println!("==> verify: fmt");
+    let ls = Command::new("git")
+        .args(["ls-files", "-z", "*.rs"])
+        .output()
+        .context("spawning `git ls-files` for verify step `fmt`")?;
+    if !ls.status.success() {
+        return Err(anyhow!("`git ls-files` failed ({})", ls.status));
+    }
+    let files: Vec<&[u8]> = ls
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let paths: Vec<&std::ffi::OsStr> = files
+        .iter()
+        .map(|b| std::os::unix::ffi::OsStrExt::from_bytes(b))
+        .collect();
+    let status = Command::new("rustfmt")
+        .args(["--check", "--edition", "2021"])
+        .args(&paths)
+        .status()
+        .context("spawning `rustfmt` for verify step `fmt`")?;
+    if !status.success() {
+        return Err(anyhow!("verify step `fmt` failed ({status})"));
+    }
+
     let steps: Vec<(&str, &[&str])> = vec![
-        ("fmt", &["fmt", "--all", "--", "--check"]),
         (
             "clippy (no-default-features)",
             &[
