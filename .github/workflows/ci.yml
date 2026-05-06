@@ -21,8 +21,15 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { path: atomr-accel }
+      - name: Checkout sibling atomr
+        uses: actions/checkout@v4
+        with:
+          repository: rustakka/atomr
+          path: atomr
+      - name: Checkout atomr-accel
+        uses: actions/checkout@v4
+        with:
+          path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
       - run: cargo fmt --all -- --check
