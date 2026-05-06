@@ -78,6 +78,11 @@ supervision, typed messages, async/await throughout.
 | `atomr-accel-train`         | Distributed-training blueprints — `DataParallelTrainer`, `PipelineParallelTrainer`, `TensorParallelTrainer`, `AsyncParameterServer`, optimizer + loss enums |
 | `atomr-accel-agents`        | LLM blueprints — `RagPipeline` (with `EmbeddingCache` LRU + `CpuVectorIndex`), `SharedGpuStateCoordinator`, `LangGraphGpuActor` (DAG executor with cycle detection) |
 | `atomr-accel-cuda-realtime` | NVRTC-backed realtime sims — `ImageFilterPipeline`, `ParticleSystemActor`, `ClothSimulationActor`, `FluidSimulationActor`, `SpatialIndexActor`, `GpuHashMapActor`, `GpuSparseStructureActor`, `MultiPassAnalysisActor`, `VideoEffectsGraph` |
+| `atomr-accel-cub`           | CUB device-wide primitives — `CubActor` with reduce / scan / sort / histogram / select / partition / segmented-reduce dispatchers, NVRTC-templated per `(op, dtype, length-class)` |
+| `atomr-accel-cutlass`       | CUTLASS kernel-template instantiation — `CutlassActor` for GEMM, grouped-GEMM, implicit-GEMM convolution, EVT (epilogue visitor tree), via NVRTC against vendored headers |
+| `atomr-accel-flashattn`     | FlashAttention v2 + v3 kernels — `FlashAttnActor` with forward/backward, paged KV-cache, chunked prefill, varlen, ALiBi, sliding window, sink tokens, MQA/GQA, fp8 (fa3 only) |
+| `atomr-accel-tensorrt`      | TensorRT engine builder + runtime — `TrtActor`, `IBuilderConfig` (fp32/fp16/bf16/int8/fp8/best), ONNX import, INT8 calibration, FP8 PTQ, `IPluginV3` Rust trampolines |
+| `atomr-accel-telemetry`     | Observability backends — `NvtxKernelTrace` for kernel-range markers, `NvmlActor` for power/temp/ECC/clocks, `CuptiSession` for activity tracing |
 | `atomr-accel-py`            | Python bindings via PyO3 — `atomr_accel.{System, Device, GpuBuffer}`, typed exceptions, GIL-released kernel paths    |
 
 Plus a Python facade — `pip install atomr-accel` — that exposes the
@@ -207,9 +212,19 @@ the GIL-release contract, and mock-mode tests.
 | [CUDA Graphs][cuda-graph]          | `GraphActor`       | [`cuGraphInstantiate` / `cuGraphLaunch`][cuda-graph-api] | always-on |
 | [Peer-to-peer][cuda-p2p]           | `P2pTopology`      | [`cuMemcpyPeerAsync`][cuda-memcpy-peer]           | always-on    |
 
-Aggregate features: `core-libs` = `cudnn` + `cufft` + `curand` +
-`cusparse`. `training-libs` = `core-libs` + `cusolver` + `cublaslt` +
-`nvrtc` + `cutensor`. `full-cuda` = `training-libs` + `nccl`.
+Aggregate features:
+- `core-libs` = `cudnn` + `cufft` + `curand` + `cusparse` + `cutensor` + `cuda-managed`.
+- `training-libs` = `core-libs` + `cusolver` + `cublaslt` + `nvrtc`.
+- `full-cuda` = `training-libs` + `nccl` + `cuda-ipc` + `graphs-conditional`.
+- `observability-full` = `telemetry` + `nvtx-trace` + `nvml` + `cupti`.
+
+Sibling-crate gates (off by default; pull each in by enabling the
+matching feature on `atomr-accel-cuda`):
+
+- `cutlass` (+ `cutlass-evt`, `cutlass-grouped`, `cutlass-prebuilt`).
+- `flashattn` (+ `flashattn-fp8`, `flashattn-paged`).
+- `tensorrt` (+ `tensorrt-onnx`, `tensorrt-plugin`, `tensorrt-int8`, `tensorrt-fp8`).
+- `nvtx-trace`, `nvml`, `cupti` — Phase 9 telemetry backends, layered on `telemetry`.
 
 ## atomr integrations
 
@@ -363,36 +378,62 @@ use atomr_accel_cuda_realtime::prelude::*;   // particles, cloth, sparse
 ```
 
 If you're using an AI coding assistant (Claude Code, Cursor, etc.),
-[`ai-skills/`](ai-skills/) ships seven `SKILL.md` files your tool can
+[`ai-skills/`](ai-skills/) ships ten `SKILL.md` files your tool can
 pick up so the assistant gives you idiomatic atomr-accel guidance
 instead of guessing.
 
 ## Layout
 
 ```
-crates/                     Rust workspace
-crates/atomr-accel/         Backend-agnostic core (umbrella)
-crates/atomr-accel-cuda/    NVIDIA CUDA implementation
-crates/atomr-accel-*        Blueprints (patterns / train / agents / cuda-realtime)
-crates/atomr-accel-py/      PyO3 bridge (Python module: atomr_accel)
-ai-skills/                  Vendor-neutral SKILL.md files for AI assistants
-docs/                       Architecture, getting-started, concepts, features-matrix
-xtask/                      Cargo xtask (bump, verify)
+crates/                       Rust workspace
+crates/atomr-accel/           Backend-agnostic core (umbrella)
+crates/atomr-accel-cuda/      NVIDIA CUDA implementation
+crates/atomr-accel-patterns/  Universal blueprints (batching / cascade / scheduler / …)
+crates/atomr-accel-train/     Distributed-training blueprints
+crates/atomr-accel-agents/    LLM blueprints (RAG / DAG)
+crates/atomr-accel-cuda-realtime/  NVRTC-backed realtime sims
+crates/atomr-accel-cub/       CUB device-wide primitives (Phase 5)
+crates/atomr-accel-cutlass/   CUTLASS templates via NVRTC (Phase 6)
+crates/atomr-accel-flashattn/ FlashAttention v2 + v3 kernels (Phase 7)
+crates/atomr-accel-tensorrt/  TensorRT engine builder + runtime (Phase 8)
+crates/atomr-accel-telemetry/ NVTX / NVML / CUPTI observability (Phase 9)
+crates/atomr-accel-py/        PyO3 bridge (Python module: atomr_accel)
+ai-skills/                    Vendor-neutral SKILL.md files for AI assistants
+docs/                         Architecture, getting-started, concepts, features-matrix, gpu-testing
+xtask/                        Cargo xtask (bump, verify, gpu-probe, gpu-test, gpu-bench)
 ```
 
 ## Status
 
-`F2 – F9 implemented + atomr adoption complete.` The full feature
-matrix builds clean; 60+ tests pass on a no-GPU CI; the GPU-runtime
-suite covers SGEMM, FFT, RNG, pinned memcpy, SpMV, tensor contraction,
-SVD, and the multi-actor end-to-end smoke.
+Phases 0 – 9 of the CUDA-coverage roadmap are merged. The workspace
+ships **twelve library crates** spanning the foundation actor surface
+(`atomr-accel`, `atomr-accel-cuda`), the blueprint sub-crates
+(`atomr-accel-patterns`, `atomr-accel-train`, `atomr-accel-agents`,
+`atomr-accel-cuda-realtime`, `atomr-accel-py`), Phase 1 – 4 library
+expansions (full cuBLAS / cuBLASLt / cuFFT / cuRAND / cuSOLVER dtype
+matrix, cuDNN frontend graph, NCCL collective set, cuTENSOR
+contraction + reduce + permute, cuSPARSE generic API + cuSPARSELt
+2:4), Phase 5 foundations (NVRTC v2 + Hopper/Blackwell +
+`atomr-accel-cub`), and Phase 6 – 9 sibling crates
+(`atomr-accel-cutlass`, `atomr-accel-flashattn`,
+`atomr-accel-tensorrt`, `atomr-accel-telemetry`).
+
+The full feature matrix builds clean on a no-GPU host. ≈ 175 unit
+tests pass with the headline feature combo
+(`f16,cudnn,curand,cufft,nvrtc,cusolver,cusparse,cusparse-generic,cutensor,cublaslt,nccl,nvtx,cuda-ipc,cuda-managed,graphs-conditional`).
+The opt-in GPU integration suite — invoked via `cargo xtask gpu-test`
+— covers SGEMM, FFT, RNG, pinned memcpy, SpMV, tensor contraction,
+SVD, the dispatch tables for FlashAttention / CUTLASS / CUB, and
+real NVML probes against installed devices. See
+[`docs/gpu-testing.md`](docs/gpu-testing.md) for the suite catalog
+and the rationale for keeping it out of CI.
 
 ## Releasing
 
 `v*.*.*` git tags trigger a single `release.yml` pipeline that runs
 the verify gate, builds Python wheels (manylinux x86_64, musllinux
 x86_64, macOS universal2, Windows x86_64) + an sdist, creates a
-GitHub Release, publishes the six Rust crates to crates.io in
+GitHub Release, publishes the workspace crates to crates.io in
 topological order, and uploads wheels + sdist to PyPI via trusted
 publishing. See [`RELEASING.md`](RELEASING.md) for the end-to-end
 flow.
@@ -412,9 +453,13 @@ flow.
   smallest dep footprint that fits your goal.
 - [`docs/python-bridge.md`](docs/python-bridge.md) — Python bindings
   surface and GIL strategy.
+- [`docs/gpu-testing.md`](docs/gpu-testing.md) — opt-in GPU
+  integration suite, the three-layer gating model, and why the suite
+  is intentionally not part of CI.
 - [`ai-skills/README.md`](ai-skills/README.md) — install the skill
   bundle into Claude Code, Cursor, Codex CLI, Gemini CLI, or any
-  harness that reads `SKILL.md`.
+  harness that reads `SKILL.md`. Covers the foundation actors plus
+  per-crate skills for FlashAttention, CUTLASS, and TensorRT.
 - [`RELEASING.md`](RELEASING.md) — release pipeline, secrets,
   yanking, post-release verification.
 

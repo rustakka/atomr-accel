@@ -21,6 +21,9 @@ internal release workflow.
 | `atomr-accel-python` | Using the Python bindings — `System`/`Device`/`GpuBuffer`, numpy float32 roundtrip, GIL release, mock-mode tests |
 | `atomr-accel-troubleshooting` | Diagnosing failures — feature-flag misses, `GpuRefStale`, mailbox stalls, OOM loops, no-GPU CI vs GPU-runtime gate |
 | `atomr-accel-backends` | Choosing between portable (`AccelBackend` trait) and vendor-specific (`atomr-accel-cuda`) APIs; future ROCm/Metal/oneAPI/Vulkan story |
+| `atomr-accel-flashattn` | Wiring or extending FlashAttention v2 / v3 — `FlashAttnActor`, the `(arch, dtype, head_dim, …)` dispatch table, paged KV cache, chunked prefill, varlen, fa2-vs-fa3 picking |
+| `atomr-accel-cutlass` | Wiring or extending CUTLASS templates — `CutlassActor`, `GemmRequest` / `GroupedGemmRequest` / `Conv*Request`, the EVT emitter, Strategy A (NVRTC) vs Strategy B (`cutlass-prebuilt`) |
+| `atomr-accel-tensorrt` | Wiring or extending TensorRT — `TrtActor` lifecycle (`Build` / `Deserialize` / `CreateContext` / `EnqueueOnStream` / `Refit`), ONNX import, INT8 / FP8 PTQ, IPluginV3, `DeviceActor` stream sharing |
 
 Each `SKILL.md` is a thin router: it points at canonical docs in
 this repo (`docs/*.md`, `examples/*`) and at the relevant crate's
@@ -100,6 +103,9 @@ When working on atomr-accel, consult the matching skill in
 - Python bindings / numpy / GIL           → atomr-accel-python
 - portable vs vendor-specific API choice  → atomr-accel-backends
 - feature flags / OOM / CI vs GPU         → atomr-accel-troubleshooting
+- FlashAttention v2 / v3 / paged KV       → atomr-accel-flashattn
+- CUTLASS templates / EVT / arch matrix   → atomr-accel-cutlass
+- TensorRT engines / ONNX / INT8 / FP8    → atomr-accel-tensorrt
 ```
 
 ### Gemini CLI
