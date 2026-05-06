@@ -203,12 +203,16 @@ jobs:
             echo
             echo
             echo "### Crates published"
-            echo "- atomr-accel-cuda"
             echo "- atomr-accel"
+            echo "- atomr-accel-telemetry"
+            echo "- atomr-accel-flashattn"
+            echo "- atomr-accel-tensorrt"
+            echo "- atomr-accel-cutlass"
+            echo "- atomr-accel-cuda"
             echo "- atomr-accel-patterns"
-            echo "- atomr-accel-train"
             echo "- atomr-accel-agents"
             echo "- atomr-accel-cuda-realtime"
+            echo "- atomr-accel-train"
             echo
             echo "### Python wheels"
             ls artifacts | grep "atomr-accel-wheels-" | sed 's/^/- /' || true
@@ -285,14 +289,22 @@ jobs:
             done
           }
           # Strict dep-order:
-          #   1. atomr-accel-cuda  — backend impl (no internal deps)
-          #   2. atomr-accel       — umbrella core (optional re-export)
-          #   3. blueprints        — patterns / agents / cuda-realtime
+          #   1. atomr-accel       — umbrella core (no internal deps)
+          #   2. layer-0 leaves    — telemetry / flashattn / tensorrt / cutlass
+          #                          (atomr-accel-cuda has version-pinned
+          #                          optional deps on these; they must be on
+          #                          crates.io before cuda can publish)
+          #   3. atomr-accel-cuda  — depends on atomr-accel + the layer-0 leaves
+          #   4. blueprints        — patterns / agents / cuda-realtime
           #                          (each depends only on atomr-accel-cuda)
-          #   4. atomr-accel-train — depends on atomr-accel-patterns
+          #   5. atomr-accel-train — depends on atomr-accel-patterns
           for crate in \
-            atomr-accel-cuda \
             atomr-accel \
+            atomr-accel-telemetry \
+            atomr-accel-flashattn \
+            atomr-accel-tensorrt \
+            atomr-accel-cutlass \
+            atomr-accel-cuda \
             atomr-accel-patterns \
             atomr-accel-agents \
             atomr-accel-cuda-realtime \
@@ -321,7 +333,7 @@ jobs:
       - name: Dry-run publish
         working-directory: atomr-accel
         run: |
-          for c in atomr-accel-cuda atomr-accel atomr-accel-patterns atomr-accel-train atomr-accel-agents atomr-accel-cuda-realtime; do
+          for c in atomr-accel atomr-accel-telemetry atomr-accel-flashattn atomr-accel-tensorrt atomr-accel-cutlass atomr-accel-cuda atomr-accel-patterns atomr-accel-agents atomr-accel-cuda-realtime atomr-accel-train; do
             echo "==> $c"
             cargo publish -p "$c" --dry-run --allow-dirty || true
           done
@@ -353,6 +365,10 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          # Idempotent: skip files PyPI already has so a partial-fail
+          # release (e.g. crates.io step failed) can be re-tagged and
+          # the wheel/sdist publish step is a no-op the second time.
+          skip-existing: true
           # If trusted publishing is not yet configured, set
           # `password: ${{ secrets.PYPI_API_TOKEN }}` instead.
           skip-existing: true
