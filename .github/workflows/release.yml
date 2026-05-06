@@ -371,7 +371,6 @@ jobs:
           skip-existing: true
           # If trusted publishing is not yet configured, set
           # `password: ${{ secrets.PYPI_API_TOKEN }}` instead.
-          skip-existing: true
 
   publish-pypi-dry-run:
     name: PyPI dry-run (TestPyPI)
