@@ -298,6 +298,60 @@ impl PyNvrtcKernel {
             })
         })
     }
+
+    /// Async sibling of [`PyNvrtcKernel::launch`]. The synchronous
+    /// setup (marshalling each `PyKernelArg` into a Rust `KernelArg`
+    /// while holding the GIL, cloning the actor ref + kernel handle)
+    /// happens before entering the async block; the actor round-trip
+    /// then runs without holding the GIL. Returns a Python awaitable
+    /// that resolves once the launch has been enqueued *and* the
+    /// configured completion strategy has signalled the launch
+    /// finished.
+    #[pyo3(signature = (grid, block, args, shared=0, timeout_secs=60.0))]
+    fn launch_async<'py>(
+        &self,
+        py: Python<'py>,
+        grid: (u32, u32, u32),
+        block: (u32, u32, u32),
+        args: &Bound<'_, PyList>,
+        shared: u32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        // Marshal the Python-side `KernelArg` list into the Rust enum.
+        // This must happen synchronously (under the GIL) because each
+        // `PyKernelArg` borrows a `Py<PyGpuBuffer*>`. The resulting
+        // `Vec<KernelArg>` is `Send` (the inner trait objects are
+        // `Send + Sync + 'static`), so it can cross into the async
+        // block.
+        let mut rust_args: Vec<KernelArg> = Vec::with_capacity(args.len());
+        for item in args.iter() {
+            let arg: PyRef<PyKernelArg> = item.extract()?;
+            rust_args.push(arg.take_kernel_arg(py)?);
+        }
+
+        let cfg = LaunchConfig {
+            grid_dim: grid,
+            block_dim: block,
+            shared_mem_bytes: shared,
+        };
+        let handle = self.handle.clone();
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(NvrtcMsg::Launch {
+                kernel: handle,
+                args: rust_args,
+                cfg,
+                reply: tx,
+            });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("nvrtc dropped reply")),
+                Err(_) => Err(errors::map_str("nvrtc launch timed out")),
+            }
+        })
+    }
 }
 
 /// Send a `NvrtcMsg::Compile` to the supplied actor and wrap the
@@ -340,6 +394,50 @@ pub(crate) fn compile_via_actor(
             actor_ref: actor,
         },
     )
+}
+
+/// Async sibling of [`compile_via_actor`]. Returns a Python awaitable
+/// that completes once the NVRTC actor replies; on success the
+/// awaitable resolves to a `Py<PyNvrtcKernel>`. The synchronous
+/// caller is responsible for having already cloned the actor ref out
+/// of the Python-side `Device.snapshot_children` payload — this
+/// function only owns the actor round-trip and the final
+/// `Py::new(handle)` GIL re-acquisition. Used by
+/// `PyDevice::compile_kernel_async`.
+pub(crate) fn compile_via_actor_async<'py>(
+    py: Python<'py>,
+    actor: atomr_core::actor::ActorRef<NvrtcMsg>,
+    name: String,
+    src: String,
+    timeout_secs: f64,
+) -> PyResult<Bound<'py, PyAny>> {
+    // NvrtcOpts mirror the blocking path — defaults for now.
+    let opts = NvrtcOpts::default();
+    let actor_for_msg = actor.clone();
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let (tx, rx) = oneshot::channel();
+        actor_for_msg.tell(NvrtcMsg::Compile {
+            src,
+            kernel_name: name,
+            opts,
+            reply: tx,
+        });
+        let handle = match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+            Ok(Ok(Ok(h))) => h,
+            Ok(Ok(Err(e))) => return Err(errors::map_gpu(e)),
+            Ok(Err(_)) => return Err(errors::map_str("nvrtc dropped reply")),
+            Err(_) => return Err(errors::map_str("nvrtc compile timed out")),
+        };
+        Python::with_gil(|py| {
+            Py::new(
+                py,
+                PyNvrtcKernel {
+                    handle,
+                    actor_ref: actor,
+                },
+            )
+        })
+    })
 }
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {

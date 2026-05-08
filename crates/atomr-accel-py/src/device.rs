@@ -887,6 +887,33 @@ impl PyDevice {
             })
         })
     }
+
+    /// Async sibling of [`PyDevice::compile_kernel`]. Returns a Python
+    /// awaitable that resolves to a freshly-minted
+    /// [`crate::nvrtc::PyNvrtcKernel`]. The synchronous setup
+    /// (snapshotting the device's kernel children + extracting the
+    /// NVRTC actor ref) happens before entering the async block; the
+    /// actor round-trip then runs without holding the GIL. Re-acquires
+    /// the GIL once at the end to wrap the resulting `KernelHandle` in
+    /// a `Py<PyNvrtcKernel>`.
+    #[cfg(feature = "nvrtc")]
+    #[pyo3(signature = (name, src, timeout_secs=60.0))]
+    fn compile_kernel_async<'py>(
+        &self,
+        py: Python<'py>,
+        name: String,
+        src: String,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let kc = self
+            .snapshot_children(py, timeout_secs)?
+            .ok_or_else(|| errors::map_str("device children not ready"))?;
+        let actor = kc
+            .nvrtc
+            .clone()
+            .ok_or_else(|| errors::map_str("NVRTC actor not enabled on this device"))?;
+        crate::nvrtc::compile_via_actor_async(py, actor, name, src, timeout_secs)
+    }
 }
 
 /// Plain-data wrapper for `DeviceLoad`. Exposed as a Python class so
