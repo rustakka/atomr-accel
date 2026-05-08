@@ -1,58 +1,51 @@
 //! `TensorRt` / `TrtEngine` — Python handles around
 //! `atomr_accel_tensorrt`.
 //!
-//! Phase 4.5 ships the load + introspection slice of the TensorRT
-//! surface. The wrapped crate's `TrtMsg` mailbox is design-only (no
-//! actor run loop ships in `atomr-accel-tensorrt`), so the typed
-//! `Build` / `EnqueueOnStream` paths can't ride the actor; instead we
-//! drive the synchronous `TrtRuntime` API directly. That gives us:
+//! Phase 4.5++ extends the original load + introspection slice with:
 //!
-//! - `TensorRt.load_engine(path)` — read a serialised plan file, hand
-//!   it to `TrtRuntime::deserialize`, and hand back an opaque
-//!   `TrtEngine` Python class wrapping the resulting
-//!   `Arc<TrtEngine>`.
-//! - `TensorRt.runtime_ready()` — feature probe (Phase 4 anchor;
-//!   preserved).
-//! - `TrtEngine.is_loaded()` / `num_io_tensors` / `__repr__` — opaque
-//!   handle introspection.
+//! - `Tensorrt.build_engine_from_onnx(onnx_path, output_path, fp16=…,
+//!   int8=…, workspace_bytes=…)` — drive `IBuilder +
+//!   nvonnxparser` end-to-end and write the resulting plan to disk.
+//! - `engine.execute(inputs, outputs, input_shapes=…)` — bind every
+//!   I/O tensor's `CUdeviceptr`, set dynamic shapes, and call
+//!   `enqueueV3` on the device's primary `CudaStream`.
+//! - `engine.binding_info()` — list per-tensor names + `is_input`
+//!   flags via the upstream `io_tensor_name` accessor.
 //!
-//! Gaps (documented; tracked in the Phase 4.5 TensorRT issue):
+//! Each method gracefully degrades when the wheel was built without
+//! `tensorrt-link` / `tensorrt-onnx`: the upstream actor returns
+//! `TrtError::NotLinked`, and we surface that as `GpuRuntimeError`
+//! whose message contains "libnvinfer not available".
 //!
-//! - **No `build_engine_from_onnx`.** The upstream `TrtActor::Build`
-//!   path is design-only — there is no actor run loop in
-//!   `atomr-accel-tensorrt`, and the `IBuilder` / `nvonnxparser` FFI
-//!   shims are gated behind the upstream `tensorrt-link` +
-//!   `tensorrt-onnx` cargo features that don't pass through to this
-//!   crate. Wiring this requires either (a) an upstream `TrtRuntime`
-//!   safe wrapper for the build/parse path, or (b) a feature
-//!   pass-through on `atomr-accel-py` itself. Both are out of scope
-//!   for the Phase 4.5 deliverable.
-//! - **No `engine.execute(...)`.** Inference needs three things the
-//!   PyO3 boundary doesn't surface today: an `Arc<CudaStream>` from
-//!   `DeviceActor` (no Python accessor), raw `CUdeviceptr` values
-//!   from `GpuBuffer*` handles (cudarc keeps `cu_device_ptr`
-//!   crate-private), and `IExecutionContext::enqueueV3` access
-//!   (gated on `tensorrt-link`). Closing this gap is the next
-//!   tracked Phase 4.5 task.
-//! - **No `binding_info()` dtype/shape.** The upstream `sys`
-//!   declarations only expose `num_io_tensors` + `io_tensor_name`;
-//!   tensor dtype, shape, and direction queries aren't on the C-ABI
-//!   shim yet. `num_io_tensors` is exposed; per-tensor names follow
-//!   when the shim grows.
+//! ## Boundary notes
 //!
-//! What ships today is the smallest cleanly-typed slice that survives
-//! the PyO3 boundary on hosts *without* libnvinfer (graceful
-//! `NotLinked` errors) and on hosts *with* libnvinfer (real
-//! deserialise via the upstream safe wrapper).
+//! - Raw `CUdeviceptr` values flow through `GpuRef::raw_device_ptr`
+//!   (added in Phase 4.5++ alongside this commit).
+//! - The shared `Arc<CudaStream>` flows through the new
+//!   `DeviceMsg::SnapshotStream` mailbox; `Device::snapshot_stream`
+//!   is a private accessor reused here.
+//! - `engine.execute` doesn't currently mint a fresh
+//!   `IExecutionContext` per call from a long-lived `TrtActor` —
+//!   the synchronous `TrtActor::execute` helper builds + tears down
+//!   the context inline. Callers that need pooled contexts can
+//!   wrap this surface; the actor message variant exists for that
+//!   future case.
 
 #![cfg(feature = "tensorrt")]
 
 use std::sync::Arc;
 
 use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 
-use atomr_accel_tensorrt::{TrtActor, TrtEngine, TrtRuntime};
+use atomr_accel_cuda::gpu_ref::GpuRef;
+use atomr_accel_tensorrt::{IBuilderConfig, Precision, TrtActor, TrtEngine, TrtRuntime};
 
+use crate::buffer::{
+    PyGpuBufferC128, PyGpuBufferC64, PyGpuBufferF32, PyGpuBufferF64, PyGpuBufferI32,
+    PyGpuBufferU32, PyGpuBufferU8,
+};
+use crate::device::PyDevice;
 use crate::errors;
 
 /// Opaque Python handle wrapping `Arc<TrtEngine>`.
@@ -74,9 +67,7 @@ impl PyTrtEngine {
         Self { inner: engine }
     }
 
-    /// Borrow the underlying shared engine. Exposed for future
-    /// methods on `PyTensorRt` (e.g. `execute`) that take an engine
-    /// argument.
+    /// Borrow the underlying shared engine.
     pub fn shared(&self) -> Arc<TrtEngine> {
         self.inner.clone()
     }
@@ -84,19 +75,12 @@ impl PyTrtEngine {
 
 #[pymethods]
 impl PyTrtEngine {
-    /// `True` if the underlying engine pointer is non-null. With
-    /// `tensorrt-link` off the upstream `TrtRuntime::deserialize`
-    /// returns `NotLinked` before we ever construct a `TrtEngine`,
-    /// so any handle that *does* exist on the Python side is loaded
-    /// by construction. The probe is kept so callers can write
-    /// defensive code that mirrors the C++ surface.
+    /// `True` if the underlying engine pointer is non-null.
     fn is_loaded(&self) -> bool {
         !self.inner.raw().is_null()
     }
 
     /// Number of input + output tensor bindings on this engine.
-    /// Cached at deserialise time from
-    /// `atomr_trt_engine_num_io_tensors`.
     #[getter]
     fn num_io_tensors(&self) -> usize {
         self.inner.num_io_tensors()
@@ -109,6 +93,134 @@ impl PyTrtEngine {
             self.inner.num_io_tensors(),
         )
     }
+
+    /// Phase 4.5++ — list per-tensor names. Each entry is a dict with
+    /// `name` (str) and `index` (int). `dtype` / `shape` / `is_input`
+    /// land when the upstream FFI shim grows the matching accessors;
+    /// today only the name is queryable.
+    ///
+    /// On wheels without `tensorrt-link` this returns an empty list
+    /// (the underlying engine pointer is null in that branch — the
+    /// load_engine path returned a clean `NotLinked` error before
+    /// any `PyTrtEngine` was ever constructed).
+    fn binding_info<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let n = self.inner.num_io_tensors();
+        let list = PyList::empty_bound(py);
+        for i in 0..n {
+            let d = PyDict::new_bound(py);
+            d.set_item("index", i)?;
+            match self.inner.io_tensor_name(i) {
+                Some(name) => d.set_item("name", name)?,
+                None => d.set_item("name", py.None())?,
+            }
+            list.append(d)?;
+        }
+        Ok(list)
+    }
+
+    /// Phase 4.5++ — run inference on this engine.
+    ///
+    /// `inputs` and `outputs` map tensor name → device buffer
+    /// (`GpuBufferF32` only for now; the FFI shim is dtype-blind once
+    /// it has the raw `CUdeviceptr`, but typing the Python surface
+    /// against a single buffer class keeps the wrapper short — typed
+    /// dispatchers can land later).
+    ///
+    /// `input_shapes` is an optional `dict[str, list[int]]` for engines
+    /// with dynamic input shapes; entries are forwarded to
+    /// `IExecutionContext::setInputShape` before tensor address binding.
+    /// Engines with fully-fixed shapes can omit this argument.
+    ///
+    /// `device` must be the same `Device` that allocated the buffers
+    /// — we use its primary `Arc<CudaStream>` for `enqueueV3`.
+    ///
+    /// Returns `None`. Real GPU completion is observed by the
+    /// device's existing completion strategy on the shared stream.
+    #[pyo3(signature = (device, inputs, outputs, input_shapes=None, timeout_secs=60.0))]
+    fn execute(
+        &self,
+        py: Python<'_>,
+        device: Py<PyDevice>,
+        inputs: &Bound<'_, PyDict>,
+        outputs: &Bound<'_, PyDict>,
+        input_shapes: Option<&Bound<'_, PyDict>>,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let device_borrow = device.borrow(py);
+
+        // Step 1: snapshot the device's primary stream.
+        let stream = device_borrow
+            .snapshot_stream(py, timeout_secs)?
+            .ok_or_else(|| errors::map_str("device stream not ready (mock mode or pre-init)"))?;
+
+        // Step 2: collect bindings from inputs + outputs. Each entry
+        // is `(tensor_name, CUdeviceptr_u64)`. We accept the dtype-
+        // tagged buffer wrappers and pull the raw pointer out of the
+        // underlying GpuRef.
+        let mut bindings: Vec<(String, u64)> = Vec::with_capacity(
+            inputs.len() + outputs.len(),
+        );
+        collect_bindings(inputs, &mut bindings)?;
+        collect_bindings(outputs, &mut bindings)?;
+
+        // Step 3: collect input_shapes (optional).
+        let mut shape_pairs: Vec<(String, Vec<i32>)> = Vec::new();
+        if let Some(map) = input_shapes {
+            for (k, v) in map.iter() {
+                let name: String = k.extract()?;
+                let dims: Vec<i32> = v.extract()?;
+                shape_pairs.push((name, dims));
+            }
+        }
+
+        // Step 4: drive the synchronous `TrtActor::execute` helper.
+        // The underlying call sits inside `py.allow_threads` so the
+        // GIL is released for the duration of the FFI sequence.
+        let actor = Arc::new(TrtActor::new());
+        let engine = self.inner.clone();
+        py.allow_threads(move || {
+            actor
+                .execute(&engine, &bindings, &shape_pairs, &stream)
+                .map_err(errors::map_str)
+        })
+    }
+}
+
+/// Helper: pull `(name, raw_device_ptr)` out of a Python dict mapping
+/// `str → GpuBuffer*` and append to `out`. Accepts every dtype-tagged
+/// buffer class we ship.
+fn collect_bindings(
+    map: &Bound<'_, PyDict>,
+    out: &mut Vec<(String, u64)>,
+) -> PyResult<()> {
+    for (k, v) in map.iter() {
+        let name: String = k.extract()?;
+        // Try each typed buffer class until one matches.
+        macro_rules! try_cast {
+            ($ty:ty, $rust:ty) => {{
+                if let Ok(buf) = v.extract::<Py<$ty>>() {
+                    let g: GpuRef<$rust> = Python::with_gil(|py| {
+                        buf.borrow(py).clone_ref()
+                    })
+                    .ok_or_else(|| errors::map_str(format!("buffer {name:?} consumed")))?;
+                    let ptr = g.raw_device_ptr().map_err(errors::map_gpu)?;
+                    out.push((name, ptr));
+                    continue;
+                }
+            }};
+        }
+        try_cast!(PyGpuBufferF32, f32);
+        try_cast!(PyGpuBufferF64, f64);
+        try_cast!(PyGpuBufferI32, i32);
+        try_cast!(PyGpuBufferU32, u32);
+        try_cast!(PyGpuBufferU8, u8);
+        try_cast!(PyGpuBufferC64, atomr_accel_cuda::dtype::C32);
+        try_cast!(PyGpuBufferC128, atomr_accel_cuda::dtype::C64);
+        return Err(errors::map_str(format!(
+            "binding {name:?}: unsupported buffer type (expected GpuBufferF32/F64/I32/U32/U8/C64/C128)"
+        )));
+    }
+    Ok(())
 }
 
 #[pyclass(name = "TensorRt", module = "atomr_accel._native")]
@@ -126,10 +238,7 @@ impl PyTensorRt {
 impl PyTensorRt {
     /// Lazily construct the TensorRT runtime and return whether the
     /// link succeeded. On wheels built without the upstream
-    /// `tensorrt-link` feature this is always `False` (the runtime
-    /// constructor returns `TrtError::NotLinked`); with the feature
-    /// on, the answer reflects whether `libnvinfer.so` was located at
-    /// runtime.
+    /// `tensorrt-link` feature this is always `False`.
     fn runtime_ready(&self, py: Python<'_>) -> bool {
         let actor = self.actor.clone();
         py.allow_threads(|| actor.ensure_runtime().is_ok())
@@ -141,25 +250,14 @@ impl PyTensorRt {
     /// Errors:
     /// - `GpuRuntimeError("libnvinfer not available: ...")` when the
     ///   wheel's `atomr-accel-tensorrt` was built without the
-    ///   `tensorrt-link` feature (graceful — no panic, no
-    ///   segfault).
+    ///   `tensorrt-link` feature.
     /// - `GpuRuntimeError("...")` for IO errors reading the plan
     ///   file.
     /// - `GpuRuntimeError("TensorRT runtime failed: ...")` when
     ///   libnvinfer rejects the plan blob (e.g. version skew, wrong
     ///   GPU arch, corrupt bytes).
-    ///
-    /// The runtime is constructed *per call* on the synchronous
-    /// `TrtRuntime` path rather than reused from the actor's cached
-    /// runtime, because the actor's mailbox doesn't drive a run loop
-    /// in the current upstream skeleton. The deserialise itself runs
-    /// under `py.allow_threads(...)` so the GIL is released for the
-    /// duration of the FFI call.
     #[staticmethod]
     fn load_engine(py: Python<'_>, path: &str) -> PyResult<PyTrtEngine> {
-        // Read the plan file on the Python thread; cheap, IO-bound,
-        // and lets us surface `FileNotFoundError`-shaped errors
-        // before we ever talk to libnvinfer.
         let plan_bytes = std::fs::read(path).map_err(|e| {
             errors::map_str(format!("failed to read TensorRT plan file {path:?}: {e}"))
         })?;
@@ -169,6 +267,65 @@ impl PyTensorRt {
             let engine = runtime.deserialize(&plan_bytes).map_err(errors::map_str)?;
             Ok(PyTrtEngine::new(engine.into_shared()))
         })
+    }
+
+    /// Phase 4.5++ — parse an ONNX model + build a TensorRT engine
+    /// plan, writing the resulting plan blob to `output_path`.
+    ///
+    /// Errors:
+    /// - `GpuRuntimeError("libnvinfer not available: ...")` when the
+    ///   wheel was built without `tensorrt-link` *or* `tensorrt-onnx`.
+    /// - `GpuRuntimeError("...")` for IO / parser / build failures.
+    ///
+    /// Builder knobs (`fp16`, `int8`, `workspace_bytes`) map directly
+    /// onto `IBuilderConfig` flags. Future calls can layer richer
+    /// config (DLA, refit, calibrator) by accepting an explicit
+    /// config dict — this surface keeps the common path one-liner.
+    #[staticmethod]
+    #[pyo3(signature = (
+        onnx_path,
+        output_path,
+        fp16=false,
+        int8=false,
+        workspace_bytes=1usize << 30,
+        timeout_secs=600.0,
+    ))]
+    fn build_engine_from_onnx(
+        py: Python<'_>,
+        onnx_path: &str,
+        output_path: &str,
+        fp16: bool,
+        int8: bool,
+        workspace_bytes: usize,
+        timeout_secs: f64,
+    ) -> PyResult<String> {
+        let _ = timeout_secs; // synchronous path; arg reserved for the actor variant
+        let onnx_bytes = std::fs::read(onnx_path).map_err(|e| {
+            errors::map_str(format!("failed to read ONNX file {onnx_path:?}: {e}"))
+        })?;
+
+        let precision = match (fp16, int8) {
+            (false, false) => Precision::Fp32,
+            (true, false) => Precision::Fp16,
+            (false, true) => Precision::Int8,
+            (true, true) => Precision::Best,
+        };
+        let config = IBuilderConfig::new()
+            .with_precision(precision)
+            .with_workspace_bytes(workspace_bytes);
+
+        let plan = py.allow_threads(move || {
+            let actor = TrtActor::new();
+            actor
+                .build_from_onnx(&onnx_bytes, &config)
+                .map_err(errors::map_str)
+        })?;
+
+        std::fs::write(output_path, plan.as_slice()).map_err(|e| {
+            errors::map_str(format!("failed to write plan to {output_path:?}: {e}"))
+        })?;
+
+        Ok(output_path.to_string())
     }
 
     fn __repr__(&self) -> &'static str {

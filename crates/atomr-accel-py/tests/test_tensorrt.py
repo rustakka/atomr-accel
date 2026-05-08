@@ -1,21 +1,20 @@
 """``TensorRt`` + ``TrtEngine`` — surface presence + mock-mode skip.
 
-Phase 4.5 ships:
+Phase 4.5++ ships:
 
 - ``TensorRt.runtime_ready`` (feature probe).
 - ``TensorRt.load_engine(path)`` — synchronous deserialise via
   ``TrtRuntime`` (returns a ``TrtEngine`` handle).
-- ``TrtEngine.is_loaded`` / ``TrtEngine.num_io_tensors`` /
-  ``__repr__`` — opaque introspection.
-
-Gaps (asserted *not* exposed so the test fails loudly if a future
-agent half-wires them): ``build_engine_from_onnx``, ``execute``,
-``binding_info``. See ``crates/atomr-accel-py/src/tensorrt.rs`` for
-rationale.
+- ``TensorRt.build_engine_from_onnx(onnx_path, output_path, ...)`` —
+  parse ONNX + build engine plan; gated on the upstream
+  ``tensorrt-link`` + ``tensorrt-onnx`` cargo features.
+- ``TrtEngine.is_loaded`` / ``num_io_tensors`` / ``binding_info`` /
+  ``execute(device, inputs, outputs, input_shapes=...)`` — opaque
+  introspection + inference dispatch.
 
 The whole module is skipped when the wheel was built without
-``--features tensorrt``; the ``load_engine`` test is further skipped
-when libnvinfer isn't linked in (it would surface a clean
+``--features tensorrt``; build/execute paths are further skipped
+when libnvinfer isn't linked in (they would surface a clean
 ``GpuRuntimeError("libnvinfer not available: ...")``).
 """
 from __future__ import annotations
@@ -47,34 +46,29 @@ def test_trt_engine_class_exists():
 
 
 def test_tensorrt_method_surface():
-    """Phase 4.5 surface: `runtime_ready`, `load_engine`, `__repr__`.
-
-    Build / Execute / Refit follow in the next Phase 4.5 iteration —
-    we assert their absence so a half-wired follow-up trips this test
-    rather than shipping a half-finished surface.
-    """
+    """Phase 4.5++ surface — every method should be reachable from
+    Python (most degrade gracefully without ``tensorrt-link`` /
+    ``tensorrt-onnx``)."""
     TensorRt = trt_mod.TensorRt
-    for attr in ("runtime_ready", "load_engine", "__repr__"):
+    for attr in (
+        "runtime_ready",
+        "load_engine",
+        "build_engine_from_onnx",
+        "__repr__",
+    ):
         assert hasattr(TensorRt, attr), attr
-
-    # Negative assertions — these are the documented gaps.
-    for missing in ("build_engine_from_onnx", "execute"):
-        assert not hasattr(TensorRt, missing), (
-            f"{missing!r} appeared on TensorRt; if you're wiring it, "
-            "update this test and the module docstring at the same time."
-        )
 
 
 def test_trt_engine_method_surface():
     TrtEngine = trt_mod.TrtEngine
-    for attr in ("is_loaded", "num_io_tensors", "__repr__"):
+    for attr in (
+        "is_loaded",
+        "num_io_tensors",
+        "binding_info",
+        "execute",
+        "__repr__",
+    ):
         assert hasattr(TrtEngine, attr), attr
-
-    # Inference / refit aren't on the engine handle yet either.
-    for missing in ("execute", "binding_info", "refit"):
-        assert not hasattr(TrtEngine, missing), (
-            f"{missing!r} appeared on TrtEngine; update this test alongside the wiring."
-        )
 
 
 def test_load_engine_missing_file_raises_gpu_error():
@@ -109,3 +103,51 @@ def test_load_engine_unlinked_or_invalid_surfaces_clean_error():
         ), f"unexpected error message: {msg!r}"
     finally:
         os.unlink(plan_path)
+
+
+def test_build_engine_from_onnx_missing_file_raises_gpu_error():
+    """`build_engine_from_onnx` surfaces IO failures as `GpuRuntimeError`
+    rather than panicking. Runs even without libnvinfer because the
+    file-read happens before any FFI."""
+    TensorRt = trt_mod.TensorRt
+    with tempfile.NamedTemporaryFile(delete=True, suffix=".plan") as out:
+        out_path = out.name
+    with pytest.raises(GpuRuntimeError):
+        TensorRt.build_engine_from_onnx(
+            "/nonexistent/path/to/model.onnx", out_path
+        )
+
+
+def test_build_engine_from_onnx_unlinked_surfaces_clean_error():
+    """Without `tensorrt-link` + `tensorrt-onnx` the upstream
+    `build_from_onnx` helper returns `TrtError::NotLinked`. We
+    surface that as a `GpuRuntimeError`. With both features on this
+    test would still pass for our garbage ONNX bytes — the parser
+    rejects them and we surface `Onnx(...)` — also a `GpuRuntimeError`.
+    """
+    TensorRt = trt_mod.TensorRt
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".onnx") as f:
+        f.write(b"\x00" * 16)
+        onnx_path = f.name
+    out_fd, out_path = tempfile.mkstemp(suffix=".plan")
+    os.close(out_fd)
+    try:
+        with pytest.raises(GpuRuntimeError) as ei:
+            TensorRt.build_engine_from_onnx(onnx_path, out_path)
+        msg = str(ei.value).lower()
+        assert any(
+            tag in msg
+            for tag in (
+                "libnvinfer not available",
+                "tensorrt",
+                "tensorrt-link",
+                "tensorrt-onnx",
+                "onnx",
+                "build",
+                "parse",
+            )
+        ), f"unexpected error message: {msg!r}"
+    finally:
+        os.unlink(onnx_path)
+        if os.path.exists(out_path):
+            os.unlink(out_path)

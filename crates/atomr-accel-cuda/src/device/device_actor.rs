@@ -287,6 +287,20 @@ pub enum DeviceMsg {
         reply: oneshot::Sender<Option<Arc<cudarc::driver::CudaContext>>>,
     },
 
+    /// Phase 4.5++ — Snapshot the device's primary `Arc<CudaStream>`
+    /// (the stream owned by `ContextActor`). Returned to downstream
+    /// raw-pointer FFI users (TensorRT `enqueueV3`, custom kernel
+    /// launchers) that need to share a single CUDA execution timeline
+    /// with the rest of the device's library actors.
+    ///
+    /// Replies `None` if the context isn't ready (e.g. mock mode, or
+    /// before `ContextReady`). On real hardware the returned stream
+    /// is the same one that BLAS / cuDNN / cuFFT child actors were
+    /// minted off.
+    SnapshotStream {
+        reply: oneshot::Sender<Option<Arc<cudarc::driver::CudaStream>>>,
+    },
+
     /// F7: Snapshot the current `KernelChildren` so application code
     /// can talk to library actors directly (e.g. `RngActor`,
     /// `CudnnActor`). Replies `None` until `ContextActor::Init`
@@ -700,6 +714,20 @@ impl Actor for DeviceActor {
 
             DeviceMsg::SnapshotContext { reply } => {
                 let _ = reply.send(self.state.current_context());
+            }
+            DeviceMsg::SnapshotStream { reply } => {
+                // Forward to ContextActor — it owns the primary
+                // `Arc<CudaStream>`. If the context isn't ready (mock
+                // mode pre-ready or while a rebuild is in flight) the
+                // ContextActor handler replies `None` to the same
+                // oneshot. We don't stash this as a `WorkRequest`
+                // because a `None` reply is correct in that case —
+                // callers re-issue if they need the stream.
+                if let Some(ctx) = self.context_ref.as_ref() {
+                    ctx.tell(ContextMsg::SnapshotStream { reply });
+                } else {
+                    let _ = reply.send(None);
+                }
             }
             DeviceMsg::SnapshotChildren { reply } => {
                 let _ = reply.send(self.children.clone());

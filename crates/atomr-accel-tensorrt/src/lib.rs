@@ -55,7 +55,10 @@ pub mod calibration;
 #[cfg(feature = "tensorrt-plugin")]
 pub mod plugin;
 
-pub use actor::{NetworkSource, RefitWeights, TrtActor, TrtMsg};
+pub use actor::{
+    BuildFromOnnxReply, BuildReply, CreateContextReply, DeserializeReply, EnqueueReply,
+    ExecuteReply, NetworkSource, RefitReply, RefitWeights, TrtActor, TrtMsg,
+};
 pub use builder::{
     BuilderFlags, DeviceType, IBuilderConfig, Precision, RefitPolicy, TacticSources,
 };

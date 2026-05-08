@@ -135,6 +135,35 @@ impl<T> GpuRef<T> {
     pub fn last_write_stream(&self) -> Option<Arc<cudarc::driver::CudaStream>> {
         self.inner.last_write_stream.load_full()
     }
+
+    /// Phase 4.5++ — opaque `CUdeviceptr` (`u64`) for downstream
+    /// raw-pointer FFI APIs (TensorRT `enqueueV3`, `cuStreamWriteValue64`,
+    /// custom CUDA modules that aren't fronted by cudarc).
+    ///
+    /// Validates the `GpuRef` first via [`GpuRef::access`]. The pointer
+    /// is captured against the slice's own associated stream — the
+    /// `_guard` returned by cudarc's `device_ptr()` is dropped before
+    /// the function returns, but the underlying allocation outlives
+    /// this call because the inner `Arc<CudaSlice<T>>` is held by
+    /// `self`. Callers must ensure they don't dispatch the resulting
+    /// pointer on a stream that has already gone out of scope; in
+    /// practice the pointer is consumed immediately by an FFI shim
+    /// (TensorRT enqueueV3, etc.) on a stream the caller owns.
+    ///
+    /// Returns [`GpuError::GpuRefStale`] if the underlying generation
+    /// token is stale or the device is shutting down.
+    pub fn raw_device_ptr(&self) -> Result<u64, GpuError> {
+        use cudarc::driver::DevicePtr;
+        let slice = self.access()?;
+        let stream = slice.stream();
+        let (ptr, _guard) = slice.device_ptr(stream);
+        // `_guard` is a `SyncOnDrop` whose lifetime ties the pointer to
+        // `slice`; we drop it here. The caller is expected to use the
+        // returned `u64` immediately on an FFI call. The underlying
+        // CudaSlice<T> remains alive via the strong Arc held by
+        // `self.inner.slice` for as long as this `GpuRef` lives.
+        Ok(ptr as u64)
+    }
 }
 
 #[cfg(test)]

@@ -67,6 +67,31 @@ impl PyDevice {
             })
         })
     }
+
+    /// Phase 4.5++ — internal accessor for the device's primary
+    /// `Arc<CudaStream>`. Used by raw-pointer FFI callers (TensorRT
+    /// `engine.execute(...)`) that need to share the device's
+    /// execution timeline. Returns `Ok(None)` if the context hasn't
+    /// finished initialising or in mock mode.
+    pub(crate) fn snapshot_stream(
+        &self,
+        py: Python<'_>,
+        timeout_secs: f64,
+    ) -> PyResult<Option<Arc<cudarc::driver::CudaStream>>> {
+        let actor = self.actor_ref.clone();
+        let rt = runtime();
+        py.allow_threads(|| {
+            rt.block_on(async move {
+                let (tx, rx) = oneshot::channel();
+                actor.tell(DeviceMsg::SnapshotStream { reply: tx });
+                match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                    Ok(Ok(stream)) => Ok(stream),
+                    Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+                    Err(_) => Err(errors::map_str("snapshot_stream timed out")),
+                }
+            })
+        })
+    }
 }
 
 #[pymethods]

@@ -62,6 +62,33 @@ impl TrtEngine {
         self.num_io
     }
 
+    /// Phase 4.5++ — name of the I/O tensor at index `idx`. Returns
+    /// `None` if `idx >= num_io_tensors()` or if the upstream FFI
+    /// shim returns a null/invalid string.
+    ///
+    /// Without `tensorrt-link` this always returns `None` — there's no
+    /// linked libnvinfer to query.
+    pub fn io_tensor_name(&self, _idx: usize) -> Option<String> {
+        #[cfg(feature = "tensorrt-link")]
+        {
+            if _idx >= self.num_io {
+                return None;
+            }
+            unsafe {
+                let p = sys::atomr_trt_engine_io_tensor_name(self.raw, _idx as i32);
+                if p.is_null() {
+                    return None;
+                }
+                let cstr = std::ffi::CStr::from_ptr(p);
+                cstr.to_str().ok().map(|s| s.to_string())
+            }
+        }
+        #[cfg(not(feature = "tensorrt-link"))]
+        {
+            None
+        }
+    }
+
     /// Wrap the engine in an `Arc<TrtEngine>` so multiple
     /// `ExecutionContext`s can share it.
     pub fn into_shared(self) -> Arc<TrtEngine> {

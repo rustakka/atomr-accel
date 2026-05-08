@@ -55,6 +55,8 @@ pub type DeserializeReply = oneshot::Sender<Result<Arc<TrtEngine>, TrtError>>;
 pub type CreateContextReply = oneshot::Sender<Result<ExecutionContext, TrtError>>;
 pub type EnqueueReply = oneshot::Sender<Result<(), TrtError>>;
 pub type RefitReply = oneshot::Sender<Result<(), TrtError>>;
+pub type ExecuteReply = oneshot::Sender<Result<(), TrtError>>;
+pub type BuildFromOnnxReply = oneshot::Sender<Result<EnginePlan, TrtError>>;
 
 /// Public message surface for `TrtActor`.
 ///
@@ -103,6 +105,38 @@ pub enum TrtMsg {
         weights: Vec<RefitWeights>,
         reply: RefitReply,
     },
+
+    /// Phase 4.5++ — Run inference on a previously-loaded engine.
+    /// `bindings` is `(tensor_name, CUdeviceptr)` for every I/O
+    /// tensor on the engine; `stream` is the `Arc<CudaStream>` to
+    /// `enqueueV3` against (typically the device's primary stream
+    /// from `DeviceMsg::SnapshotStream`).
+    ///
+    /// The handler creates a fresh `IExecutionContext`, binds every
+    /// tensor address, then calls `enqueueV3`. Returns `Ok(())` on
+    /// successful submission (kernel still running on the GPU);
+    /// real completion is observed by `atomr-accel-cuda`'s
+    /// completion strategy on the shared stream.
+    ///
+    /// On builds without `tensorrt-link` the variant compiles but
+    /// the handler returns `TrtError::NotLinked`.
+    Execute {
+        engine: Arc<TrtEngine>,
+        bindings: Vec<(String, u64)>,
+        input_shapes: Vec<(String, Vec<i32>)>,
+        stream: Arc<cudarc::driver::CudaStream>,
+        reply: ExecuteReply,
+    },
+
+    /// Phase 4.5++ — Parse an ONNX model and build a serialised
+    /// engine plan. Gated on the upstream `tensorrt-onnx` feature
+    /// (and transitively on `tensorrt-link`). Without those the
+    /// handler returns `TrtError::NotLinked`.
+    BuildFromOnnx {
+        onnx_bytes: Vec<u8>,
+        config: Box<IBuilderConfig>,
+        reply: BuildFromOnnxReply,
+    },
 }
 
 /// `TrtActor` — owns nothing across messages besides the FFI
@@ -136,6 +170,235 @@ impl TrtActor {
             *guard = Some(crate::runtime::TrtRuntime::new()?);
         }
         Ok(())
+    }
+
+    /// Phase 4.5++ — synchronous helper that drives the
+    /// `TrtMsg::Execute` semantics (creates an `IExecutionContext`,
+    /// binds tensor addresses, calls `enqueueV3`).
+    ///
+    /// Without `tensorrt-link` this returns `TrtError::NotLinked`
+    /// without ever touching libnvinfer. With the feature on, the
+    /// actor performs the full FFI sequence under the supplied
+    /// `Arc<CudaStream>`. The function returns once the launch
+    /// has been submitted — real GPU completion is observed
+    /// downstream (the typical caller pairs this with an
+    /// `atomr-accel-cuda` completion strategy on the same stream).
+    pub fn execute(
+        &self,
+        engine: &Arc<TrtEngine>,
+        bindings: &[(String, u64)],
+        input_shapes: &[(String, Vec<i32>)],
+        _stream: &Arc<cudarc::driver::CudaStream>,
+    ) -> Result<(), TrtError> {
+        #[cfg(feature = "tensorrt-link")]
+        {
+            use std::ffi::CString;
+            unsafe {
+                let ctx_ptr = crate::sys::atomr_trt_engine_create_execution_context(engine.raw());
+                if ctx_ptr.is_null() {
+                    return Err(TrtError::Execution(
+                        "createExecutionContext returned null".into(),
+                    ));
+                }
+                // Apply input shapes first (TensorRT requires shapes
+                // before set_tensor_address on dynamic tensors).
+                for (name, dims) in input_shapes {
+                    if dims.len() > 8 {
+                        crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                        return Err(TrtError::InvalidArg(format!(
+                            "tensor {name:?}: TensorRT supports at most 8 dims (got {})",
+                            dims.len()
+                        )));
+                    }
+                    let cname = match CString::new(name.clone()) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                            return Err(TrtError::InvalidArg(format!(
+                                "tensor name contains NUL: {e}"
+                            )));
+                        }
+                    };
+                    let mut d = [0i32; 8];
+                    for (i, v) in dims.iter().enumerate() {
+                        d[i] = *v;
+                    }
+                    let dims_struct = crate::sys::Dims {
+                        nb_dims: dims.len() as std::os::raw::c_int,
+                        d,
+                    };
+                    let rc = crate::sys::atomr_trt_context_set_input_shape(
+                        ctx_ptr,
+                        cname.as_ptr(),
+                        &dims_struct as *const crate::sys::Dims,
+                    );
+                    if rc != 0 {
+                        crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                        return Err(TrtError::Execution(format!(
+                            "set_input_shape({name}) returned {rc}"
+                        )));
+                    }
+                }
+                // Bind every tensor address.
+                for (name, addr) in bindings {
+                    let cname = match CString::new(name.clone()) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                            return Err(TrtError::InvalidArg(format!(
+                                "tensor name contains NUL: {e}"
+                            )));
+                        }
+                    };
+                    let rc = crate::sys::atomr_trt_context_set_tensor_address(
+                        ctx_ptr,
+                        cname.as_ptr(),
+                        *addr as *mut std::os::raw::c_void,
+                    );
+                    if rc != 0 {
+                        crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                        return Err(TrtError::Execution(format!(
+                            "set_tensor_address({name}) returned {rc}"
+                        )));
+                    }
+                }
+                // Cudarc's `CudaStream` exposes the raw stream via
+                // `cu_stream()` — but the field is `pub(crate)`. We
+                // pass through cudarc's `DevicePtr`-style accessor by
+                // using `cuStream` symbol from `cudarc::driver::sys`
+                // — which is what other call sites in atomr-accel-cuda
+                // do. The shim takes `*mut c_void` (any CUstream).
+                let stream_raw = _stream.cu_stream() as *mut std::os::raw::c_void;
+                let rc = crate::sys::atomr_trt_context_enqueue_v3(ctx_ptr, stream_raw);
+                let result = if rc != 0 {
+                    Err(TrtError::Execution(format!("enqueueV3 returned {rc}")))
+                } else {
+                    Ok(())
+                };
+                crate::sys::atomr_trt_context_destroy(ctx_ptr);
+                return result;
+            }
+        }
+        #[cfg(not(feature = "tensorrt-link"))]
+        {
+            let _ = (engine, bindings, input_shapes, _stream);
+            Err(TrtError::NotLinked(
+                "TrtActor::execute requires the `tensorrt-link` feature",
+            ))
+        }
+    }
+
+    /// Phase 4.5++ — synchronous helper that drives the
+    /// `TrtMsg::BuildFromOnnx` semantics. Parses an ONNX model and
+    /// returns a serialised plan blob ready for `TrtRuntime::deserialize`.
+    /// Gated on `tensorrt-onnx` (transitively `tensorrt-link`).
+    pub fn build_from_onnx(
+        &self,
+        _onnx_bytes: &[u8],
+        _config: &IBuilderConfig,
+    ) -> Result<EnginePlan, TrtError> {
+        #[cfg(all(feature = "tensorrt-link", feature = "tensorrt-onnx"))]
+        {
+            use crate::builder::BuilderFlags;
+            unsafe {
+                let builder = crate::sys::atomr_trt_builder_create(0);
+                if builder.is_null() {
+                    return Err(TrtError::Build("builder_create returned null".into()));
+                }
+                // EXPLICIT_BATCH (1 << 0) is required for ONNX import.
+                let network = crate::sys::atomr_trt_builder_create_network(builder, 1u32 << 0);
+                if network.is_null() {
+                    crate::sys::atomr_trt_builder_destroy(builder);
+                    return Err(TrtError::Build("create_network returned null".into()));
+                }
+                let parser = crate::sys::atomr_trt_onnx_parser_create(network, 0);
+                if parser.is_null() {
+                    crate::sys::atomr_trt_builder_destroy(builder);
+                    return Err(TrtError::Onnx("onnx_parser_create returned null".into()));
+                }
+                let parse_rc = crate::sys::atomr_trt_onnx_parser_parse(
+                    parser,
+                    _onnx_bytes.as_ptr(),
+                    _onnx_bytes.len(),
+                    std::ptr::null(),
+                );
+                if parse_rc == 0 {
+                    let nerr = crate::sys::atomr_trt_onnx_parser_num_errors(parser);
+                    crate::sys::atomr_trt_onnx_parser_destroy(parser);
+                    crate::sys::atomr_trt_builder_destroy(builder);
+                    return Err(TrtError::Onnx(format!(
+                        "onnx parse failed (rc={parse_rc}, errors={nerr})"
+                    )));
+                }
+
+                let cfg_ptr = crate::sys::atomr_trt_builder_create_config(builder);
+                if cfg_ptr.is_null() {
+                    crate::sys::atomr_trt_onnx_parser_destroy(parser);
+                    crate::sys::atomr_trt_builder_destroy(builder);
+                    return Err(TrtError::Build("builder_create_config returned null".into()));
+                }
+                // Replay caller-requested flags onto the C++ config.
+                let flags = _config.effective_flags();
+                for flag in [
+                    (BuilderFlags::FP16, crate::sys::BuilderFlag::kFP16 as u32),
+                    (BuilderFlags::INT8, crate::sys::BuilderFlag::kINT8 as u32),
+                    (BuilderFlags::TF32, crate::sys::BuilderFlag::kTF32 as u32),
+                    (BuilderFlags::BF16, crate::sys::BuilderFlag::kBF16 as u32),
+                    (BuilderFlags::FP8, crate::sys::BuilderFlag::kFP8 as u32),
+                    (BuilderFlags::REFIT, crate::sys::BuilderFlag::kREFIT as u32),
+                    (
+                        BuilderFlags::SPARSE_WEIGHTS,
+                        crate::sys::BuilderFlag::kSPARSE_WEIGHTS as u32,
+                    ),
+                    (
+                        BuilderFlags::STRIP_PLAN,
+                        crate::sys::BuilderFlag::kSTRIP_PLAN as u32,
+                    ),
+                ] {
+                    if flags.contains(flag.0) {
+                        crate::sys::atomr_trt_config_set_flag(cfg_ptr, flag.1, 1);
+                    }
+                }
+                if _config.workspace_bytes > 0 {
+                    crate::sys::atomr_trt_config_set_memory_pool_limit(
+                        cfg_ptr,
+                        0, // kWORKSPACE
+                        _config.workspace_bytes,
+                    );
+                }
+
+                let host_mem =
+                    crate::sys::atomr_trt_builder_build_serialized(builder, network, cfg_ptr);
+                let cleanup = || {
+                    crate::sys::atomr_trt_config_destroy(cfg_ptr);
+                    crate::sys::atomr_trt_onnx_parser_destroy(parser);
+                    crate::sys::atomr_trt_builder_destroy(builder);
+                };
+                if host_mem.is_null() {
+                    cleanup();
+                    return Err(TrtError::Build("buildSerializedNetwork returned null".into()));
+                }
+                let data_ptr = crate::sys::atomr_trt_host_memory_data(host_mem);
+                let data_len = crate::sys::atomr_trt_host_memory_size(host_mem);
+                let bytes = if data_ptr.is_null() || data_len == 0 {
+                    Vec::new()
+                } else {
+                    std::slice::from_raw_parts(data_ptr, data_len).to_vec()
+                };
+                crate::sys::atomr_trt_host_memory_destroy(host_mem);
+                cleanup();
+                if bytes.is_empty() {
+                    return Err(TrtError::Build("serialised plan was empty".into()));
+                }
+                Ok(EnginePlan::new(bytes))
+            }
+        }
+        #[cfg(not(all(feature = "tensorrt-link", feature = "tensorrt-onnx")))]
+        {
+            Err(TrtError::NotLinked(
+                "TrtActor::build_from_onnx requires the `tensorrt-link` + `tensorrt-onnx` features",
+            ))
+        }
     }
 }
 

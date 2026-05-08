@@ -37,6 +37,15 @@ pub enum ContextMsg {
     /// rebuilds) the `CudaContext` and spawns library children.
     Init,
 
+    /// Phase 4.5++ — reply with the primary `Arc<CudaStream>` owned
+    /// by this `ContextActor`. Used by downstream raw-pointer FFI
+    /// shims (TensorRT `enqueueV3`) that need to share the device's
+    /// execution timeline. Replies `None` when the context hasn't
+    /// finished `Init` yet (or in mock mode).
+    SnapshotStream {
+        reply: oneshot::Sender<Option<Arc<cudarc::driver::CudaStream>>>,
+    },
+
     /// Phase 0.4 generic allocation. Carries a typed
     /// `Box<dyn AllocDispatch>` that the handler invokes via
     /// [`AllocDispatch::run`]. Replaces the per-dtype `Allocate*`
@@ -535,6 +544,10 @@ impl Actor for ContextActor {
     async fn handle(&mut self, ctx: &mut Context<Self>, msg: ContextMsg) {
         match msg {
             ContextMsg::Init => self.run_init(ctx).await,
+
+            ContextMsg::SnapshotStream { reply } => {
+                let _ = reply.send(self.stream.clone());
+            }
 
             // Phase 0.4 generic forms — single arm each.
             ContextMsg::Alloc(boxed) => {
