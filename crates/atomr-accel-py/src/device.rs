@@ -389,6 +389,14 @@ impl PyDevice {
                 {
                     dict.set_item("cusolver", false)?;
                 }
+                #[cfg(feature = "nvrtc")]
+                {
+                    dict.set_item("nvrtc", children.nvrtc.is_some())?;
+                }
+                #[cfg(not(feature = "nvrtc"))]
+                {
+                    dict.set_item("nvrtc", false)?;
+                }
                 dict.set_item("extras", children.extras_len())?;
             }
             None => {
@@ -397,6 +405,7 @@ impl PyDevice {
                 dict.set_item("cufft", false)?;
                 dict.set_item("curand", false)?;
                 dict.set_item("cusolver", false)?;
+                dict.set_item("nvrtc", false)?;
                 dict.set_item("extras", 0usize)?;
                 dict.set_item("ready", false)?;
             }
@@ -486,6 +495,31 @@ impl PyDevice {
             .clone()
             .ok_or_else(|| errors::map_str("cuSOLVER actor not enabled on this device"))?;
         Py::new(py, crate::solver::PySolver::new(h))
+    }
+
+    /// JIT-compile a CUDA C++ kernel via NVRTC. Returns an
+    /// [`crate::nvrtc::PyNvrtcKernel`] which can be launched via
+    /// `kernel.launch(grid, block, args, ...)`. Requires the `nvrtc`
+    /// cargo feature at build time *and* `EnabledLibraries::NVRTC` on
+    /// this device. In mock mode the actor is spawned but every
+    /// compile returns `Unrecoverable("NvrtcActor in mock mode")`.
+    #[cfg(feature = "nvrtc")]
+    #[pyo3(signature = (name, src, timeout_secs=60.0))]
+    fn compile_kernel(
+        &self,
+        py: Python<'_>,
+        name: String,
+        src: String,
+        timeout_secs: f64,
+    ) -> PyResult<Py<crate::nvrtc::PyNvrtcKernel>> {
+        let kc = self
+            .snapshot_children(py, timeout_secs)?
+            .ok_or_else(|| errors::map_str("device children not ready"))?;
+        let actor = kc
+            .nvrtc
+            .clone()
+            .ok_or_else(|| errors::map_str("NVRTC actor not enabled on this device"))?;
+        crate::nvrtc::compile_via_actor(py, actor, name, src, timeout_secs)
     }
 
     fn __repr__(&self) -> String {

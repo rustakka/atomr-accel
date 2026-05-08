@@ -97,6 +97,7 @@ RngGenerator = _try_import("RngGenerator")
 Solver = _try_import("Solver")
 Collective = _try_import("Collective")
 NvrtcKernel = _try_import("NvrtcKernel")
+KernelArg = _try_import("KernelArg")
 
 # Phase 1.5 — IPC handles (cfg cuda-ipc)
 IpcMemHandle = _try_import("IpcMemHandle")
@@ -150,6 +151,7 @@ __all__ = [
     "Solver",
     "Collective",
     "NvrtcKernel",
+    "KernelArg",
     # Phase 2 — patterns
     "DynamicBatchingServer",
     "InferenceCascade",

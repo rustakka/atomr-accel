@@ -215,6 +215,20 @@ impl ContextActor {
                     children.solver = Some(solver_stub);
                 }
             }
+            #[cfg(feature = "nvrtc")]
+            {
+                if self.config.enabled_libraries.contains(EnabledLibraries::NVRTC) {
+                    let nvrtc_stub = ctx
+                        .spawn::<crate::kernel::NvrtcActor>(
+                            crate::kernel::NvrtcActor::mock_props(),
+                            "nvrtc",
+                        )
+                        .unwrap_or_else(|e| {
+                            panic!("Unrecoverable: spawn mock NvrtcActor: {e}")
+                        });
+                    children.nvrtc = Some(nvrtc_stub);
+                }
+            }
             self.children = Some(children.clone());
             self.parent.tell(DeviceMsg::ContextReady { children });
             info!(device_id, "ContextActor (mock) ready");
@@ -350,6 +364,24 @@ impl ContextActor {
             None
         };
 
+        #[cfg(feature = "nvrtc")]
+        let nvrtc_ref = if libs.contains(EnabledLibraries::NVRTC) {
+            let s = allocator.acquire(Default::default());
+            let props = crate::kernel::NvrtcActor::props(
+                s,
+                allocator.clone(),
+                self.completion.clone(),
+                self.state.clone(),
+                cuda_ctx.clone(),
+            );
+            Some(
+                ctx.spawn::<crate::kernel::NvrtcActor>(props, "nvrtc")
+                    .unwrap_or_else(|e| panic!("Unrecoverable: spawn NvrtcActor: {e}")),
+            )
+        } else {
+            None
+        };
+
         #[allow(unused_mut)]
         let mut children = KernelChildren::new(blas_ref);
         #[cfg(feature = "cudnn")]
@@ -367,6 +399,10 @@ impl ContextActor {
         #[cfg(feature = "cusolver")]
         {
             children.solver = solver_ref;
+        }
+        #[cfg(feature = "nvrtc")]
+        {
+            children.nvrtc = nvrtc_ref;
         }
         self.children = Some(children.clone());
         self.parent.tell(DeviceMsg::ContextReady { children });
