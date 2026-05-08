@@ -28,9 +28,15 @@ cusolver = ["atomr-accel-cuda/cusolver"]
 cublaslt = ["atomr-accel-cuda/cublaslt"]
 nvrtc    = ["atomr-accel-cuda/nvrtc"]
 nccl     = ["atomr-accel-cuda/nccl"]
+# Phase 1.5 — CUDA memory ops. `cuda-ipc` toggles the cross-process
+# `cuIpc*` wrappers in the `Memory` surface; the unified-memory
+# `Memory` handle (managed alloc / prefetch / advise) is unconditional
+# because the upstream `atomr-accel-cuda::memory::{managed, prefetch,
+# advise}` modules are unconditional too.
+cuda-ipc = ["atomr-accel-cuda/cuda-ipc"]
 core-libs     = ["atomr-accel-cuda/core-libs"]
 training-libs = ["atomr-accel-cuda/training-libs"]
-full-cuda     = ["atomr-accel-cuda/full-cuda"]
+full-cuda     = ["atomr-accel-cuda/full-cuda", "cuda-ipc"]
 
 # Phase 3 telemetry bindings: NVTX kernel ranges, NVML actor probes,
 # CUPTI activity sessions. Each sub-feature mirrors the corresponding
