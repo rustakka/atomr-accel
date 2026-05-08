@@ -445,7 +445,7 @@ impl PyDevice {
             .fft
             .clone()
             .ok_or_else(|| errors::map_str("cuFFT actor not enabled on this device"))?;
-        Py::new(py, crate::fft::PyFft::new(h))
+        Py::new(py, crate::fft::PyFft::new(h, self.actor_ref.clone()))
     }
 
     /// Borrow the `RngGenerator` handle. Requires the `curand` cargo
