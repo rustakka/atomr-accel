@@ -8,6 +8,7 @@
 //! - `RagPipeline`, `LangGraphGpuActor` — callback / generic-state, so
 //!   structural anchors only.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use pyo3::prelude::*;
@@ -16,9 +17,11 @@ use tokio::sync::oneshot;
 use atomr_accel_agents::embedding_cache::{
     EmbeddingCache, EmbeddingCacheConfig, EmbeddingCacheMsg,
 };
-use atomr_accel_agents::shared_state::{
-    SharedGpuStateCoordinator, SharedStateMsg, WriteToken,
+use atomr_accel_agents::langgraph_nodes::{
+    GraphNode, LangGraphGpuActor, NodeGraph, NodeGraphMsg, NodeId,
 };
+use atomr_accel_agents::rag::{EmbeddingFn, LlmFn, RagConfig, RagMsg, RagPipeline, RagQuery};
+use atomr_accel_agents::shared_state::{SharedGpuStateCoordinator, SharedStateMsg, WriteToken};
 use atomr_accel_agents::vector_index::{CpuVectorIndex, VectorEntry, VectorIndexMsg};
 use atomr_core::actor::ActorRef;
 
@@ -92,7 +95,10 @@ impl PySharedGpuStateCoordinator {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(SharedStateMsg::AcquireWrite { agent_id, reply: tx });
+            actor.tell(SharedStateMsg::AcquireWrite {
+                agent_id,
+                reply: tx,
+            });
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(WriteToken(t))) => Ok(t),
                 Ok(Err(_)) => Err(errors::map_str("coordinator dropped reply")),
@@ -107,7 +113,9 @@ impl PySharedGpuStateCoordinator {
     fn release_write_async<'py>(&self, py: Python<'py>, token: u64) -> PyResult<Bound<'py, PyAny>> {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            actor.tell(SharedStateMsg::ReleaseWrite { token: WriteToken(token) });
+            actor.tell(SharedStateMsg::ReleaseWrite {
+                token: WriteToken(token),
+            });
             Ok::<(), PyErr>(())
         })
     }
@@ -157,12 +165,7 @@ impl PyEmbeddingCache {
     /// Try the cache. Returns the cached vector (a list of f32) or
     /// `None` on miss.
     #[pyo3(signature = (key, timeout_secs=5.0))]
-    fn get(
-        &self,
-        py: Python<'_>,
-        key: Vec<u8>,
-        timeout_secs: f64,
-    ) -> PyResult<Option<Vec<f32>>> {
+    fn get(&self, py: Python<'_>, key: Vec<u8>, timeout_secs: f64) -> PyResult<Option<Vec<f32>>> {
         let actor = self.actor_ref.clone();
         let rt = runtime();
         py.allow_threads(|| {
@@ -238,7 +241,11 @@ impl PyEmbeddingCache {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(EmbeddingCacheMsg::Insert { key, value, reply: tx });
+            actor.tell(EmbeddingCacheMsg::Insert {
+                key,
+                value,
+                reply: tx,
+            });
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(())) => Ok(()),
                 Ok(Err(_)) => Err(errors::map_str("embedding cache dropped reply")),
@@ -354,7 +361,8 @@ impl PyCpuVectorIndex {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(VectorIndexMsg::Insert {
-                entry: VectorEntry { id, embedding }, reply: tx,
+                entry: VectorEntry { id, embedding },
+                reply: tx,
             });
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -377,7 +385,11 @@ impl PyCpuVectorIndex {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(VectorIndexMsg::Search { query, top_k, reply: tx });
+            actor.tell(VectorIndexMsg::Search {
+                query,
+                top_k,
+                reply: tx,
+            });
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -392,37 +404,202 @@ impl PyCpuVectorIndex {
     }
 }
 
-// ─── Structural-anchor classes ──────────────────────────────────
+// ─── RagPipeline (Phase 2.5) ────────────────────────────────────
 
-/// `RagPipeline` — query → embedding → vector search → context →
-/// LLM. Wires three actor refs plus user-supplied `EmbeddingFn` /
-/// `LlmFn` closures.
+/// `RagPipeline` handle.
 ///
-/// TODO Phase 2.5: bridge `EmbeddingFn` / `LlmFn` to Python callables
-/// (e.g. via a `PyAny`-callable adapter routed through the GIL) so
-/// Python callers can spawn a `RagPipeline` end-to-end.
+/// Phase 2.5: wires an internal length-deterministic `EmbeddingFn`
+/// + a stub `LlmFn` so Python callers can drive `query(text, k=...)`
+/// end-to-end against a host-side `EmbeddingCache` + `CpuVectorIndex`
+/// they've already populated. Phase 2.6 will accept Python callables
+/// for `EmbeddingFn` / `LlmFn`.
 #[pyclass(name = "RagPipeline", module = "atomr_accel._native")]
-pub struct PyRagPipeline {}
+pub struct PyRagPipeline {
+    actor_ref: ActorRef<RagMsg>,
+}
 
 #[pymethods]
 impl PyRagPipeline {
+    /// Spawn a `RagPipeline` wired to an existing `EmbeddingCache`
+    /// and `CpuVectorIndex` actor. The internal `EmbeddingFn` returns
+    /// a deterministic embedding derived from the query text bytes
+    /// (hash truncated/padded to `embedding_dim`); the `LlmFn`
+    /// returns a stub answer string referencing the retrieved ids.
+    #[staticmethod]
+    #[pyo3(signature = (
+        system, cache, index, embedding_dim, timeout_secs=5.0, name=None,
+    ))]
+    fn spawn(
+        py: Python<'_>,
+        system: &PySystem,
+        cache: &PyEmbeddingCache,
+        index: &PyCpuVectorIndex,
+        embedding_dim: usize,
+        timeout_secs: f64,
+        name: Option<String>,
+    ) -> PyResult<Py<Self>> {
+        if embedding_dim == 0 {
+            return Err(errors::map_str("embedding_dim must be ≥ 1"));
+        }
+        // Phase 2.5: typed payloads — internal embedding fn produces
+        // a deterministic vector based on the byte sum of the query.
+        let dim = embedding_dim;
+        let embed_fn: Arc<dyn EmbeddingFn> = Arc::new(move |text: &str| {
+            let bytes = text.as_bytes();
+            let mut v = vec![0.0f32; dim];
+            for (i, &b) in bytes.iter().enumerate() {
+                v[i % dim] += b as f32;
+            }
+            // L2-normalize.
+            let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                for x in &mut v {
+                    *x /= norm;
+                }
+            }
+            Ok(v)
+        });
+        let llm: Arc<dyn LlmFn> =
+            Arc::new(|q: &str, ctx: &[u64]| Ok(format!("rag:'{q}' sources={ctx:?}")));
+
+        let actor_name = name.unwrap_or_else(|| "rag-pipeline".to_string());
+        let cache_ref = cache.actor_ref.clone();
+        let index_ref = index.actor_ref.clone();
+        let actor_ref = {
+            let _guard = runtime().enter();
+            system
+                .inner
+                .actor_of(
+                    RagPipeline::props(RagConfig {
+                        embedding: embed_fn,
+                        embedding_cache: cache_ref,
+                        vector_index: index_ref,
+                        llm,
+                        timeout: Duration::from_secs_f64(timeout_secs),
+                    }),
+                    &actor_name,
+                )
+                .map_err(errors::map_str)?
+        };
+        Py::new(py, PyRagPipeline { actor_ref })
+    }
+
+    /// Query the pipeline. Returns `(answer, source_ids,
+    /// embedding_was_cached)`.
+    #[pyo3(signature = (text, k=5, timeout_secs=10.0))]
+    fn query(
+        &self,
+        py: Python<'_>,
+        text: String,
+        k: usize,
+        timeout_secs: f64,
+    ) -> PyResult<(String, Vec<u64>, bool)> {
+        let actor = self.actor_ref.clone();
+        let rt = runtime();
+        py.allow_threads(|| {
+            rt.block_on(async move {
+                let (tx, rx) = oneshot::channel();
+                actor.tell(RagMsg::Query {
+                    q: RagQuery {
+                        text,
+                        top_k: k.max(1),
+                    },
+                    reply: tx,
+                });
+                match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                    Ok(Ok(Ok(r))) => Ok((r.answer, r.sources, r.embedding_was_cached)),
+                    Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                    Ok(Err(_)) => Err(errors::map_str("rag pipeline dropped reply")),
+                    Err(_) => Err(errors::map_str("query timed out")),
+                }
+            })
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
-        "RagPipeline(handle, structural-anchor)"
+        "RagPipeline(handle)"
     }
 }
 
-/// `LangGraphGpuActor<S>` — DAG executor with cycle detection.
-/// Generic over the user state type `S`.
-///
-/// TODO Phase 2.5: bridge `NodeGraph<S>` to a Python-side typed-state
-/// builder so Python callers can compose nodes and run them.
+// ─── LangGraphGpuActor (Phase 2.5) ──────────────────────────────
+
+/// `LangGraphGpuActor` handle (Phase 2.5: monomorphized over
+/// `S = Vec<f32>`; nodes are internal stages that scale the state by
+/// a per-node factor).
 #[pyclass(name = "LangGraphGpuActor", module = "atomr_accel._native")]
-pub struct PyLangGraphGpuActor {}
+pub struct PyLangGraphGpuActor {
+    actor_ref: ActorRef<NodeGraphMsg<Vec<f32>>>,
+}
 
 #[pymethods]
 impl PyLangGraphGpuActor {
+    /// Spawn a `LangGraphGpuActor` over a linear chain of `n_nodes`
+    /// internal stages. Node `i` multiplies every element of the
+    /// state vector by `i+1`. Phase 2.6 will accept Python-supplied
+    /// `GraphNode` callables and an arbitrary topology.
+    #[staticmethod]
+    #[pyo3(signature = (system, n_nodes=2, name=None))]
+    fn spawn(
+        py: Python<'_>,
+        system: &PySystem,
+        n_nodes: usize,
+        name: Option<String>,
+    ) -> PyResult<Py<Self>> {
+        if n_nodes == 0 {
+            return Err(errors::map_str("n_nodes must be ≥ 1"));
+        }
+        // Phase 2.5: typed payloads — linear chain of scale-by-(i+1)
+        // nodes.
+        let mut g = NodeGraph::<Vec<f32>>::new();
+        for i in 0..n_nodes {
+            let factor = (i + 1) as f32;
+            let node: Arc<dyn GraphNode<Vec<f32>>> = Arc::new(move |state: Vec<f32>| {
+                Ok(state.into_iter().map(|x| x * factor).collect())
+            });
+            // SAFETY: `add_node` expects the impl on a value, not Arc.
+            // Use a closure adapter that calls the Arc-stored node.
+            let node_inner = node.clone();
+            g.add_node(NodeId(i as u32), move |s: Vec<f32>| node_inner.run(s));
+            if i + 1 < n_nodes {
+                g.add_edge(NodeId(i as u32), NodeId((i + 1) as u32));
+            }
+        }
+        g.set_entry(NodeId(0));
+        let actor_name = name.unwrap_or_else(|| "langgraph".to_string());
+        let actor_ref = {
+            let _guard = runtime().enter();
+            system
+                .inner
+                .actor_of(LangGraphGpuActor::<Vec<f32>>::props(g), &actor_name)
+                .map_err(errors::map_str)?
+        };
+        Py::new(py, PyLangGraphGpuActor { actor_ref })
+    }
+
+    /// Run the node graph against `state`. Returns the transformed
+    /// state vector.
+    // Phase 2.5: typed payloads — `state` is a `Vec<f32>` until the
+    // typed-state builder lands.
+    #[pyo3(signature = (state, timeout_secs=10.0))]
+    fn step(&self, py: Python<'_>, state: Vec<f32>, timeout_secs: f64) -> PyResult<Vec<f32>> {
+        let actor = self.actor_ref.clone();
+        let rt = runtime();
+        py.allow_threads(|| {
+            rt.block_on(async move {
+                let (tx, rx) = oneshot::channel();
+                actor.tell(NodeGraphMsg::Run { state, reply: tx });
+                match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                    Ok(Ok(Ok(s))) => Ok(s),
+                    Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                    Ok(Err(_)) => Err(errors::map_str("langgraph dropped reply")),
+                    Err(_) => Err(errors::map_str("step timed out")),
+                }
+            })
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
-        "LangGraphGpuActor(handle, structural-anchor)"
+        "LangGraphGpuActor(handle)"
     }
 }
 
