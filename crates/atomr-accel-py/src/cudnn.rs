@@ -14,16 +14,18 @@
 use std::marker::PhantomData;
 use std::time::Duration;
 
+use parking_lot::Mutex;
 use pyo3::prelude::*;
 use tokio::sync::oneshot;
 
+use atomr_accel_cuda::gpu_ref::GpuRef;
 use atomr_accel_cuda::kernel::{
     ActivationFwdRequest, ActivationKind, AttentionMask, AttentionParams, BatchNormRequest,
     ConvBwdDataRequest, ConvBwdFilterRequest, ConvDescParams, ConvFwdRequest, CudnnMsg,
     DropoutFwdRequest, EpilogueKind, GroupNormRequest, InstanceNormRequest, LayerNormRequest,
-    LrnFwdRequest, LrnParams, MultiHeadAttnFwdRequest, NormBwdRequest, NormMode, NormPhase,
-    PoolBwdRequest, PoolFwdRequest, PoolMode, PoolParams, RnnDirection, RnnFwdRequest, RnnMode,
-    RnnParams, SoftmaxFwdRequest, SoftmaxMode, TensorLayout,
+    LrnFwdRequest, LrnParams, MultiHeadAttnBwdRequest, MultiHeadAttnFwdRequest, NormBwdRequest,
+    NormMode, NormPhase, PoolBwdRequest, PoolFwdRequest, PoolMode, PoolParams, RnnBwdRequest,
+    RnnDirection, RnnFwdRequest, RnnMode, RnnParams, SoftmaxFwdRequest, SoftmaxMode, TensorLayout,
 };
 use atomr_core::actor::ActorRef;
 
@@ -127,6 +129,588 @@ fn attention_mask_from_str(s: &str, window: u32) -> PyResult<AttentionMask> {
             Ok(AttentionMask::CausalSlidingWindow(window))
         }
         other => Err(errors::map_str(format!("unknown attention mask: {other}"))),
+    }
+}
+
+// ----- Inputs builders for high-arg-count backward ops -----------------
+//
+// `RnnBwdRequest` / `MultiHeadAttnBwdRequest` carry 9-14 `GpuRef` args
+// plus their scalar param structs. Surfacing them as one positional
+// Python signature would be unergonomic; instead, callers populate one
+// of these `*Inputs` builders via `set_*` methods, then pass it to
+// `Cudnn.rnn_bwd_f32` / `Cudnn.multihead_attn_bwd_f32`. The dispatch
+// method consumes the inner state — a second call against the same
+// inputs returns an error.
+
+/// Inner state for `RnnBwdInputs`. All fields populated via setters
+/// before dispatch. Required fields: `x`, `y`, `dy`, `h_in`, `h_out`,
+/// `dh_out`, `weights`, `dx`, `dh_in`, `dweights`, plus the seven
+/// `RnnParams` scalars. Optional (LSTM-only): `c_in`, `c_out`,
+/// `dc_out`, `dc_in`.
+struct RnnBwdInner {
+    x: Option<GpuRef<f32>>,
+    y: Option<GpuRef<f32>>,
+    dy: Option<GpuRef<f32>>,
+    h_in: Option<GpuRef<f32>>,
+    c_in: Option<GpuRef<f32>>,
+    h_out: Option<GpuRef<f32>>,
+    c_out: Option<GpuRef<f32>>,
+    dh_out: Option<GpuRef<f32>>,
+    dc_out: Option<GpuRef<f32>>,
+    weights: Option<GpuRef<f32>>,
+    dx: Option<GpuRef<f32>>,
+    dh_in: Option<GpuRef<f32>>,
+    dc_in: Option<GpuRef<f32>>,
+    dweights: Option<GpuRef<f32>>,
+    mode: RnnMode,
+    direction: RnnDirection,
+    num_layers: u32,
+    input_size: i64,
+    hidden_size: i64,
+    seq_length: i64,
+    batch_size: i64,
+    dropout: f32,
+}
+
+impl RnnBwdInner {
+    fn new() -> Self {
+        Self {
+            x: None,
+            y: None,
+            dy: None,
+            h_in: None,
+            c_in: None,
+            h_out: None,
+            c_out: None,
+            dh_out: None,
+            dc_out: None,
+            weights: None,
+            dx: None,
+            dh_in: None,
+            dc_in: None,
+            dweights: None,
+            mode: RnnMode::Lstm,
+            direction: RnnDirection::Unidirectional,
+            num_layers: 1,
+            input_size: 0,
+            hidden_size: 0,
+            seq_length: 0,
+            batch_size: 0,
+            dropout: 0.0,
+        }
+    }
+}
+
+/// Builder for `Cudnn.rnn_bwd_f32`. Populate every field via the
+/// `set_*` methods, then pass to `cudnn.rnn_bwd_f32(inputs)`. The
+/// builder is single-use — dispatch consumes its inner state.
+#[pyclass(name = "RnnBwdInputs", module = "atomr_accel._native")]
+pub struct PyRnnBwdInputs {
+    inner: Mutex<Option<RnnBwdInner>>,
+}
+
+impl PyRnnBwdInputs {
+    fn with_inner_mut<F, R>(&self, f: F) -> PyResult<R>
+    where
+        F: FnOnce(&mut RnnBwdInner) -> PyResult<R>,
+    {
+        let mut guard = self.inner.lock();
+        let inner = guard
+            .as_mut()
+            .ok_or_else(|| errors::map_str("RnnBwdInputs already consumed"))?;
+        f(inner)
+    }
+}
+
+#[pymethods]
+impl PyRnnBwdInputs {
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Mutex::new(Some(RnnBwdInner::new())),
+        }
+    }
+
+    fn set_x(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        self.with_inner_mut(|i| {
+            i.x = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_y(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        self.with_inner_mut(|i| {
+            i.y = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dy(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dy consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dy = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_h_in(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("h_in consumed"))?;
+        self.with_inner_mut(|i| {
+            i.h_in = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_c_in(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c_in consumed"))?;
+        self.with_inner_mut(|i| {
+            i.c_in = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_h_out(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("h_out consumed"))?;
+        self.with_inner_mut(|i| {
+            i.h_out = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_c_out(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c_out consumed"))?;
+        self.with_inner_mut(|i| {
+            i.c_out = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dh_out(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dh_out consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dh_out = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dc_out(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dc_out consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dc_out = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_weights(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("weights consumed"))?;
+        self.with_inner_mut(|i| {
+            i.weights = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dx(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dx consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dx = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dh_in(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dh_in consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dh_in = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dc_in(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dc_in consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dc_in = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dweights(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dweights consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dweights = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_mode(&self, mode: &str) -> PyResult<()> {
+        let m = rnn_mode_from_str(mode)?;
+        self.with_inner_mut(|i| {
+            i.mode = m;
+            Ok(())
+        })
+    }
+
+    fn set_direction(&self, direction: &str) -> PyResult<()> {
+        let d = rnn_direction_from_str(direction)?;
+        self.with_inner_mut(|i| {
+            i.direction = d;
+            Ok(())
+        })
+    }
+
+    fn set_num_layers(&self, num_layers: u32) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.num_layers = num_layers;
+            Ok(())
+        })
+    }
+
+    fn set_input_size(&self, input_size: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.input_size = input_size;
+            Ok(())
+        })
+    }
+
+    fn set_hidden_size(&self, hidden_size: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.hidden_size = hidden_size;
+            Ok(())
+        })
+    }
+
+    fn set_seq_length(&self, seq_length: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.seq_length = seq_length;
+            Ok(())
+        })
+    }
+
+    fn set_batch_size(&self, batch_size: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.batch_size = batch_size;
+            Ok(())
+        })
+    }
+
+    fn set_dropout(&self, dropout: f32) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.dropout = dropout;
+            Ok(())
+        })
+    }
+
+    /// `True` once dispatch has consumed the builder.
+    fn is_consumed(&self) -> bool {
+        self.inner.lock().is_none()
+    }
+
+    fn __repr__(&self) -> &'static str {
+        "RnnBwdInputs(builder)"
+    }
+}
+
+/// Inner state for `MultiHeadAttnBwdInputs`. All `GpuRef` fields are
+/// required; `params` is built from the stored scalars.
+struct MultiHeadAttnBwdInner {
+    q: Option<GpuRef<f32>>,
+    k: Option<GpuRef<f32>>,
+    v: Option<GpuRef<f32>>,
+    o: Option<GpuRef<f32>>,
+    do_: Option<GpuRef<f32>>,
+    dq: Option<GpuRef<f32>>,
+    dk: Option<GpuRef<f32>>,
+    dv: Option<GpuRef<f32>>,
+    stats: Option<GpuRef<f32>>,
+    batch: i64,
+    seq_q: i64,
+    seq_kv: i64,
+    heads_q: i64,
+    heads_kv: i64,
+    head_dim: i64,
+    mask: AttentionMask,
+    scale: Option<f64>,
+    dropout: f32,
+    dropout_seed: u64,
+}
+
+impl MultiHeadAttnBwdInner {
+    fn new() -> Self {
+        Self {
+            q: None,
+            k: None,
+            v: None,
+            o: None,
+            do_: None,
+            dq: None,
+            dk: None,
+            dv: None,
+            stats: None,
+            batch: 0,
+            seq_q: 0,
+            seq_kv: 0,
+            heads_q: 0,
+            heads_kv: 0,
+            head_dim: 0,
+            mask: AttentionMask::None,
+            scale: None,
+            dropout: 0.0,
+            dropout_seed: 0,
+        }
+    }
+}
+
+/// Builder for `Cudnn.multihead_attn_bwd_f32`.
+#[pyclass(name = "MultiHeadAttnBwdInputs", module = "atomr_accel._native")]
+pub struct PyMultiHeadAttnBwdInputs {
+    inner: Mutex<Option<MultiHeadAttnBwdInner>>,
+}
+
+impl PyMultiHeadAttnBwdInputs {
+    fn with_inner_mut<F, R>(&self, f: F) -> PyResult<R>
+    where
+        F: FnOnce(&mut MultiHeadAttnBwdInner) -> PyResult<R>,
+    {
+        let mut guard = self.inner.lock();
+        let inner = guard
+            .as_mut()
+            .ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs already consumed"))?;
+        f(inner)
+    }
+}
+
+#[pymethods]
+impl PyMultiHeadAttnBwdInputs {
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Mutex::new(Some(MultiHeadAttnBwdInner::new())),
+        }
+    }
+
+    fn set_q(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("q consumed"))?;
+        self.with_inner_mut(|i| {
+            i.q = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_k(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("k consumed"))?;
+        self.with_inner_mut(|i| {
+            i.k = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_v(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("v consumed"))?;
+        self.with_inner_mut(|i| {
+            i.v = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_o(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("o consumed"))?;
+        self.with_inner_mut(|i| {
+            i.o = Some(g);
+            Ok(())
+        })
+    }
+
+    /// Output gradient `dO` (named `do` in math; `do` is a Python keyword
+    /// so we expose `set_do` and the field name `do_`).
+    fn set_do(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("do consumed"))?;
+        self.with_inner_mut(|i| {
+            i.do_ = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dq(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dq consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dq = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dk(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dk consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dk = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_dv(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dv consumed"))?;
+        self.with_inner_mut(|i| {
+            i.dv = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_stats(&self, py: Python<'_>, buf: Py<PyGpuBufferF32>) -> PyResult<()> {
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("stats consumed"))?;
+        self.with_inner_mut(|i| {
+            i.stats = Some(g);
+            Ok(())
+        })
+    }
+
+    fn set_batch(&self, batch: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.batch = batch;
+            Ok(())
+        })
+    }
+
+    fn set_seq_q(&self, seq_q: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.seq_q = seq_q;
+            Ok(())
+        })
+    }
+
+    fn set_seq_kv(&self, seq_kv: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.seq_kv = seq_kv;
+            Ok(())
+        })
+    }
+
+    fn set_heads_q(&self, heads_q: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.heads_q = heads_q;
+            Ok(())
+        })
+    }
+
+    fn set_heads_kv(&self, heads_kv: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.heads_kv = heads_kv;
+            Ok(())
+        })
+    }
+
+    fn set_head_dim(&self, head_dim: i64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.head_dim = head_dim;
+            Ok(())
+        })
+    }
+
+    #[pyo3(signature = (mask, window=0))]
+    fn set_mask(&self, mask: &str, window: u32) -> PyResult<()> {
+        let m = attention_mask_from_str(mask, window)?;
+        self.with_inner_mut(|i| {
+            i.mask = m;
+            Ok(())
+        })
+    }
+
+    /// QK^T scale (`1/sqrt(head_dim)` if not set).
+    fn set_scale(&self, scale: f64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.scale = Some(scale);
+            Ok(())
+        })
+    }
+
+    fn set_dropout(&self, dropout: f32) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.dropout = dropout;
+            Ok(())
+        })
+    }
+
+    fn set_dropout_seed(&self, seed: u64) -> PyResult<()> {
+        self.with_inner_mut(|i| {
+            i.dropout_seed = seed;
+            Ok(())
+        })
+    }
+
+    fn is_consumed(&self) -> bool {
+        self.inner.lock().is_none()
+    }
+
+    fn __repr__(&self) -> &'static str {
+        "MultiHeadAttnBwdInputs(builder)"
     }
 }
 
@@ -1290,11 +1874,102 @@ impl PyCudnn {
         })
     }
 
-    // TODO Phase 1.5 deeper coverage — `rnn_bwd_f32` requires 14
-    // distinct GpuRef args (x, y, dy, h_in, c_in, h_out, c_out, dh_out,
-    // dc_out, weights, dx, dh_in, dc_in, dweights). Surface it once
-    // pyo3's signature length proves stable; for now callers can
-    // reach the same actor via the typed Rust API.
+    /// Backward RNN / LSTM / GRU. Inputs are aggregated through
+    /// `RnnBwdInputs` because the request carries up to 14 distinct
+    /// `GpuRef` args + the params struct; a flat positional signature
+    /// would be unergonomic. The builder is consumed on dispatch — a
+    /// second call against the same `inputs` returns an error.
+    #[pyo3(signature = (inputs, timeout_secs=60.0))]
+    fn rnn_bwd_f32(
+        &self,
+        py: Python<'_>,
+        inputs: Py<PyRnnBwdInputs>,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let inner = {
+            let bound = inputs.borrow(py);
+            let taken = bound.inner.lock().take();
+            taken.ok_or_else(|| errors::map_str("RnnBwdInputs already consumed"))?
+        };
+        let RnnBwdInner {
+            x,
+            y,
+            dy,
+            h_in,
+            c_in,
+            h_out,
+            c_out,
+            dh_out,
+            dc_out,
+            weights,
+            dx,
+            dh_in,
+            dc_in,
+            dweights,
+            mode,
+            direction,
+            num_layers,
+            input_size,
+            hidden_size,
+            seq_length,
+            batch_size,
+            dropout,
+        } = inner;
+        let x = x.ok_or_else(|| errors::map_str("RnnBwdInputs.x not set"))?;
+        let y = y.ok_or_else(|| errors::map_str("RnnBwdInputs.y not set"))?;
+        let dy = dy.ok_or_else(|| errors::map_str("RnnBwdInputs.dy not set"))?;
+        let h_in = h_in.ok_or_else(|| errors::map_str("RnnBwdInputs.h_in not set"))?;
+        let h_out = h_out.ok_or_else(|| errors::map_str("RnnBwdInputs.h_out not set"))?;
+        let dh_out = dh_out.ok_or_else(|| errors::map_str("RnnBwdInputs.dh_out not set"))?;
+        let weights = weights.ok_or_else(|| errors::map_str("RnnBwdInputs.weights not set"))?;
+        let dx = dx.ok_or_else(|| errors::map_str("RnnBwdInputs.dx not set"))?;
+        let dh_in = dh_in.ok_or_else(|| errors::map_str("RnnBwdInputs.dh_in not set"))?;
+        let dweights = dweights.ok_or_else(|| errors::map_str("RnnBwdInputs.dweights not set"))?;
+        let params = RnnParams {
+            mode,
+            direction,
+            num_layers,
+            input_size,
+            hidden_size,
+            seq_length,
+            batch_size,
+            dropout,
+        };
+        let actor = self.actor_ref.clone();
+        let rt = runtime();
+        py.allow_threads(|| {
+            rt.block_on(async move {
+                let (tx, rx) = oneshot::channel();
+                let req = RnnBwdRequest::<f32> {
+                    x,
+                    y,
+                    dy,
+                    h_in,
+                    c_in,
+                    h_out,
+                    c_out,
+                    dh_out,
+                    dc_out,
+                    weights,
+                    dx,
+                    dh_in,
+                    dc_in,
+                    dweights,
+                    layout: TensorLayout::NchwPacked,
+                    params,
+                    reply: tx,
+                    _ty: PhantomData,
+                };
+                actor.tell(CudnnMsg::Op(Box::new(req)));
+                match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                    Ok(Ok(Ok(()))) => Ok(()),
+                    Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                    Ok(Err(_)) => Err(errors::map_str("cudnn dropped reply")),
+                    Err(_) => Err(errors::map_str("rnn_bwd_f32 timed out")),
+                }
+            })
+        })
+    }
 
     /// Forward multi-head attention (fused). `q`, `k`, `v`, `o` are
     /// 4-D `[batch, heads, seq, head_dim]` tensors.
@@ -1397,10 +2072,95 @@ impl PyCudnn {
         })
     }
 
-    // TODO Phase 1.5 deeper coverage — `multihead_attn_bwd_f32` needs
-    // 9 GpuRef args (q, k, v, o, do_, dq, dk, dv, stats) plus the
-    // params struct. Surface it once we add a small `AttnBwdInputs`
-    // pyclass to keep the call ergonomic.
+    /// Backward multi-head attention. Inputs are aggregated through
+    /// `MultiHeadAttnBwdInputs` because the request carries 9 `GpuRef`
+    /// args + the params struct. The builder is consumed on dispatch.
+    #[pyo3(signature = (inputs, timeout_secs=60.0))]
+    fn multihead_attn_bwd_f32(
+        &self,
+        py: Python<'_>,
+        inputs: Py<PyMultiHeadAttnBwdInputs>,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let inner = {
+            let bound = inputs.borrow(py);
+            let taken = bound.inner.lock().take();
+            taken.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs already consumed"))?
+        };
+        let MultiHeadAttnBwdInner {
+            q,
+            k,
+            v,
+            o,
+            do_,
+            dq,
+            dk,
+            dv,
+            stats,
+            batch,
+            seq_q,
+            seq_kv,
+            heads_q,
+            heads_kv,
+            head_dim,
+            mask,
+            scale,
+            dropout,
+            dropout_seed,
+        } = inner;
+        let q = q.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.q not set"))?;
+        let k = k.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.k not set"))?;
+        let v = v.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.v not set"))?;
+        let o = o.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.o not set"))?;
+        let do_ = do_.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.do not set"))?;
+        let dq = dq.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dq not set"))?;
+        let dk = dk.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dk not set"))?;
+        let dv = dv.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dv not set"))?;
+        let stats =
+            stats.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.stats not set"))?;
+        let scale = scale.unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
+        let params = AttentionParams {
+            batch,
+            seq_q,
+            seq_kv,
+            heads_q,
+            heads_kv,
+            head_dim,
+            mask,
+            scale,
+            dropout,
+            dropout_seed,
+        };
+        let actor = self.actor_ref.clone();
+        let rt = runtime();
+        py.allow_threads(|| {
+            rt.block_on(async move {
+                let (tx, rx) = oneshot::channel();
+                let req = MultiHeadAttnBwdRequest::<f32> {
+                    q,
+                    k,
+                    v,
+                    o,
+                    do_,
+                    dq,
+                    dk,
+                    dv,
+                    stats,
+                    layout: TensorLayout::NchwPacked,
+                    params,
+                    reply: tx,
+                    _ty: PhantomData,
+                };
+                actor.tell(CudnnMsg::Op(Box::new(req)));
+                match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                    Ok(Ok(Ok(()))) => Ok(()),
+                    Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                    Ok(Err(_)) => Err(errors::map_str("cudnn dropped reply")),
+                    Err(_) => Err(errors::map_str("multihead_attn_bwd_f32 timed out")),
+                }
+            })
+        })
+    }
 
     // ─── Async (asyncio) variants ────────────────────────────────
 
@@ -2192,5 +2952,7 @@ impl PyCudnn {
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCudnn>()?;
+    m.add_class::<PyRnnBwdInputs>()?;
+    m.add_class::<PyMultiHeadAttnBwdInputs>()?;
     Ok(())
 }

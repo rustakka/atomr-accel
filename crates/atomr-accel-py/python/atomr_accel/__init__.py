@@ -94,6 +94,8 @@ def _try_import(name):
 # ─── Optional surface (cudnn / cufft / curand / cusolver / nccl /
 #     nvrtc / telemetry / cub / cutlass / flashattn / tensorrt) ───
 Cudnn = _try_import("Cudnn")
+RnnBwdInputs = _try_import("RnnBwdInputs")
+MultiHeadAttnBwdInputs = _try_import("MultiHeadAttnBwdInputs")
 Fft = _try_import("Fft")
 RngGenerator = _try_import("RngGenerator")
 Solver = _try_import("Solver")
@@ -150,6 +152,8 @@ __all__ = [
     "AskTimeout",
     # Phase 1 optional cuda-kernel handles
     "Cudnn",
+    "RnnBwdInputs",
+    "MultiHeadAttnBwdInputs",
     "Fft",
     "RngGenerator",
     "Solver",
