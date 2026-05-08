@@ -30,11 +30,28 @@
 //! Python wrapper documents this and leaves normalization to the
 //! caller (typically a downstream kernel or `numpy` divide).
 //!
+//! ## Path A — extended for 3-D + plan-many
+//!
+//! `exec_typed_f32` / `exec_typed_f64` accept `(nx, ny, nz)` for 3-D
+//! transforms (R2C / C2R / C2C / D2Z / Z2D / Z2Z). For arbitrary
+//! batched + strided layouts mirroring cuFFT's `cufftPlanMany`, use
+//! `exec_plan_many_f32` / `exec_plan_many_f64` — they take the full
+//! `(rank, n, inembed, istride, idist, onembed, ostride, odist, batch)`
+//! tuple, build an [`FftPlanMany`] descriptor, and route through the
+//! same typed `FftRequest<T, I, O>` machinery.
+//!
+//! ## Output-length helpers
+//!
+//! The static methods `Fft.r2c_output_len{,_2d,_3d,_many}` compute the
+//! output complex element count for an R2C plan, so callers can size
+//! the destination buffer without re-deriving cuFFT's Hermitian
+//! half-spectrum rule.
+//!
 //! TODO Phase 1.5++ followups:
 //! * Plan-cache stats / explicit plan handles surfaced to Python.
 //! * RTC + multi-GPU FFT.
-//! * 2-D / 3-D + plan-many for `exec_typed_*` (the plan-key API
-//!   already supports them; we just need richer Python signatures).
+//! * cuFFT callbacks (load/store) — `FftCallbackKind` exists kernel-side.
+//! * Custom workspace sizes / explicit `setStream` from Python.
 
 #![cfg(feature = "cufft")]
 
@@ -47,7 +64,9 @@ use tokio::sync::oneshot;
 use atomr_accel_cuda::device::{DeviceMsg, HostBuf};
 use atomr_accel_cuda::dtype::{C32, C64};
 use atomr_accel_cuda::gpu_ref::GpuRef;
-use atomr_accel_cuda::kernel::{FftDirection, FftKind, FftMsg, FftRequest, PlanKey};
+use atomr_accel_cuda::kernel::{
+    FftDirection, FftKind, FftMsg, FftPlanMany, FftRequest, PlanKey,
+};
 use atomr_core::actor::ActorRef;
 
 use crate::buffer::{
@@ -132,6 +151,111 @@ fn plan_key_from_dims(
             PlanKey::plan_3d(nx, ny, nz, kind)
         }
     })
+}
+
+/// Build a [`PlanKey`] from a `cufftPlanMany`-style descriptor.
+///
+/// Mirrors cuFFT's argument list: `rank` (1, 2, or 3), per-dim sizes
+/// in `n` (length must equal `rank`), optional in/out embed dims with
+/// strides and per-batch distances. The descriptor is hashed into the
+/// `PlanKey::many_layout` discriminator so two distinct layouts cache
+/// distinctly even if `(rank, dims, kind, batch)` collide.
+///
+/// `inembed` / `onembed` are optional (`None` ⇒ tightly-packed,
+/// matching cuFFT's documented `NULL` semantics). When provided, each
+/// must be a slice of length `rank`.
+///
+/// TODO Phase 1.5++ followups: callback hooks, custom workspace
+/// sizes, multi-GPU plan sharding aren't surfaced yet — they live on
+/// `FftPlan` / `FftActor` kernel-side and need their own typed
+/// requests.
+#[allow(clippy::too_many_arguments)]
+fn plan_key_from_many(
+    rank: u32,
+    n: &[i32],
+    inembed: Option<&[i32]>,
+    istride: i32,
+    idist: i32,
+    onembed: Option<&[i32]>,
+    ostride: i32,
+    odist: i32,
+    kind: FftKind,
+    batch: i32,
+) -> PyResult<PlanKey> {
+    if !(1..=3).contains(&rank) {
+        return Err(errors::map_str(format!(
+            "rank must be 1, 2, or 3 (got {rank})"
+        )));
+    }
+    if batch <= 0 {
+        return Err(errors::map_str("batch must be >= 1"));
+    }
+    if n.len() != rank as usize {
+        return Err(errors::map_str(format!(
+            "n must have length rank={} (got {})",
+            rank,
+            n.len()
+        )));
+    }
+    if n.iter().any(|d| *d <= 0) {
+        return Err(errors::map_str("every n[i] must be >= 1"));
+    }
+    if let Some(e) = inembed {
+        if e.len() != rank as usize {
+            return Err(errors::map_str(format!(
+                "inembed must have length rank={} (got {})",
+                rank,
+                e.len()
+            )));
+        }
+    }
+    if let Some(e) = onembed {
+        if e.len() != rank as usize {
+            return Err(errors::map_str(format!(
+                "onembed must have length rank={} (got {})",
+                rank,
+                e.len()
+            )));
+        }
+    }
+    if istride <= 0 || ostride <= 0 {
+        return Err(errors::map_str("istride and ostride must be >= 1"));
+    }
+
+    // Pad to fixed [i32; 3] layout; unused slots are zeroed (matching
+    // PlanKey::plan_{1,2}d's convention).
+    let mut dims = [0i32; 3];
+    for (i, v) in n.iter().enumerate() {
+        dims[i] = *v;
+    }
+    let in_embed_arr = inembed.map(|e| {
+        let mut a = [0i32; 3];
+        for (i, v) in e.iter().enumerate() {
+            a[i] = *v;
+        }
+        a
+    });
+    let out_embed_arr = onembed.map(|e| {
+        let mut a = [0i32; 3];
+        for (i, v) in e.iter().enumerate() {
+            a[i] = *v;
+        }
+        a
+    });
+
+    let many = FftPlanMany {
+        rank,
+        dims,
+        in_embed: in_embed_arr,
+        in_stride: istride,
+        in_dist: idist,
+        out_embed: out_embed_arr,
+        out_stride: ostride,
+        out_dist: odist,
+        kind,
+        batch,
+    };
+    Ok(many.key())
 }
 
 /// Generic typed-buffer FFT dispatch — Path A. Both buffers are
@@ -574,9 +698,13 @@ impl PyFft {
     ///     direction: ``"forward"`` (default) or ``"inverse"``. Only
     ///         meaningful for ``c2c``.
     ///     nx, ny, nz: transform dimensions. ``ny`` / ``nz`` are
-    ///         optional — `None` means a 1-D / 2-D plan respectively.
+    ///         optional — `None` means a 1-D / 2-D plan respectively;
+    ///         passing all three selects the 3-D plan
+    ///         (`cufftPlan3d`-style).
     ///     batch: number of independent transforms (default 1, only
-    ///         honored on 1-D plans).
+    ///         honored on 1-D plans — for batched 2-D / 3-D or
+    ///         arbitrary stride layouts use
+    ///         [`Self::exec_plan_many_f32`]).
     ///
     /// Returns:
     ///     `None`. The output buffer is mutated in-place.
@@ -885,6 +1013,399 @@ impl PyFft {
             download_bytes_blocking(py, &self.device_ref, dst_u8, out_bytes_len, timeout_secs)?;
         let out_vec = bytes_to_complex32_vec(out_bytes);
         Ok(PyArray1::from_vec_bound(py, out_vec))
+    }
+
+    /// Phase 1.5++ Path A — typed-buffer cuFFT dispatch wrapping
+    /// [`FftPlanMany`] for arbitrary-stride / arbitrary-batch
+    /// transforms on the f32 scalar lane (R2C / C2R / C2C). Mirrors
+    /// cuFFT's `cufftPlanMany` argument list so any layout that
+    /// library accepts is reachable from Python.
+    ///
+    /// Args:
+    ///     real_buf: `GpuBufferF32`. Source for ``r2c``, destination
+    ///         for ``c2r``. Pass `None` for ``c2c``.
+    ///     complex_buf: `GpuBufferC64`. Destination for ``r2c``,
+    ///         source for ``c2r``, both for ``c2c`` if
+    ///         ``complex_buf_out`` is omitted (in-place).
+    ///     complex_buf_out: optional second `GpuBufferC64` overriding
+    ///         the C2C destination.
+    ///     rank: 1, 2, or 3.
+    ///     n: tuple/list of length ``rank`` with per-dim transform
+    ///         sizes (slow-to-fast).
+    ///     inembed / onembed: optional tuple/list of length ``rank``
+    ///         describing the *storage* shape that each batch slice
+    ///         occupies. Pass `None` for tightly-packed (cuFFT's
+    ///         `NULL` semantics).
+    ///     istride / ostride: element-stride within a single batch
+    ///         entry (`>= 1`).
+    ///     idist / odist: element-stride between batch entries.
+    ///     batch: number of independent transforms (`>= 1`).
+    ///     kind: ``"r2c"`` / ``"c2r"`` / ``"c2c"``.
+    ///     direction: ``"forward"`` (default) or ``"inverse"`` —
+    ///         relevant for ``c2c``.
+    ///
+    /// Caller is responsible for sizing the buffers — cuFFT accesses
+    /// up to `idist * batch` input elements and `odist * batch` output
+    /// elements (plus any tail implied by `inembed` / `onembed`). Use
+    /// [`Self::r2c_output_len_many`] for the canonical R2C answer.
+    ///
+    /// TODO Phase 1.5++ followups: D2Z / Z2D / Z2Z are exposed via
+    /// the f64 sibling; callbacks + multi-GPU sharding aren't surfaced.
+    #[pyo3(signature = (
+        real_buf=None,
+        complex_buf=None,
+        complex_buf_out=None,
+        rank=1,
+        n=Vec::<i32>::new(),
+        inembed=None,
+        istride=1,
+        idist=0,
+        onembed=None,
+        ostride=1,
+        odist=0,
+        batch=1,
+        kind="r2c",
+        direction="forward",
+        timeout_secs=10.0
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn exec_plan_many_f32(
+        &self,
+        py: Python<'_>,
+        real_buf: Option<Py<PyGpuBufferF32>>,
+        complex_buf: Option<Py<PyGpuBufferC64>>,
+        complex_buf_out: Option<Py<PyGpuBufferC64>>,
+        rank: u32,
+        n: Vec<i32>,
+        inembed: Option<Vec<i32>>,
+        istride: i32,
+        idist: i32,
+        onembed: Option<Vec<i32>>,
+        ostride: i32,
+        odist: i32,
+        batch: i32,
+        kind: &str,
+        direction: &str,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let kind = kind_from_str(kind)?;
+        let dir = direction_from_str(direction)?;
+        match kind {
+            FftKind::R2C | FftKind::C2R | FftKind::C2C => {}
+            other => {
+                return Err(errors::map_str(format!(
+                    "exec_plan_many_f32: kind {:?} is not on the f32 lane (use exec_plan_many_f64)",
+                    other
+                )));
+            }
+        }
+        let plan_key = plan_key_from_many(
+            rank,
+            &n,
+            inembed.as_deref(),
+            istride,
+            idist,
+            onembed.as_deref(),
+            ostride,
+            odist,
+            kind,
+            batch,
+        )?;
+
+        match kind {
+            FftKind::R2C => {
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("r2c requires complex_buf (output)"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                exec_typed_blocking::<f32, f32, C32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    r_ref,
+                    c_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::C2R => {
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("c2r requires complex_buf (input)"))?;
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                exec_typed_blocking::<f32, C32, f32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    c_ref,
+                    r_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::C2C => {
+                let src = complex_buf
+                    .ok_or_else(|| errors::map_str("c2c requires complex_buf (input)"))?;
+                let src_ref = src
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let dst_ref = match complex_buf_out {
+                    Some(d) => d
+                        .borrow(py)
+                        .clone_ref()
+                        .ok_or_else(|| errors::map_str("complex_buf_out consumed"))?,
+                    None => src_ref.clone(),
+                };
+                exec_typed_blocking::<f32, C32, C32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    src_ref,
+                    dst_ref,
+                    timeout_secs,
+                )
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// Phase 1.5++ Path A — `cufftPlanMany`-style typed dispatch on
+    /// the f64 scalar lane (D2Z / Z2D / Z2Z). Mirrors
+    /// [`Self::exec_plan_many_f32`] with `GpuBufferF64` /
+    /// `GpuBufferC128` buffers and the double-precision transform
+    /// kinds.
+    #[pyo3(signature = (
+        real_buf=None,
+        complex_buf=None,
+        complex_buf_out=None,
+        rank=1,
+        n=Vec::<i32>::new(),
+        inembed=None,
+        istride=1,
+        idist=0,
+        onembed=None,
+        ostride=1,
+        odist=0,
+        batch=1,
+        kind="d2z",
+        direction="forward",
+        timeout_secs=10.0
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn exec_plan_many_f64(
+        &self,
+        py: Python<'_>,
+        real_buf: Option<Py<PyGpuBufferF64>>,
+        complex_buf: Option<Py<PyGpuBufferC128>>,
+        complex_buf_out: Option<Py<PyGpuBufferC128>>,
+        rank: u32,
+        n: Vec<i32>,
+        inembed: Option<Vec<i32>>,
+        istride: i32,
+        idist: i32,
+        onembed: Option<Vec<i32>>,
+        ostride: i32,
+        odist: i32,
+        batch: i32,
+        kind: &str,
+        direction: &str,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let kind = kind_from_str(kind)?;
+        let dir = direction_from_str(direction)?;
+        match kind {
+            FftKind::D2Z | FftKind::Z2D | FftKind::Z2Z => {}
+            other => {
+                return Err(errors::map_str(format!(
+                    "exec_plan_many_f64: kind {:?} is not on the f64 lane (use exec_plan_many_f32)",
+                    other
+                )));
+            }
+        }
+        let plan_key = plan_key_from_many(
+            rank,
+            &n,
+            inembed.as_deref(),
+            istride,
+            idist,
+            onembed.as_deref(),
+            ostride,
+            odist,
+            kind,
+            batch,
+        )?;
+
+        match kind {
+            FftKind::D2Z => {
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("d2z requires complex_buf (output)"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                exec_typed_blocking::<f64, f64, C64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    r_ref,
+                    c_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::Z2D => {
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("z2d requires complex_buf (input)"))?;
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                exec_typed_blocking::<f64, C64, f64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    c_ref,
+                    r_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::Z2Z => {
+                let src = complex_buf
+                    .ok_or_else(|| errors::map_str("z2z requires complex_buf (input)"))?;
+                let src_ref = src
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let dst_ref = match complex_buf_out {
+                    Some(d) => d
+                        .borrow(py)
+                        .clone_ref()
+                        .ok_or_else(|| errors::map_str("complex_buf_out consumed"))?,
+                    None => src_ref.clone(),
+                };
+                exec_typed_blocking::<f64, C64, C64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    src_ref,
+                    dst_ref,
+                    timeout_secs,
+                )
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    // ── output-length helpers ────────────────────────────────────
+    //
+    // R2C transforms collapse the input's Hermitian redundancy along
+    // the *fast* dim, so the destination buffer is shorter than the
+    // source. These static helpers spell that rule out so callers
+    // don't have to re-derive it (and risk off-by-one bugs against
+    // cuFFT's documented contract).
+
+    /// 1-D R2C / D2Z output length (per batch entry): ``n // 2 + 1``.
+    /// Multiply by `batch` for the total complex element count.
+    #[staticmethod]
+    fn r2c_output_len(n: i32) -> PyResult<usize> {
+        if n <= 0 {
+            return Err(errors::map_str("n must be >= 1"));
+        }
+        Ok((n as usize) / 2 + 1)
+    }
+
+    /// 2-D R2C / D2Z output element count: ``nx * (ny // 2 + 1)``.
+    /// `ny` is the *fast* dim along which the half-spectrum lives.
+    #[staticmethod]
+    fn r2c_output_len_2d(nx: i32, ny: i32) -> PyResult<usize> {
+        if nx <= 0 || ny <= 0 {
+            return Err(errors::map_str("nx and ny must be >= 1"));
+        }
+        Ok((nx as usize) * ((ny as usize) / 2 + 1))
+    }
+
+    /// 3-D R2C / D2Z output element count:
+    /// ``nx * ny * (nz // 2 + 1)``. `nz` is the fast dim.
+    #[staticmethod]
+    fn r2c_output_len_3d(nx: i32, ny: i32, nz: i32) -> PyResult<usize> {
+        if nx <= 0 || ny <= 0 || nz <= 0 {
+            return Err(errors::map_str("nx, ny, nz must each be >= 1"));
+        }
+        Ok((nx as usize) * (ny as usize) * ((nz as usize) / 2 + 1))
+    }
+
+    /// `cufftPlanMany`-style R2C / D2Z output element count.
+    ///
+    /// Per cuFFT's contract the destination is sized as
+    /// ``odist * batch`` when `odist > 0`; otherwise the natural
+    /// per-batch output length is `n[0] * n[1] * .. * (n[rank-1] // 2 + 1)`,
+    /// times `batch`. This helper picks the larger of the two so
+    /// callers can allocate a single buffer that always satisfies
+    /// cuFFT's reads.
+    #[staticmethod]
+    #[pyo3(signature = (rank, n, batch=1, odist=0))]
+    fn r2c_output_len_many(rank: u32, n: Vec<i32>, batch: i32, odist: i32) -> PyResult<usize> {
+        if !(1..=3).contains(&rank) {
+            return Err(errors::map_str(format!(
+                "rank must be 1, 2, or 3 (got {rank})"
+            )));
+        }
+        if batch <= 0 {
+            return Err(errors::map_str("batch must be >= 1"));
+        }
+        if n.len() != rank as usize {
+            return Err(errors::map_str(format!(
+                "n must have length rank={} (got {})",
+                rank,
+                n.len()
+            )));
+        }
+        if n.iter().any(|d| *d <= 0) {
+            return Err(errors::map_str("every n[i] must be >= 1"));
+        }
+        // Natural per-batch length: product of all dims with the
+        // fast dim collapsed to (n_last // 2 + 1).
+        let last = *n.last().expect("rank>=1");
+        let half = (last as usize) / 2 + 1;
+        let mut natural_per_batch: usize = half;
+        for v in n.iter().take(n.len() - 1) {
+            natural_per_batch = natural_per_batch.saturating_mul(*v as usize);
+        }
+        let natural_total = natural_per_batch.saturating_mul(batch as usize);
+        let by_odist = (odist.max(0) as usize).saturating_mul(batch as usize);
+        Ok(natural_total.max(by_odist))
     }
 }
 

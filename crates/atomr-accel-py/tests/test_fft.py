@@ -67,6 +67,13 @@ _FFT_METHODS = [
     # Phase 1.5++ Path A — typed complex buffer dispatch.
     "exec_typed_f32",
     "exec_typed_f64",
+    # Phase 1.5++ — cufftPlanMany surface + output-length helpers.
+    "exec_plan_many_f32",
+    "exec_plan_many_f64",
+    "r2c_output_len",
+    "r2c_output_len_2d",
+    "r2c_output_len_3d",
+    "r2c_output_len_many",
 ]
 
 
@@ -320,3 +327,229 @@ def test_exec_typed_f32_rejects_bad_batch() -> None:
             fft.exec_typed_f32(kind="r2c", nx=16, batch=0)
     finally:
         sys_cm.__exit__(None, None, None)
+
+
+# ─────────────────────── 3-D plans on exec_typed_* ───────────────────────
+
+
+def test_exec_typed_f32_3d_dispatch() -> None:
+    """All three dims supplied ⇒ a 3-D R2C plan is built. The mock
+    actor will surface a runtime error since no buffers are wired, but
+    the binding-side validation (rank inference, plan_key build) must
+    have succeeded before the call reaches the actor / buffer-required
+    branch."""
+    sys_cm, _dev, fft = _open_fft("fft-typed-3d")
+    try:
+        # Missing buffers ⇒ the binding raises a `GpuRuntimeError` after
+        # the plan-key has been built. That alone confirms the 3-D
+        # dispatch path doesn't reject `(nx, ny, nz)` at parse time.
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c", nx=8, ny=8, nz=8)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f32_3d_rejects_zero_dim() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-3d-bad")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c", nx=8, ny=0, nz=8)
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c", nx=8, ny=8, nz=0)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f64_3d_dispatch() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-3d-f64")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f64(kind="d2z", nx=8, ny=8, nz=8)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+# ─────────────────────── exec_plan_many_* surface ───────────────────────
+
+
+def test_exec_plan_many_f32_rejects_bad_rank() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-bad-rank")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(rank=0, n=[16], kind="r2c")
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(rank=4, n=[2, 2, 2, 2], kind="r2c")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f32_rejects_n_length_mismatch() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-bad-n")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            # rank=2 but n only has one dim
+            fft.exec_plan_many_f32(rank=2, n=[16], kind="r2c")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f32_rejects_inembed_length_mismatch() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-bad-inembed")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(
+                rank=2, n=[8, 16], inembed=[8], kind="r2c"
+            )
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f32_rejects_bad_stride() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-bad-stride")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(rank=1, n=[16], istride=0, kind="r2c")
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(rank=1, n=[16], ostride=-1, kind="r2c")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f32_rejects_f64_kind() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-wrong-lane")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(rank=1, n=[16], kind="d2z")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f64_rejects_f32_kind() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-wrong-lane-2")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f64(rank=1, n=[16], kind="r2c")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f32_dispatch_no_buffers() -> None:
+    """Valid args but no buffers ⇒ the plan-key-many is built first,
+    then the binding raises when it discovers `real_buf=None` (R2C).
+    Exercises the full validation chain through plan_key_from_many."""
+    sys_cm, _dev, fft = _open_fft("fft-many-no-bufs")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f32(
+                rank=2,
+                n=[8, 16],
+                inembed=[8, 16],
+                istride=1,
+                idist=128,
+                onembed=[8, 9],
+                ostride=1,
+                odist=72,
+                batch=4,
+                kind="r2c",
+            )
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_plan_many_f64_dispatch_no_buffers() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-many-no-bufs-f64")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_plan_many_f64(
+                rank=1,
+                n=[32],
+                istride=1,
+                idist=32,
+                ostride=1,
+                odist=17,
+                batch=2,
+                kind="d2z",
+            )
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+# ─────────────────────── output-length helpers ───────────────────────
+
+
+def test_r2c_output_len_basic() -> None:
+    """Static method matches cuFFT's `n // 2 + 1` rule."""
+    assert atomr_accel.Fft.r2c_output_len(64) == 33
+    assert atomr_accel.Fft.r2c_output_len(7) == 4
+    assert atomr_accel.Fft.r2c_output_len(1) == 1
+
+
+def test_r2c_output_len_rejects_zero() -> None:
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len(0)
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len(-4)
+
+
+def test_r2c_output_len_2d() -> None:
+    assert atomr_accel.Fft.r2c_output_len_2d(8, 16) == 8 * 9
+    assert atomr_accel.Fft.r2c_output_len_2d(4, 4) == 4 * 3
+
+
+def test_r2c_output_len_2d_rejects_zero() -> None:
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len_2d(0, 16)
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len_2d(8, 0)
+
+
+def test_r2c_output_len_3d() -> None:
+    assert atomr_accel.Fft.r2c_output_len_3d(4, 8, 16) == 4 * 8 * 9
+    assert atomr_accel.Fft.r2c_output_len_3d(2, 2, 2) == 2 * 2 * 2  # nz//2+1 = 2
+
+
+def test_r2c_output_len_3d_rejects_zero() -> None:
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len_3d(0, 8, 16)
+
+
+def test_r2c_output_len_many_natural() -> None:
+    """When `odist=0`, the helper falls back to the natural per-batch
+    layout: prod(n[:-1]) * (n[-1] // 2 + 1) * batch."""
+    # 1-D, batch=3: per-batch = 16//2+1 = 9; total = 27.
+    assert atomr_accel.Fft.r2c_output_len_many(rank=1, n=[16], batch=3) == 27
+    # 2-D, batch=2: per-batch = 8 * 9 = 72; total = 144.
+    assert atomr_accel.Fft.r2c_output_len_many(rank=2, n=[8, 16], batch=2) == 144
+    # 3-D, batch=1: per-batch = 4 * 8 * 9 = 288.
+    assert atomr_accel.Fft.r2c_output_len_many(rank=3, n=[4, 8, 16]) == 288
+
+
+def test_r2c_output_len_many_honors_odist() -> None:
+    """When `odist >= per-batch natural`, the helper uses
+    `odist * batch` (covers padded/strided layouts)."""
+    # natural per-batch = 9, odist=16 ⇒ batch * 16 = 32 wins.
+    assert (
+        atomr_accel.Fft.r2c_output_len_many(rank=1, n=[16], batch=2, odist=16)
+        == 32
+    )
+    # odist smaller than natural ⇒ natural wins (defensive max).
+    assert (
+        atomr_accel.Fft.r2c_output_len_many(rank=1, n=[16], batch=2, odist=4)
+        == 18  # 9 * 2
+    )
+
+
+def test_r2c_output_len_many_rejects_bad_args() -> None:
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len_many(rank=0, n=[])
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        atomr_accel.Fft.r2c_output_len_many(rank=4, n=[2, 2, 2, 2])
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        # n length doesn't match rank
+        atomr_accel.Fft.r2c_output_len_many(rank=2, n=[16])
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        # batch must be >=1
+        atomr_accel.Fft.r2c_output_len_many(rank=1, n=[16], batch=0)
+    with pytest.raises(atomr_accel.GpuRuntimeError):
+        # zero dim rejected
+        atomr_accel.Fft.r2c_output_len_many(rank=1, n=[0])
