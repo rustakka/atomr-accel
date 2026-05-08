@@ -199,7 +199,22 @@ impl ContextActor {
             let stub = ctx
                 .spawn::<BlasActor>(BlasActor::mock_props(), "blas")
                 .unwrap_or_else(|e| panic!("Unrecoverable: spawn mock BlasActor: {e}"));
-            let children = KernelChildren::new(stub);
+            #[allow(unused_mut)]
+            let mut children = KernelChildren::new(stub);
+            #[cfg(feature = "cusolver")]
+            {
+                if self.config.enabled_libraries.contains(EnabledLibraries::CUSOLVER) {
+                    let solver_stub = ctx
+                        .spawn::<crate::kernel::SolverActor>(
+                            crate::kernel::SolverActor::mock_props(),
+                            "solver",
+                        )
+                        .unwrap_or_else(|e| {
+                            panic!("Unrecoverable: spawn mock SolverActor: {e}")
+                        });
+                    children.solver = Some(solver_stub);
+                }
+            }
             self.children = Some(children.clone());
             self.parent.tell(DeviceMsg::ContextReady { children });
             info!(device_id, "ContextActor (mock) ready");
@@ -318,6 +333,23 @@ impl ContextActor {
             None
         };
 
+        #[cfg(feature = "cusolver")]
+        let solver_ref = if libs.contains(EnabledLibraries::CUSOLVER) {
+            let s = allocator.acquire(Default::default());
+            let props = crate::kernel::SolverActor::props(
+                s,
+                allocator.clone(),
+                self.completion.clone(),
+                self.state.clone(),
+            );
+            Some(
+                ctx.spawn::<crate::kernel::SolverActor>(props, "solver")
+                    .unwrap_or_else(|e| panic!("Unrecoverable: spawn SolverActor: {e}")),
+            )
+        } else {
+            None
+        };
+
         #[allow(unused_mut)]
         let mut children = KernelChildren::new(blas_ref);
         #[cfg(feature = "cudnn")]
@@ -331,6 +363,10 @@ impl ContextActor {
         #[cfg(feature = "curand")]
         {
             children.rng = rng_ref;
+        }
+        #[cfg(feature = "cusolver")]
+        {
+            children.solver = solver_ref;
         }
         self.children = Some(children.clone());
         self.parent.tell(DeviceMsg::ContextReady { children });

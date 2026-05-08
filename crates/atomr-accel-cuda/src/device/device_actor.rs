@@ -335,6 +335,8 @@ pub struct KernelChildren {
     pub fft: Option<ActorRef<crate::kernel::FftMsg>>,
     #[cfg(feature = "curand")]
     pub rng: Option<ActorRef<crate::kernel::RngMsg>>,
+    #[cfg(feature = "cusolver")]
+    pub solver: Option<ActorRef<crate::kernel::SolverMsg>>,
     /// TypeId-keyed registry for child actors not represented by a
     /// typed field above. The `Arc<RwLock<…>>` keeps `KernelChildren`
     /// `Clone` while letting later library crates register / look up
@@ -355,6 +357,8 @@ impl KernelChildren {
             fft: None,
             #[cfg(feature = "curand")]
             rng: None,
+            #[cfg(feature = "cusolver")]
+            solver: None,
             extras: Arc::new(RwLock::new(HashMap::new())),
         }
     }
