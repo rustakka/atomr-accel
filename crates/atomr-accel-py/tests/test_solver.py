@@ -10,6 +10,9 @@ slice of dense ops on the Python ``Solver`` handle:
   * ``qr_{f32,f64}`` — geqrf
   * ``svd_{f32,f64}`` — gesvd
   * ``eigh_{f32,f64}`` — syevd
+  * ``getrf_batched_{f32,f64}`` — cublas[SD]getrfBatched
+  * ``potrf_batched_{f32,f64}`` — cusolverDn[SD]potrfBatched
+  * ``gesvdj_batched_{f32,f64}`` — cusolverDn[SD]gesvdjBatched
 
 These tests verify that:
 
@@ -58,13 +61,22 @@ PHASE_1_5_SOLVER_METHODS = [
     # Symmetric eigendecomposition.
     "eigh_f32",
     "eigh_f64",
+    # Batched LU (cuBLAS-backed for cuSOLVER API symmetry).
+    "getrf_batched_f32",
+    "getrf_batched_f64",
+    # Batched Cholesky.
+    "potrf_batched_f32",
+    "potrf_batched_f64",
+    # Batched Jacobi SVD.
+    "gesvdj_batched_f32",
+    "gesvdj_batched_f64",
 ]
 
 
 def test_phase_1_5_solver_method_count():
     """Catch accidental coverage regressions."""
-    # 6 ops × 2 dtypes = 12 methods.
-    assert len(PHASE_1_5_SOLVER_METHODS) == 12
+    # 9 ops × 2 dtypes = 18 methods (12 dense + 6 batched).
+    assert len(PHASE_1_5_SOLVER_METHODS) == 18
 
 
 @pytest.mark.parametrize("method", PHASE_1_5_SOLVER_METHODS)
