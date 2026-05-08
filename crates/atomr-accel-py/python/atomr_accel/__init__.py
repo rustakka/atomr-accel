@@ -2,12 +2,10 @@
 
 The native extension lives in ``atomr_accel._native``; the public
 surface is re-exported here. Per-domain helpers also live in side
-modules (``atomr_accel.system``, ``atomr_accel.device``,
-``atomr_accel.blas``, ``atomr_accel.cudnn``, ``atomr_accel.fft``,
-``atomr_accel.rng``, ``atomr_accel.solver``, ``atomr_accel.collective``,
-``atomr_accel.nvrtc``, ``atomr_accel.errors``). Downstream libraries
-should import from ``atomr_accel`` (this module) and treat
-``_native`` as private.
+modules (``atomr_accel.{system,device,blas,cudnn,fft,rng,solver,
+collective,nvrtc,patterns,train,agents,realtime,telemetry,cub,cutlass,
+flashattn,tensorrt,errors}``). Downstream libraries should import from
+``atomr_accel`` (this module) and treat ``_native`` as private.
 
 Quick start
 -----------
@@ -26,6 +24,7 @@ Quick start
 ...
 """
 
+# ─── Always-present surface ─────────────────────────────────────────
 from ._native import (  # noqa: F401
     __version__,
     System,
@@ -45,42 +44,69 @@ from ._native import (  # noqa: F401
     GpuRefStale,
     LibraryError,
     AskTimeout,
+    # Phase 2 — patterns
+    DynamicBatchingServer,
+    InferenceCascade,
+    ModelReplicaPool,
+    FairShareScheduler,
+    HotSwapServer,
+    SpeculativeDecoder,
+    MoeRouter,
+    # Phase 2 — train
+    AsyncParameterServer,
+    DataParallelTrainer,
+    PipelineParallelTrainer,
+    TensorParallelTrainer,
+    # Phase 2 — agents
+    SharedGpuStateCoordinator,
+    EmbeddingCache,
+    CpuVectorIndex,
+    RagPipeline,
+    LangGraphGpuActor,
+    # Phase 2 — cuda-realtime
+    ClothSimulationActor,
+    FluidSimulationActor,
+    ParticleSystemActor,
+    SpatialIndexActor,
+    GpuHashMapActor,
+    ImageFilterPipeline,
 )
 
-# Optional surface — present only when the matching cargo feature was
-# compiled in. The ``try`` keeps imports robust on minimal builds.
-try:
-    from ._native import Cudnn  # noqa: F401
-except ImportError:
-    Cudnn = None  # type: ignore[assignment]
 
-try:
-    from ._native import Fft  # noqa: F401
-except ImportError:
-    Fft = None  # type: ignore[assignment]
+def _try_import(name):
+    """Helper — return the symbol from ``_native`` or ``None`` if the
+    matching cargo feature wasn't compiled in."""
+    try:
+        from . import _native
+        return getattr(_native, name)
+    except (ImportError, AttributeError):
+        return None
 
-try:
-    from ._native import RngGenerator  # noqa: F401
-except ImportError:
-    RngGenerator = None  # type: ignore[assignment]
 
-try:
-    from ._native import Solver  # noqa: F401
-except ImportError:
-    Solver = None  # type: ignore[assignment]
+# ─── Optional surface (cudnn / cufft / curand / cusolver / nccl /
+#     nvrtc / telemetry / cub / cutlass / flashattn / tensorrt) ───
+Cudnn = _try_import("Cudnn")
+Fft = _try_import("Fft")
+RngGenerator = _try_import("RngGenerator")
+Solver = _try_import("Solver")
+Collective = _try_import("Collective")
+NvrtcKernel = _try_import("NvrtcKernel")
 
-try:
-    from ._native import Collective  # noqa: F401
-except ImportError:
-    Collective = None  # type: ignore[assignment]
+# Phase 3 — telemetry
+NvtxKernelTrace = _try_import("NvtxKernelTrace")
+NvmlActor = _try_import("NvmlActor")
+CuptiSession = _try_import("CuptiSession")
 
-try:
-    from ._native import NvrtcKernel  # noqa: F401
-except ImportError:
-    NvrtcKernel = None  # type: ignore[assignment]
+# Phase 4 — template kernel crates
+Cub = _try_import("Cub")
+Cutlass = _try_import("Cutlass")
+FlashAttn = _try_import("FlashAttn")
+TensorRt = _try_import("TensorRt")
+
 
 __all__ = [
     "__version__",
+    # Core
     "System",
     "Device",
     "DeviceLoad",
@@ -91,12 +117,7 @@ __all__ = [
     "GpuBufferU32",
     "GpuBufferU8",
     "Blas",
-    "Cudnn",
-    "Fft",
-    "RngGenerator",
-    "Solver",
-    "Collective",
-    "NvrtcKernel",
+    # Errors
     "GpuRuntimeError",
     "ContextPoisoned",
     "OutOfMemory",
@@ -104,4 +125,46 @@ __all__ = [
     "GpuRefStale",
     "LibraryError",
     "AskTimeout",
+    # Phase 1 optional cuda-kernel handles
+    "Cudnn",
+    "Fft",
+    "RngGenerator",
+    "Solver",
+    "Collective",
+    "NvrtcKernel",
+    # Phase 2 — patterns
+    "DynamicBatchingServer",
+    "InferenceCascade",
+    "ModelReplicaPool",
+    "FairShareScheduler",
+    "HotSwapServer",
+    "SpeculativeDecoder",
+    "MoeRouter",
+    # Phase 2 — train
+    "AsyncParameterServer",
+    "DataParallelTrainer",
+    "PipelineParallelTrainer",
+    "TensorParallelTrainer",
+    # Phase 2 — agents
+    "SharedGpuStateCoordinator",
+    "EmbeddingCache",
+    "CpuVectorIndex",
+    "RagPipeline",
+    "LangGraphGpuActor",
+    # Phase 2 — cuda-realtime
+    "ClothSimulationActor",
+    "FluidSimulationActor",
+    "ParticleSystemActor",
+    "SpatialIndexActor",
+    "GpuHashMapActor",
+    "ImageFilterPipeline",
+    # Phase 3 — telemetry
+    "NvtxKernelTrace",
+    "NvmlActor",
+    "CuptiSession",
+    # Phase 4 — template kernel crates
+    "Cub",
+    "Cutlass",
+    "FlashAttn",
+    "TensorRt",
 ]

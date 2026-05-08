@@ -207,7 +207,16 @@ dependencies = [
 name = "atomr-accel-py"
 version = "0.3.3"
 dependencies = [
+ "atomr-accel-agents",
+ "atomr-accel-cub",
  "atomr-accel-cuda",
+ "atomr-accel-cuda-realtime",
+ "atomr-accel-cutlass",
+ "atomr-accel-flashattn",
+ "atomr-accel-patterns",
+ "atomr-accel-telemetry",
+ "atomr-accel-tensorrt",
+ "atomr-accel-train",
  "atomr-config",
  "atomr-core",
  "cudarc",

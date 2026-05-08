@@ -1,7 +1,9 @@
 //! Python bindings for `atomr-accel-cuda`. Native extension module
 //! `atomr_accel._native`; the user-facing API lives in
 //! `python/atomr_accel/__init__.py` (with per-domain submodules under
-//! `python/atomr_accel/{system,device,blas,cudnn,fft,rng,solver,collective,nvrtc}.py`).
+//! `python/atomr_accel/{system,device,blas,cudnn,fft,rng,solver,
+//! collective,nvrtc,patterns,train,agents,realtime,telemetry,cub,
+//! cutlass,flashattn,tensorrt,errors}.py`).
 
 #![allow(
     clippy::useless_conversion,
@@ -15,12 +17,16 @@
 
 use pyo3::prelude::*;
 
+mod agents;
 mod blas;
 mod buffer;
 mod device;
 mod errors;
+mod patterns;
+mod realtime;
 mod runtime;
 mod system;
+mod train;
 
 #[cfg(feature = "cudnn")]
 mod cudnn;
@@ -35,12 +41,24 @@ mod collective;
 #[cfg(feature = "nvrtc")]
 mod nvrtc;
 
+#[cfg(feature = "telemetry")]
+mod telemetry;
+
+#[cfg(feature = "cub")]
+mod cub;
+#[cfg(feature = "cutlass")]
+mod cutlass;
+#[cfg(feature = "flashattn")]
+mod flashattn;
+#[cfg(feature = "tensorrt")]
+mod tensorrt;
+
 #[pymodule]
 fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add(
         "__doc__",
-        "Native bindings for atomr-accel-cuda. Import `atomr_accel` (the pure-Python facade) instead.",
+        "Native bindings for atomr-accel. Import `atomr_accel` (the pure-Python facade) instead.",
     )?;
 
     errors::register(py, m)?;
@@ -48,6 +66,10 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     device::register(py, m)?;
     buffer::register(py, m)?;
     blas::register(py, m)?;
+    patterns::register(py, m)?;
+    train::register(py, m)?;
+    agents::register(py, m)?;
+    realtime::register(py, m)?;
     #[cfg(feature = "cudnn")]
     cudnn::register(py, m)?;
     #[cfg(feature = "cufft")]
@@ -60,6 +82,18 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     collective::register(py, m)?;
     #[cfg(feature = "nvrtc")]
     nvrtc::register(py, m)?;
+
+    #[cfg(feature = "telemetry")]
+    telemetry::register(py, m)?;
+
+    #[cfg(feature = "cub")]
+    cub::register(py, m)?;
+    #[cfg(feature = "cutlass")]
+    cutlass::register(py, m)?;
+    #[cfg(feature = "flashattn")]
+    flashattn::register(py, m)?;
+    #[cfg(feature = "tensorrt")]
+    tensorrt::register(py, m)?;
 
     Ok(())
 }
