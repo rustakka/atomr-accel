@@ -44,6 +44,12 @@ from ._native import (  # noqa: F401
     GpuRefStale,
     LibraryError,
     AskTimeout,
+    # Phase 1.5 — CUDA graphs + memory ops
+    GraphCapture,
+    GraphScript,
+    GraphHandle,
+    Memory,
+    ManagedBufferF32,
     # Phase 2 — patterns
     DynamicBatchingServer,
     InferenceCascade,
@@ -92,6 +98,10 @@ Solver = _try_import("Solver")
 Collective = _try_import("Collective")
 NvrtcKernel = _try_import("NvrtcKernel")
 
+# Phase 1.5 — IPC handles (cfg cuda-ipc)
+IpcMemHandle = _try_import("IpcMemHandle")
+IpcOpenedMem = _try_import("IpcOpenedMem")
+
 # Phase 3 — telemetry
 NvtxKernelTrace = _try_import("NvtxKernelTrace")
 NvmlActor = _try_import("NvmlActor")
@@ -117,6 +127,14 @@ __all__ = [
     "GpuBufferU32",
     "GpuBufferU8",
     "Blas",
+    # Phase 1.5 — graphs + memory
+    "GraphCapture",
+    "GraphScript",
+    "GraphHandle",
+    "Memory",
+    "ManagedBufferF32",
+    "IpcMemHandle",
+    "IpcOpenedMem",
     # Errors
     "GpuRuntimeError",
     "ContextPoisoned",

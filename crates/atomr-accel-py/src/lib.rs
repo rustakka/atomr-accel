@@ -22,6 +22,8 @@ mod blas;
 mod buffer;
 mod device;
 mod errors;
+mod graph;
+mod memory;
 mod patterns;
 mod realtime;
 mod runtime;
@@ -66,6 +68,8 @@ fn _native(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     device::register(py, m)?;
     buffer::register(py, m)?;
     blas::register(py, m)?;
+    graph::register(py, m)?;
+    memory::register(py, m)?;
     patterns::register(py, m)?;
     train::register(py, m)?;
     agents::register(py, m)?;
