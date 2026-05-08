@@ -31,11 +31,20 @@ nccl     = ["atomr-accel-cuda/nccl"]
 core-libs     = ["atomr-accel-cuda/core-libs"]
 training-libs = ["atomr-accel-cuda/training-libs"]
 full-cuda     = ["atomr-accel-cuda/full-cuda"]
+# Phase 3 telemetry bindings: NVTX kernel ranges, NVML actor probes,
+# CUPTI activity sessions. Each sub-feature mirrors the
+# corresponding `atomr-accel-telemetry` cargo feature so consumers
+# pay only for the backends they want.
+telemetry       = ["dep:atomr-accel-telemetry"]
+telemetry-nvtx  = ["telemetry", "atomr-accel-telemetry/nvtx"]
+telemetry-nvml  = ["telemetry", "atomr-accel-telemetry/nvml"]
+telemetry-cupti = ["telemetry", "atomr-accel-telemetry/cupti"]
 
 [dependencies]
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
 atomr-accel-cuda   = { path = "../atomr-accel-cuda", version = "0.3.3" }
+atomr-accel-telemetry = { path = "../atomr-accel-telemetry", version = "0.3.3", optional = true }
 cudarc       = { workspace = true }
 
 pyo3                = { workspace = true, features = ["abi3-py310", "macros"] }
