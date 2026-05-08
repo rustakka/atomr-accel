@@ -81,6 +81,37 @@ impl PySharedGpuStateCoordinator {
         });
     }
 
+    /// Async counterpart of `acquire_write`.
+    #[pyo3(signature = (agent_id, timeout_secs=10.0))]
+    fn acquire_write_async<'py>(
+        &self,
+        py: Python<'py>,
+        agent_id: u32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(SharedStateMsg::AcquireWrite { agent_id, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(WriteToken(t))) => Ok(t),
+                Ok(Err(_)) => Err(errors::map_str("coordinator dropped reply")),
+                Err(_) => Err(errors::map_str("acquire_write timed out")),
+            }
+        })
+    }
+
+    /// Async counterpart of `release_write`. Fire-and-forget; resolves
+    /// to `None` once the message is enqueued.
+    #[pyo3(signature = (token))]
+    fn release_write_async<'py>(&self, py: Python<'py>, token: u64) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            actor.tell(SharedStateMsg::ReleaseWrite { token: WriteToken(token) });
+            Ok::<(), PyErr>(())
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "SharedGpuStateCoordinator(handle)"
     }
@@ -175,6 +206,47 @@ impl PyEmbeddingCache {
         })
     }
 
+    /// Async counterpart of `get`.
+    #[pyo3(signature = (key, timeout_secs=5.0))]
+    fn get_async<'py>(
+        &self,
+        py: Python<'py>,
+        key: Vec<u8>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(EmbeddingCacheMsg::Get { key, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(v)) => Ok(v),
+                Ok(Err(_)) => Err(errors::map_str("embedding cache dropped reply")),
+                Err(_) => Err(errors::map_str("get timed out")),
+            }
+        })
+    }
+
+    /// Async counterpart of `insert`.
+    #[pyo3(signature = (key, value, timeout_secs=5.0))]
+    fn insert_async<'py>(
+        &self,
+        py: Python<'py>,
+        key: Vec<u8>,
+        value: Vec<f32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(EmbeddingCacheMsg::Insert { key, value, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(_)) => Err(errors::map_str("embedding cache dropped reply")),
+                Err(_) => Err(errors::map_str("insert timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "EmbeddingCache(handle)"
     }
@@ -266,6 +338,52 @@ impl PyCpuVectorIndex {
                     Err(_) => Err(errors::map_str("search timed out")),
                 }
             })
+        })
+    }
+
+    /// Async counterpart of `insert`.
+    #[pyo3(signature = (id, embedding, timeout_secs=5.0))]
+    fn insert_async<'py>(
+        &self,
+        py: Python<'py>,
+        id: u64,
+        embedding: Vec<f32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(VectorIndexMsg::Insert {
+                entry: VectorEntry { id, embedding }, reply: tx,
+            });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("vector index dropped reply")),
+                Err(_) => Err(errors::map_str("insert timed out")),
+            }
+        })
+    }
+
+    /// Async counterpart of `search`.
+    #[pyo3(signature = (query, top_k, timeout_secs=5.0))]
+    fn search_async<'py>(
+        &self,
+        py: Python<'py>,
+        query: Vec<f32>,
+        top_k: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(VectorIndexMsg::Search { query, top_k, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(v))) => Ok(v),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("vector index dropped reply")),
+                Err(_) => Err(errors::map_str("search timed out")),
+            }
         })
     }
 

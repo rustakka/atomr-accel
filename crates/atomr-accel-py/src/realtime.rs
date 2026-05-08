@@ -104,6 +104,27 @@ impl PyClothSimulationActor {
         })
     }
 
+    /// Async counterpart of `step`.
+    #[pyo3(signature = (dt, timeout_secs=5.0))]
+    fn step_async<'py>(
+        &self,
+        py: Python<'py>,
+        dt: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(ClothMsg::Step { dt, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("cloth dropped reply")),
+                Err(_) => Err(errors::map_str("step timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "ClothSimulationActor(handle)"
     }
@@ -161,6 +182,27 @@ impl PyFluidSimulationActor {
                     Err(_) => Err(errors::map_str("step timed out")),
                 }
             })
+        })
+    }
+
+    /// Async counterpart of `step`.
+    #[pyo3(signature = (dt, timeout_secs=5.0))]
+    fn step_async<'py>(
+        &self,
+        py: Python<'py>,
+        dt: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(FluidMsg::Step { dt, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("fluid dropped reply")),
+                Err(_) => Err(errors::map_str("step timed out")),
+            }
         })
     }
 
@@ -230,6 +272,27 @@ impl PyParticleSystemActor {
         })
     }
 
+    /// Async counterpart of `step`.
+    #[pyo3(signature = (dt, timeout_secs=5.0))]
+    fn step_async<'py>(
+        &self,
+        py: Python<'py>,
+        dt: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(ParticleMsg::Step { dt, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(n))) => Ok(n),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("particle system dropped reply")),
+                Err(_) => Err(errors::map_str("step timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "ParticleSystemActor(handle)"
     }
@@ -293,6 +356,28 @@ impl PySpatialIndexActor {
                     Err(_) => Err(errors::map_str("query_neighbors timed out")),
                 }
             })
+        })
+    }
+
+    /// Async counterpart of `query_neighbors`.
+    #[pyo3(signature = (x, y, z, timeout_secs=2.0))]
+    fn query_neighbors_async<'py>(
+        &self,
+        py: Python<'py>,
+        x: f32,
+        y: f32,
+        z: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(SpatialMsg::QueryNeighbors { x, y, z, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(v)) => Ok(v),
+                Ok(Err(_)) => Err(errors::map_str("spatial index dropped reply")),
+                Err(_) => Err(errors::map_str("query_neighbors timed out")),
+            }
         })
     }
 

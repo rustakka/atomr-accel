@@ -168,6 +168,71 @@ impl PyAsyncParameterServer {
         })
     }
 
+    // ─── Async (asyncio) variants ────────────────────────────────
+
+    #[pyo3(signature = (worker_id, worker_version, gradient, timeout_secs=10.0))]
+    fn push_gradient_async<'py>(
+        &self,
+        py: Python<'py>,
+        worker_id: u32,
+        worker_version: u64,
+        gradient: Vec<f32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(ParameterServerMsg::PushGradient {
+                worker: WorkerId(worker_id), worker_version, gradient, reply: tx,
+            });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(v))) => Ok(v),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("parameter server dropped reply")),
+                Err(_) => Err(errors::map_str("push_gradient timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (worker_id, timeout_secs=10.0))]
+    fn pull_weights_async<'py>(
+        &self,
+        py: Python<'py>,
+        worker_id: u32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(ParameterServerMsg::PullWeights {
+                worker: WorkerId(worker_id), reply: tx,
+            });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok((w, v))) => Ok((w, v)),
+                Ok(Err(_)) => Err(errors::map_str("parameter server dropped reply")),
+                Err(_) => Err(errors::map_str("pull_weights timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (timeout_secs=2.0))]
+    fn stats_async<'py>(
+        &self,
+        py: Python<'py>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(ParameterServerMsg::Stats { reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(s)) => Ok(unpack_stats(s)),
+                Ok(Err(_)) => Err(errors::map_str("parameter server dropped reply")),
+                Err(_) => Err(errors::map_str("stats timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "AsyncParameterServer(handle)"
     }

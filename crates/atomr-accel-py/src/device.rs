@@ -462,6 +462,265 @@ impl PyDevice {
     fn __repr__(&self) -> String {
         format!("Device(id={})", self.device_id)
     }
+
+    // ─── Async (asyncio) variants ────────────────────────────────
+    //
+    // Each `_async` method mirrors its blocking counterpart but
+    // returns a Python awaitable via
+    // `pyo3_async_runtimes::tokio::future_into_py`. The synchronous
+    // setup (cloning ActorRef / extracting `GpuRef<T>` from the
+    // Python buffer wrappers) happens before entering the async
+    // block — the actor pipeline runs without holding the GIL.
+
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let g = ask_alloc_async::<f32>(actor, len, timeout_secs).await?;
+            Python::with_gil(|py| Py::new(py, PyGpuBufferF32::new(g)))
+        })
+    }
+
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let g = ask_alloc_async::<f64>(actor, len, timeout_secs).await?;
+            Python::with_gil(|py| Py::new(py, PyGpuBufferF64::new(g)))
+        })
+    }
+
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_i32_async<'py>(
+        &self,
+        py: Python<'py>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let g = ask_alloc_async::<i32>(actor, len, timeout_secs).await?;
+            Python::with_gil(|py| Py::new(py, PyGpuBufferI32::new(g)))
+        })
+    }
+
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_u32_async<'py>(
+        &self,
+        py: Python<'py>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let g = ask_alloc_async::<u32>(actor, len, timeout_secs).await?;
+            Python::with_gil(|py| Py::new(py, PyGpuBufferU32::new(g)))
+        })
+    }
+
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_u8_async<'py>(
+        &self,
+        py: Python<'py>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let g = ask_alloc_async::<u8>(actor, len, timeout_secs).await?;
+            Python::with_gil(|py| Py::new(py, PyGpuBufferU8::new(g)))
+        })
+    }
+
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_async<'py>(
+        &self,
+        py: Python<'py>,
+        dst: Py<PyGpuBufferF32>,
+        src: PyReadonlyArray1<'_, f32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_from_numpy_async_typed::<f32, _>(py, &self.actor_ref, &dst, src, timeout_secs)
+    }
+
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        dst: Py<PyGpuBufferF64>,
+        src: PyReadonlyArray1<'_, f64>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_from_numpy_async_typed::<f64, _>(py, &self.actor_ref, &dst, src, timeout_secs)
+    }
+
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_i32_async<'py>(
+        &self,
+        py: Python<'py>,
+        dst: Py<PyGpuBufferI32>,
+        src: PyReadonlyArray1<'_, i32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_from_numpy_async_typed::<i32, _>(py, &self.actor_ref, &dst, src, timeout_secs)
+    }
+
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_u32_async<'py>(
+        &self,
+        py: Python<'py>,
+        dst: Py<PyGpuBufferU32>,
+        src: PyReadonlyArray1<'_, u32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_from_numpy_async_typed::<u32, _>(py, &self.actor_ref, &dst, src, timeout_secs)
+    }
+
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_u8_async<'py>(
+        &self,
+        py: Python<'py>,
+        dst: Py<PyGpuBufferU8>,
+        src: PyReadonlyArray1<'_, u8>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_from_numpy_async_typed::<u8, _>(py, &self.actor_ref, &dst, src, timeout_secs)
+    }
+
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_async<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferF32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_to_numpy_async_with::<f32, PyGpuBufferF32>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferF64>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_to_numpy_async_with::<f64, PyGpuBufferF64>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_i32_async<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferI32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_to_numpy_async_with::<i32, PyGpuBufferI32>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_u32_async<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferU32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_to_numpy_async_with::<u32, PyGpuBufferU32>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_u8_async<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferU8>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        copy_to_numpy_async_with::<u8, PyGpuBufferU8>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    #[pyo3(signature = (a, b, c, m, n, k, alpha=1.0, beta=0.0, timeout_secs=60.0))]
+    #[allow(clippy::too_many_arguments)]
+    fn sgemm_async<'py>(
+        &self,
+        py: Python<'py>,
+        a: Py<PyGpuBufferF32>,
+        b: Py<PyGpuBufferF32>,
+        c: Py<PyGpuBufferF32>,
+        m: i32,
+        n: i32,
+        k: i32,
+        alpha: f32,
+        beta: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(DeviceMsg::Sgemm(Box::new(SgemmRequest {
+                a,
+                b,
+                c,
+                m,
+                n,
+                k,
+                alpha,
+                beta,
+                reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+                Err(_) => Err(errors::map_str("sgemm timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (timeout_secs=2.0))]
+    fn stats_async<'py>(
+        &self,
+        py: Python<'py>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(DeviceMsg::Stats { reply: tx });
+            let load: DeviceLoad = tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx)
+                .await
+                .map_err(|_| errors::map_str("stats timed out"))?
+                .map_err(|_| errors::map_str("device dropped reply"))?;
+            Ok(DeviceLoadDict {
+                free_bytes: load.free_bytes as u64,
+                total_bytes: load.total_bytes as u64,
+                active_streams: load.active_streams,
+                queue_depth: load.queue_depth,
+                compute_cap_major: load.compute_cap.0,
+                compute_cap_minor: load.compute_cap.1,
+            })
+        })
+    }
 }
 
 /// Plain-data wrapper for `DeviceLoad`. Exposed as a Python class so
@@ -523,6 +782,28 @@ where
             }
         })
     })
+}
+
+/// Async counterpart of [`ask_alloc`]. The caller is responsible for
+/// having already cloned the `ActorRef` and extracted any other
+/// non-Send args from the GIL — this function only does the actor
+/// round-trip.
+async fn ask_alloc_async<T>(
+    actor: ActorRef<DeviceMsg>,
+    len: usize,
+    timeout_secs: f64,
+) -> PyResult<GpuRef<T>>
+where
+    T: CudaDtype,
+{
+    let (tx, rx) = oneshot::channel();
+    actor.tell(DeviceMsg::alloc::<T>(len, tx));
+    match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+        Ok(Ok(Ok(g))) => Ok(g),
+        Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+        Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+        Err(_) => Err(errors::map_str("allocate timed out")),
+    }
 }
 
 /// Trait for the per-dtype Python buffer wrappers. Every concrete
@@ -626,6 +907,82 @@ where
         })
     })?;
     Ok(PyArray1::from_vec_bound(py, host))
+}
+
+/// Async copy_from_numpy. Reads the host slice + clones the actor
+/// ref/destination GpuRef synchronously (under the GIL), then returns
+/// a Python awaitable that completes when the actor replies.
+fn copy_from_numpy_async_typed<'py, T, B>(
+    py: Python<'py>,
+    actor: &ActorRef<DeviceMsg>,
+    dst: &Py<B>,
+    src: PyReadonlyArray1<'_, T>,
+    timeout_secs: f64,
+) -> PyResult<Bound<'py, PyAny>>
+where
+    T: CudaDtype + Element + Copy + Send + 'static,
+    Py<B>: BorrowGpuRef<T>,
+    B: pyo3::PyClass,
+{
+    let host = src.as_slice().map_err(errors::map_str)?.to_vec();
+    let g = dst
+        .borrow_ref(py)
+        .ok_or_else(|| errors::map_str("destination buffer has been consumed"))?;
+    if host.len() != g.len() {
+        return Err(errors::map_str(format!(
+            "copy_from_numpy: src len {} != dst len {}",
+            host.len(),
+            g.len()
+        )));
+    }
+    let actor = actor.clone();
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let (tx, rx) = oneshot::channel();
+        actor.tell(DeviceMsg::copy_from_host::<T>(HostBuf::Owned(host), g, tx));
+        match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+            Ok(Ok(Ok(_))) => Ok(()),
+            Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+            Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+            Err(_) => Err(errors::map_str("copy_from_numpy timed out")),
+        }
+    })
+}
+
+/// Async copy_to_numpy. The future runs without the GIL; once the
+/// actor reply lands we briefly re-acquire the GIL to wrap the result
+/// `Vec<T>` into a `Py<PyArray1<T>>` for return.
+fn copy_to_numpy_async_with<'py, T, B>(
+    py: Python<'py>,
+    actor: &ActorRef<DeviceMsg>,
+    src: &Py<B>,
+    timeout_secs: f64,
+) -> PyResult<Bound<'py, PyAny>>
+where
+    T: CudaDtype + Element + Copy + Default + Send + 'static,
+    Py<B>: BorrowGpuRef<T>,
+    B: pyo3::PyClass,
+{
+    let g = src
+        .borrow_ref(py)
+        .ok_or_else(|| errors::map_str("source buffer has been consumed"))?;
+    let len = g.len();
+    let actor = actor.clone();
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let (tx, rx) = oneshot::channel();
+        actor.tell(DeviceMsg::copy_to_host::<T>(
+            g,
+            HostBuf::Owned(vec![T::default(); len]),
+            tx,
+        ));
+        let host = match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+            Ok(Ok(Ok(HostBuf::Owned(v)))) => v,
+            Ok(Ok(Ok(_))) => return Err(errors::map_str("unexpected pinned reply")),
+            Ok(Ok(Err(e))) => return Err(errors::map_gpu(e)),
+            Ok(Err(_)) => return Err(errors::map_str("device dropped reply")),
+            Err(_) => return Err(errors::map_str("copy_to_numpy timed out")),
+        };
+        Python::with_gil(|py| Ok(PyArray1::from_vec_bound(py, host).unbind()))
+    })
 }
 
 #[allow(dead_code)]

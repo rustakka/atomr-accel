@@ -857,6 +857,517 @@ impl PyRngGenerator {
         })
     }
 
+    // ─────────────────────── Async (asyncio) variants ─────────────
+
+    #[pyo3(signature = (seed, timeout_secs=10.0))]
+    fn set_seed_async<'py>(
+        &self,
+        py: Python<'py>,
+        seed: u64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::SetSeed { seed, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("set_seed timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (kind, timeout_secs=10.0))]
+    fn set_generator_async<'py>(
+        &self,
+        py: Python<'py>,
+        kind: &str,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let kind_enum = rng_kind_from_str(kind)?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::SetGenerator { kind: kind_enum, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("set_generator timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lo=0.0, hi=1.0, timeout_secs=10.0))]
+    fn uniform_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        lo: f32,
+        hi: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Uniform { lo, hi }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("uniform_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lo=0.0, hi=1.0, timeout_secs=10.0))]
+    fn uniform_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        lo: f64,
+        hi: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Uniform { lo, hi }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("uniform_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, mean=0.0, std=1.0, timeout_secs=10.0))]
+    fn normal_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        mean: f32,
+        std: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Normal { mean, std }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("normal_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, mean=0.0, std=1.0, timeout_secs=10.0))]
+    fn normal_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        mean: f64,
+        std: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Normal { mean, std }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("normal_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, mean=0.0, std=1.0, timeout_secs=10.0))]
+    fn log_normal_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        mean: f32,
+        std: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::LogNormal { mean, std }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("log_normal_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, mean=0.0, std=1.0, timeout_secs=10.0))]
+    fn log_normal_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        mean: f64,
+        std: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::LogNormal { mean, std }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("log_normal_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lambda, timeout_secs=10.0))]
+    fn poisson_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        lambda: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Poisson { lambda }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("poisson_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lambda, timeout_secs=10.0))]
+    fn poisson_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        lambda: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Poisson { lambda }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("poisson_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lambda, timeout_secs=10.0))]
+    fn exponential_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        lambda: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Exponential { lambda }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("exponential_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, lambda, timeout_secs=10.0))]
+    fn exponential_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        lambda: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Exponential { lambda }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("exponential_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, alpha, beta, timeout_secs=10.0))]
+    fn beta_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        alpha: f32,
+        beta: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Beta { alpha, beta }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("beta_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, alpha, beta, timeout_secs=10.0))]
+    fn beta_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        alpha: f64,
+        beta: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Beta { alpha, beta }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("beta_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, loc, scale, timeout_secs=10.0))]
+    fn cauchy_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        loc: f32,
+        scale: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Cauchy { loc, scale }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("cauchy_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, loc, scale, timeout_secs=10.0))]
+    fn cauchy_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        loc: f64,
+        scale: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Cauchy { loc, scale }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("cauchy_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, shape, scale, timeout_secs=10.0))]
+    fn gamma_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        shape: f32,
+        scale: f32,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Gamma { shape, scale }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("gamma_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, shape, scale, timeout_secs=10.0))]
+    fn gamma_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        shape: f64,
+        scale: f64,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Gamma { shape, scale }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("gamma_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, weights, timeout_secs=10.0))]
+    fn discrete_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF32>,
+        weights: Py<PyGpuBufferF32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let w = weights.borrow(py).clone_ref().ok_or_else(|| errors::map_str("weights consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
+                buf: g, dist: Distribution::Discrete { weights: w }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("discrete_f32 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, weights, timeout_secs=10.0))]
+    fn discrete_f64_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferF64>,
+        weights: Py<PyGpuBufferF32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let w = weights.borrow(py).clone_ref().ok_or_else(|| errors::map_str("weights consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
+                buf: g, dist: Distribution::Discrete { weights: w }, reply: tx,
+            })));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("discrete_f64 timed out")),
+            }
+        })
+    }
+
+    #[pyo3(signature = (buf, timeout_secs=10.0))]
+    fn uniform_u32_async<'py>(
+        &self,
+        py: Python<'py>,
+        buf: Py<PyGpuBufferU32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            #[allow(deprecated)]
+            actor.tell(RngMsg::FillUniformU32 { dst: g, reply: tx });
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("rng dropped reply")),
+                Err(_) => Err(errors::map_str("uniform_u32 timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "RngGenerator(handle)"
     }

@@ -84,6 +84,33 @@ impl PyCub {
         })
     }
 
+    /// Async counterpart of `reduce_sum_f32`. Returns a Python
+    /// awaitable that resolves to `None` on success or raises a
+    /// `GpuRuntimeError` subclass on failure.
+    #[pyo3(signature = (input, output, timeout_secs=10.0))]
+    fn reduce_sum_f32_async<'py>(
+        &self,
+        py: Python<'py>,
+        input: Py<PyGpuBufferF32>,
+        output: Py<PyGpuBufferF32>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let input = input.borrow(py).clone_ref().ok_or_else(|| errors::map_str("input consumed"))?;
+        let output = output.borrow(py).clone_ref().ok_or_else(|| errors::map_str("output consumed"))?;
+        let actor = self.actor_ref.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = oneshot::channel();
+            let req = ReduceRequest::<f32>::new(ReductionOp::Sum, input, output, tx);
+            actor.tell(CubMsg::Reduce(Box::new(req)));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("cub dropped reply")),
+                Err(_) => Err(errors::map_str("reduce_sum_f32 timed out")),
+            }
+        })
+    }
+
     fn __repr__(&self) -> &'static str {
         "Cub(handle)"
     }
