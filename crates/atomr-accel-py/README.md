@@ -22,7 +22,11 @@ with atomr_accel.System.open("my-app") as sys:
     dev.copy_from_numpy(b, np.full(n * n, 2.0, dtype=np.float32))
 
     # Run cuBLAS SGEMM — the call blocks until the kernel finishes.
+    # Either through the legacy alias on Device:
     dev.sgemm(a, b, c, m=n, n=n, k=n, alpha=1.0, beta=0.0)
+    # …or the typed Blas handle (also supports gemm_f64, axpy_f32):
+    blas = dev.blas()
+    blas.gemm_f32(a, b, c, m=n, n=n, k=n)
 
     # Pull the result back into a fresh numpy array.
     result = dev.copy_to_numpy(c)
@@ -62,11 +66,15 @@ be built minimal or full:
 
 | Feature           | Adds                                            |
 |-------------------|-------------------------------------------------|
-| (default)         | `System`, `Device`, `GpuBuffer`, exceptions     |
-| `curand`          | `RngGenerator`                                  |
-| `nvrtc`           | `NvrtcKernel`                                   |
-| `cudnn` / `cufft` / `cusolver` / `cublaslt` / `nccl` | placeholder; future Python surfaces |
-| `core-libs` / `training-libs` / `full-cuda`         | aggregates                          |
+| (default)         | `System`, `Device`, `GpuBuffer{F32,F64,I32,U32,U8}`, `Blas`, exceptions |
+| `cudnn`           | `Cudnn` handle (`Device.cudnn()`, `conv2d_fwd_f32`)  |
+| `cufft`           | `Fft` handle (`Device.fft()`, structural anchor)     |
+| `curand`          | `RngGenerator` handle (`Device.rng()`, `set_seed`, `uniform_f32`, `normal_f32`) |
+| `cusolver`        | `Solver` handle (structural anchor; spawn path tracked) |
+| `nccl`            | `Collective` handle (structural anchor; comm-group bootstrap tracked) |
+| `nvrtc`           | `NvrtcKernel` (structural anchor; compile/launch tracked) |
+| `cublaslt`        | (placeholder; future Python surface)            |
+| `core-libs` / `training-libs` / `full-cuda` | aggregates                          |
 
 ```bash
 maturin develop --features atomr-accel-py/curand,atomr-accel-py/nvrtc
@@ -74,17 +82,27 @@ maturin develop --features atomr-accel-py/curand,atomr-accel-py/nvrtc
 
 ## Public API
 
-| Class / function                | What it wraps                                       |
-|---------------------------------|-----------------------------------------------------|
-| `atomr_accel.System.open(name)`  | A `atomr_core::actor::ActorSystem` lifetime         |
-| `system.spawn_device(id, mock=)` | A `DeviceActor` (real or mock)                      |
-| `device.allocate_f32(len)`      | `DeviceMsg::AllocateF32` → `GpuBuffer`              |
-| `device.copy_from_numpy(buf, np)` | H2D `CopyFromHostF32`                              |
-| `device.copy_to_numpy(buf)`     | D2H `CopyToHostF32` → numpy `float32` array         |
-| `device.sgemm(a,b,c,m,n,k,...)` | cuBLAS SGEMM via `BlasActor`                        |
-| `device.stats()`                | `DeviceMsg::Stats` → `DeviceLoad`                   |
-| `GpuBuffer.is_stale()`          | Generation token check vs. `DeviceState`            |
-| `GpuRuntimeError` (and subclasses) | Typed `GpuError` mapping                         |
+| Class / function                                    | What it wraps                                     |
+|-----------------------------------------------------|---------------------------------------------------|
+| `atomr_accel.System.open(name)`                     | A `atomr_core::actor::ActorSystem` lifetime       |
+| `system.spawn_device(id, mock=)`                    | A `DeviceActor` (real or mock)                    |
+| `device.allocate_{f32,f64,i32,u32,u8}(len)`         | Typed `DeviceMsg::alloc::<T>` → `GpuBuffer{T}`    |
+| `device.copy_from_numpy[_T](buf, np)`               | H2D `DeviceMsg::copy_from_host::<T>`              |
+| `device.copy_to_numpy[_T](buf)`                     | D2H `DeviceMsg::copy_to_host::<T>` → numpy        |
+| `device.sgemm(a,b,c,m,n,k,...)`                     | cuBLAS SGEMM (legacy alias for `blas.gemm_f32`)   |
+| `device.stats()`                                    | `DeviceMsg::Stats` → `DeviceLoad`                 |
+| `device.libraries_ready()`                          | `KernelChildren` snapshot probe                   |
+| `device.blas()` → `Blas`                            | `ActorRef<BlasMsg>` handle                        |
+| `blas.gemm_f32 / gemm_f64 / axpy_f32`               | Typed `BlasMsg::Gemm` / `BlasMsg::L1` dispatch    |
+| `device.cudnn()` → `Cudnn` (feat: `cudnn`)          | `ActorRef<CudnnMsg>` handle                       |
+| `cudnn.conv2d_fwd_f32(x, w, y, ...)`                | `CudnnMsg::Op(ConvFwdRequest::<f32>)`             |
+| `device.fft()` → `Fft` (feat: `cufft`)              | `ActorRef<FftMsg>` handle (Phase 1 anchor)        |
+| `device.rng()` → `RngGenerator` (feat: `curand`)    | `ActorRef<RngMsg>` handle                         |
+| `rng.set_seed / uniform_f32 / normal_f32`           | `RngMsg::SetSeed` / `Fill(FillRequest::<f32>)`    |
+| `Solver`, `Collective` (feat-gated)                 | Handle classes; full method coverage in Phase 1.5 |
+| `NvrtcKernel` (feat: `nvrtc`)                       | `KernelHandle` probe (Phase 1 stub)               |
+| `GpuBuffer{T}.is_stale()` / `.dtype` / `.len`       | Generation token check + dtype tag                |
+| `GpuRuntimeError` (and subclasses)                  | Typed `GpuError` mapping                          |
 
 Every method blocks the calling thread until the underlying actor
 replies (the GIL is released for the duration via `py.allow_threads`).

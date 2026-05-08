@@ -36,6 +36,7 @@ full-cuda     = ["atomr-accel-cuda/full-cuda"]
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
 atomr-accel-cuda   = { path = "../atomr-accel-cuda", version = "0.3.3" }
+cudarc       = { workspace = true }
 
 pyo3                = { workspace = true, features = ["abi3-py310", "macros"] }
 pyo3-async-runtimes = { workspace = true }

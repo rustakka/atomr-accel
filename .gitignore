@@ -40,3 +40,9 @@ perf.data*
 __pycache__/
 dist/
 *.egg-info/
+.pytest_cache/
+
+# Maturin compiled extension modules — built into python/<pkg>/ by
+# `maturin develop`; the source of truth is in src/, not committed.
+**/python/atomr_accel/_native*.so
+**/python/atomr_accel/_native*.pyd

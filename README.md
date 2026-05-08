@@ -83,10 +83,14 @@ supervision, typed messages, async/await throughout.
 | `atomr-accel-flashattn`     | FlashAttention v2 + v3 kernels — `FlashAttnActor` with forward/backward, paged KV-cache, chunked prefill, varlen, ALiBi, sliding window, sink tokens, MQA/GQA, fp8 (fa3 only) |
 | `atomr-accel-tensorrt`      | TensorRT engine builder + runtime — `TrtActor`, `IBuilderConfig` (fp32/fp16/bf16/int8/fp8/best), ONNX import, INT8 calibration, FP8 PTQ, `IPluginV3` Rust trampolines |
 | `atomr-accel-telemetry`     | Observability backends — `NvtxKernelTrace` for kernel-range markers, `NvmlActor` for power/temp/ECC/clocks, `CuptiSession` for activity tracing |
-| `atomr-accel-py`            | Python bindings via PyO3 — `atomr_accel.{System, Device, GpuBuffer}`, typed exceptions, GIL-released kernel paths    |
+| `atomr-accel-py`            | Python bindings via PyO3 — `atomr_accel.{System, Device, GpuBufferF32/F64/I32/U32/U8, Blas, Cudnn, Fft, RngGenerator, Solver, Collective, NvrtcKernel}`, typed exceptions, GIL-released kernel paths. Tracks upstream atomr 0.5.x Python coverage. |
 
 Plus a Python facade — `pip install atomr-accel` — that exposes the
-same actor model with numpy float32 roundtrip and mock-mode for tests.
+same actor model. Phase 1 ships multi-dtype buffers, the BLAS handle
+(`gemm_f32`/`gemm_f64`/`axpy_f32`), per-feature handles for cuDNN /
+cuFFT / cuRAND, and structural anchors for cuSOLVER / NCCL / NVRTC.
+See [`docs/python-bridge.md`](docs/python-bridge.md) for the full
+matrix and the Phase 1.5+ tracking issues.
 
 ## At a glance
 
@@ -178,20 +182,28 @@ pip install atomr-accel
 ```
 
 ```python
-from atomr_accel import System, Device, GpuBuffer
+import numpy as np
+from atomr_accel import System, Unrecoverable
 
-system = System.create_blocking("gpu-app")
-device = system.device(0)        # mock-mode if no CUDA driver
-buf = device.alloc_f32(1024)
-buf.copy_from_numpy(np_input)
-# ...kernel dispatch...
-buf.copy_to_numpy(np_output)
-system.terminate_blocking()
+with System.open("gpu-app") as system:
+    dev = system.spawn_device(device_id=0, mock=False)
+    a = dev.allocate_f32(1024)
+    b = dev.allocate_f32(1024)
+    c = dev.allocate_f32(1024)
+    dev.copy_from_numpy(a, np.random.randn(1024).astype(np.float32))
+    dev.copy_from_numpy(b, np.random.randn(1024).astype(np.float32))
+
+    blas = dev.blas()
+    blas.gemm_f32(a, b, c, m=32, n=32, k=32)
+
+    out = dev.copy_to_numpy(c)
 ```
 
 See [`docs/python-bridge.md`](docs/python-bridge.md) for the full
-binding surface — `System`, `Device`, `GpuBuffer`, typed exceptions,
-the GIL-release contract, and mock-mode tests.
+binding surface — multi-dtype buffers, per-feature handle classes
+(`Blas`, `Cudnn`, `Fft`, `RngGenerator`, …), typed exceptions, the
+GIL-release contract, mock-mode tests, and the Phase 1.5+ tracking
+issues that fill in the remaining method-level coverage.
 
 ## Library coverage
 

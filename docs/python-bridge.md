@@ -16,8 +16,13 @@ generation / completion machinery the Rust API gets.
                 │  ┌── atomr_accel._native (PyO3 cdylib) ─────────────────────┐ │
                 │  │ class System  ─── ActorSystem                           │ │
                 │  │ class Device  ─── ActorRef<DeviceMsg>                   │ │
-                │  │ class GpuBuffer ─ Mutex<Option<GpuRef<f32>>>            │ │
+                │  │ class GpuBuffer{F32,F64,I32,U32,U8} ─ Mutex<Opt<GpuRef>> │ │
+                │  │ class Blas    ─── ActorRef<BlasMsg>                     │ │
+                │  │ class Cudnn   (feature: cudnn)                          │ │
+                │  │ class Fft     (feature: cufft)                          │ │
                 │  │ class RngGenerator (feature: curand)                    │ │
+                │  │ class Solver  (feature: cusolver)                       │ │
+                │  │ class Collective (feature: nccl)                        │ │
                 │  │ class NvrtcKernel (feature: nvrtc)                      │ │
                 │  │ exceptions: GpuRuntimeError + 6 typed subclasses        │ │
                 │  └─────────────────────────────────────────────────────────┘ │
@@ -166,9 +171,57 @@ Two reasons.
 
 ## Status
 
-`F2-ready.` The native extension exposes the high-value
-`System`/`Device`/`GpuBuffer` triple plus the seven typed exceptions.
-`RngGenerator` and `NvrtcKernel` are stubs that compile under the
-matching features and will gain methods once `Device.snapshot_children()`
-is wired through the bridge. Async wrappers, additional dtypes, and
-zero-copy pinned-memory paths are tracked as follow-ups.
+`Phase 1 — structural parity with atomr 0.5.x.` Upstream atomr's "Depth
+Wave" (0.5.0) extended Python coverage to the full Rust public surface;
+this repo mirrors that organization for the CUDA backend.
+
+**Phase 1 surface (this iteration):**
+
+- `System` / `Device` lifecycle (unchanged).
+- Multi-dtype buffers: `GpuBufferF32`, `GpuBufferF64`, `GpuBufferI32`,
+  `GpuBufferU32`, `GpuBufferU8`. `GpuBuffer` is a back-compat alias
+  for `GpuBufferF32`.
+- Typed allocate/copy: `Device.allocate_{f32,f64,i32,u32,u8}` plus
+  matching `copy_from_numpy_*` / `copy_to_numpy_*`.
+- `Device.libraries_ready()` — probe which kernel actors are live.
+- `Device.blas()` → `Blas` handle: `gemm_f32`, `gemm_f64`, `axpy_f32`.
+- `Device.cudnn()` → `Cudnn` handle (feat: `cudnn`): `conv2d_fwd_f32`.
+- `Device.fft()` → `Fft` handle (feat: `cufft`): structural anchor.
+- `Device.rng()` → `RngGenerator` handle (feat: `curand`):
+  `set_seed`, `uniform_f32`, `normal_f32`.
+- `Solver`, `Collective`, `NvrtcKernel` — handle classes shipped as
+  structural anchors; full method coverage in Phase 1.5 (see below).
+- Per-domain Python facade modules (`atomr_accel.{system,device,blas,
+  cudnn,fft,rng,solver,collective,nvrtc,errors}`).
+
+**Tracked follow-ups** (GitHub issues filed at the same time as this
+release):
+
+- *Phase 1.5 — cuBLAS depth.* Strided-batched gemm; the rest of L1
+  (`dot`, `nrm2`, `scal`, `asum`, `iamax`, `iamin`, `copy`, `swap`,
+  `rot`); L2 (`gemv`, `ger`); L3 (`geam`, `syrk`, `trsm`). All across
+  f32/f64/f16/bf16.
+- *Phase 1.5 — cuDNN depth.* Pool / batch_norm / layer_norm / RNN /
+  attention / dropout, plus backward passes.
+- *Phase 1.5 — cuFFT depth.* Typed plans (R2C/C2R/C2C across f32/f64,
+  1-D/2-D/3-D, plan-many, callbacks). Requires numpy↔complex
+  marshalling.
+- *Phase 1.5 — cuRAND depth.* Quasi generators, log-normal / Poisson /
+  exponential / beta / Cauchy / gamma / discrete distributions, and
+  per-dtype variants (`uniform_f64`, `uniform_u32`, …).
+- *Phase 1.5 — cuSOLVER depth.* `Device.solver()` accessor + LU / QR /
+  Cholesky / SVD / eigendecomp.
+- *Phase 1.5 — NVRTC depth.* `Device.compile_kernel(name, src)` →
+  `NvrtcKernel`; `kernel.launch(grid, block, shared, args)` with
+  typed `KernelArg` marshalling.
+- *Phase 2 — multi-GPU.* `Device.collective()` / NcclWorldActor
+  bootstrap; broadcast / all-reduce / all-gather / reduce-scatter /
+  all-to-all / send-recv across rank groups.
+- *Phase 2 — CUDA graphs + memory ops.* `Device.capture_graph()`
+  context-manager, managed allocation, `prefetch` / `advise` / IPC.
+- *Phase 3 — patterns / train / agents / telemetry.* Wrap
+  `atomr-accel-{patterns,train,agents,telemetry,cuda-realtime}`.
+- *Phase 4 — template kernel crates.* Wrap `atomr-accel-{cub,cutlass,
+  flashattn,tensorrt}`.
+- *Phase 5 — async API.* `pyo3_async_runtimes::tokio::future_into_py`
+  variants alongside the existing blocking methods.

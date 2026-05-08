@@ -1,72 +1,105 @@
-//! `GpuBuffer` — opaque handle wrapping `GpuRef<f32>`.
+//! `GpuBuffer*` — opaque, dtype-tagged Python handles around `GpuRef<T>`.
 //!
-//! Python callers receive these from `Device.allocate_f32(n)` or any
-//! actor reply that mints a fresh device buffer. The class is
-//! deliberately thin: it exposes length, device id, and the
-//! generation token, plus an `is_stale()` probe. Reading / writing
-//! the contents goes through `Device.copy_to_numpy(buf)` /
-//! `Device.copy_from_numpy(buf, arr)`.
+//! Phase 1 ships one Python class per supported numpy-friendly dtype:
+//! `GpuBufferF32`, `GpuBufferF64`, `GpuBufferI32`, `GpuBufferU32`,
+//! `GpuBufferU8`. The original `GpuBuffer` (alias for `GpuBufferF32`)
+//! is kept so existing scripts don't break.
+//!
+//! Each class wraps `Mutex<Option<GpuRef<T>>>` — the `Option` lets a
+//! follow-up op move the inner `GpuRef` out (e.g. into a kernel
+//! keep-alive); the `Mutex` makes the wrapper `Send` for `#[pyclass]`.
+//! `len`, `device_id`, `is_stale()` are zero-cost probes; reads/writes
+//! go through `Device.copy_*_numpy_*`.
 
 use parking_lot::Mutex;
 use pyo3::prelude::*;
 
 use atomr_accel_cuda::gpu_ref::GpuRef;
 
-#[pyclass(name = "GpuBuffer", module = "atomr_accel._native")]
-pub struct PyGpuBuffer {
-    inner: Mutex<Option<GpuRef<f32>>>,
+macro_rules! py_gpu_buffer {
+    ($PyName:ident, $py_class:literal, $rust_ty:ty) => {
+        #[pyclass(name = $py_class, module = "atomr_accel._native")]
+        pub struct $PyName {
+            inner: Mutex<Option<GpuRef<$rust_ty>>>,
+        }
+
+        impl $PyName {
+            pub fn new(g: GpuRef<$rust_ty>) -> Self {
+                Self {
+                    inner: Mutex::new(Some(g)),
+                }
+            }
+
+            /// Borrow the underlying `GpuRef`. `None` if a previous typed
+            /// op already moved it out.
+            pub fn clone_ref(&self) -> Option<GpuRef<$rust_ty>> {
+                self.inner.lock().clone()
+            }
+        }
+
+        #[pymethods]
+        impl $PyName {
+            #[getter]
+            fn len(&self) -> usize {
+                self.inner.lock().as_ref().map(|g| g.len()).unwrap_or(0)
+            }
+
+            #[getter]
+            fn device_id(&self) -> Option<u32> {
+                self.inner.lock().as_ref().and_then(|g| g.device_id())
+            }
+
+            #[getter]
+            fn dtype(&self) -> &'static str {
+                stringify!($rust_ty)
+            }
+
+            /// Probe whether the buffer is still valid against the current
+            /// `DeviceState::generation`. Returns `True` if a follow-up op
+            /// would surface `GpuRefStale`.
+            fn is_stale(&self) -> bool {
+                match self.inner.lock().as_ref() {
+                    Some(g) => g.access().is_err(),
+                    None => true,
+                }
+            }
+
+            fn __len__(&self) -> usize {
+                self.len()
+            }
+
+            fn __repr__(&self) -> String {
+                let g = self.inner.lock();
+                match g.as_ref() {
+                    Some(r) => format!(
+                        concat!($py_class, "(len={}, device={:?})"),
+                        r.len(),
+                        r.device_id()
+                    ),
+                    None => concat!($py_class, "(consumed)").to_string(),
+                }
+            }
+        }
+    };
 }
 
-impl PyGpuBuffer {
-    pub fn new(g: GpuRef<f32>) -> Self {
-        Self {
-            inner: Mutex::new(Some(g)),
-        }
-    }
+py_gpu_buffer!(PyGpuBufferF32, "GpuBufferF32", f32);
+py_gpu_buffer!(PyGpuBufferF64, "GpuBufferF64", f64);
+py_gpu_buffer!(PyGpuBufferI32, "GpuBufferI32", i32);
+py_gpu_buffer!(PyGpuBufferU32, "GpuBufferU32", u32);
+py_gpu_buffer!(PyGpuBufferU8, "GpuBufferU8", u8);
 
-    /// Borrow the underlying GpuRef. Returns None if the buffer was
-    /// already moved out (e.g. by a previous typed op).
-    pub fn clone_ref(&self) -> Option<GpuRef<f32>> {
-        self.inner.lock().clone()
-    }
-}
-
-#[pymethods]
-impl PyGpuBuffer {
-    #[getter]
-    fn len(&self) -> usize {
-        self.inner.lock().as_ref().map(|g| g.len()).unwrap_or(0)
-    }
-
-    #[getter]
-    fn device_id(&self) -> Option<u32> {
-        self.inner.lock().as_ref().and_then(|g| g.device_id())
-    }
-
-    /// Probe whether the buffer is still valid against the current
-    /// `DeviceState::generation`. Returns `True` if a follow-up
-    /// op would surface `GpuRefStale`.
-    fn is_stale(&self) -> bool {
-        match self.inner.lock().as_ref() {
-            Some(g) => g.access().is_err(),
-            None => true,
-        }
-    }
-
-    fn __len__(&self) -> usize {
-        self.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let g = self.inner.lock();
-        match g.as_ref() {
-            Some(r) => format!("GpuBuffer(len={}, device={:?})", r.len(), r.device_id()),
-            None => "GpuBuffer(consumed)".to_string(),
-        }
-    }
-}
+/// Back-compat alias: `atomr_accel.GpuBuffer == GpuBufferF32`.
+pub type PyGpuBuffer = PyGpuBufferF32;
 
 pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyGpuBuffer>()?;
+    m.add_class::<PyGpuBufferF32>()?;
+    m.add_class::<PyGpuBufferF64>()?;
+    m.add_class::<PyGpuBufferI32>()?;
+    m.add_class::<PyGpuBufferU32>()?;
+    m.add_class::<PyGpuBufferU8>()?;
+    // Add the back-compat name "GpuBuffer" as an alias for GpuBufferF32.
+    let f32_cls = m.py().get_type_bound::<PyGpuBufferF32>();
+    m.add("GpuBuffer", f32_cls)?;
     Ok(())
 }

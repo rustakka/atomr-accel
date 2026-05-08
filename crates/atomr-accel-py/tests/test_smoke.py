@@ -19,11 +19,18 @@ def test_module_surface_is_complete():
     """Every public name listed in __init__ resolves to a class or
     string. Catches PyO3 macro regressions immediately."""
     assert isinstance(atomr_accel.__version__, str)
+    # Always-present surface (default features).
     for name in [
         "System",
         "Device",
         "DeviceLoad",
         "GpuBuffer",
+        "GpuBufferF32",
+        "GpuBufferF64",
+        "GpuBufferI32",
+        "GpuBufferU32",
+        "GpuBufferU8",
+        "Blas",
         "GpuRuntimeError",
         "ContextPoisoned",
         "OutOfMemory",
@@ -33,6 +40,12 @@ def test_module_surface_is_complete():
         "AskTimeout",
     ]:
         assert getattr(atomr_accel, name) is not None, name
+
+    # Optional surface — present iff the matching cargo feature was
+    # compiled in. The attribute must always exist (set to None on
+    # minimal builds), so users can ``if atomr_accel.Cudnn:`` guard.
+    for name in ["Cudnn", "Fft", "RngGenerator", "Solver", "Collective", "NvrtcKernel"]:
+        assert hasattr(atomr_accel, name), name
 
 
 def test_exception_hierarchy():
@@ -74,3 +87,18 @@ def test_mock_device_stats_returns_load_snapshot():
         assert load.compute_cap_minor == 0
         assert load.active_streams == 0
         assert "DeviceLoad" in repr(load)
+
+
+def test_per_domain_submodules_importable():
+    """The per-domain facade modules import cleanly and re-export the
+    expected symbol(s) — even on minimal builds where the optional
+    handles resolve to ``None``."""
+    from atomr_accel import system, device, blas, errors
+
+    assert system.System is atomr_accel.System
+    assert device.Device is atomr_accel.Device
+    assert blas.Blas is atomr_accel.Blas
+    assert errors.GpuRuntimeError is atomr_accel.GpuRuntimeError
+
+    # Optional ones must at least import without raising.
+    from atomr_accel import cudnn, fft, rng, solver, collective, nvrtc  # noqa: F401
