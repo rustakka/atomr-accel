@@ -12,19 +12,20 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use numpy::{Element, PyArray1, PyReadonlyArray1};
+use numpy::{Complex32, Complex64, Element, PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
 use tokio::sync::oneshot;
 
 use atomr_accel_cuda::device::{DeviceLoad, DeviceMsg, HostBuf, KernelChildren, SgemmRequest};
-use atomr_accel_cuda::dtype::CudaDtype;
+use atomr_accel_cuda::dtype::{C32, C64, CudaDtype};
 use atomr_accel_cuda::error::GpuError;
 use atomr_accel_cuda::gpu_ref::GpuRef;
 use atomr_accel_cuda::kernel::{BlasMsg, GemmRequest};
 use atomr_core::actor::ActorRef;
 
 use crate::buffer::{
-    PyGpuBufferF32, PyGpuBufferF64, PyGpuBufferI32, PyGpuBufferU32, PyGpuBufferU8,
+    PyGpuBufferC128, PyGpuBufferC64, PyGpuBufferF32, PyGpuBufferF64, PyGpuBufferI32,
+    PyGpuBufferU32, PyGpuBufferU8,
 };
 use crate::errors;
 use crate::runtime::runtime;
@@ -135,6 +136,33 @@ impl PyDevice {
     ) -> PyResult<Py<PyGpuBufferU8>> {
         let g = ask_alloc::<u8>(py, &self.actor_ref, len, timeout_secs)?;
         Py::new(py, PyGpuBufferU8::new(g))
+    }
+
+    /// Allocate `len` interleaved `complex64` (`numpy.complex64`,
+    /// `cuComplex`) elements on-device. Returns a `GpuBufferC64`.
+    /// Phase 1.5++ — the typed cuFFT Path A buffers complex<f32>.
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_complex64(
+        &self,
+        py: Python<'_>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Py<PyGpuBufferC64>> {
+        let g = ask_alloc::<C32>(py, &self.actor_ref, len, timeout_secs)?;
+        Py::new(py, PyGpuBufferC64::new(g))
+    }
+
+    /// Allocate `len` interleaved `complex128` (`numpy.complex128`,
+    /// `cuDoubleComplex`) elements on-device. Returns a `GpuBufferC128`.
+    #[pyo3(signature = (len, timeout_secs=10.0))]
+    fn allocate_complex128(
+        &self,
+        py: Python<'_>,
+        len: usize,
+        timeout_secs: f64,
+    ) -> PyResult<Py<PyGpuBufferC128>> {
+        let g = ask_alloc::<C64>(py, &self.actor_ref, len, timeout_secs)?;
+        Py::new(py, PyGpuBufferC128::new(g))
     }
 
     // ─── Host ↔ device copies (typed) ────────────────────────────
@@ -252,6 +280,81 @@ impl PyDevice {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyArray1<u8>>> {
         copy_to_numpy_with::<u8, PyGpuBufferU8>(py, &self.actor_ref, &src, timeout_secs)
+    }
+
+    /// Upload a numpy `complex64` array into a `GpuBufferC64`.
+    /// Phase 1.5++. The numpy `Complex32` (== `num_complex::Complex<f32>`,
+    /// `#[repr(C)] { re, im }`) and the GPU-side `C32` (`[f32; 2]`)
+    /// have identical layout, so the conversion is a field copy.
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_complex64(
+        &self,
+        py: Python<'_>,
+        dst: Py<PyGpuBufferC64>,
+        src: PyReadonlyArray1<'_, Complex32>,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        copy_from_numpy_complex_typed::<f32, C32, Complex32, PyGpuBufferC64>(
+            py,
+            &self.actor_ref,
+            &dst,
+            src,
+            |c| C32([c.re, c.im]),
+            timeout_secs,
+        )
+    }
+
+    /// Upload a numpy `complex128` array into a `GpuBufferC128`.
+    #[pyo3(signature = (dst, src, timeout_secs=10.0))]
+    fn copy_from_numpy_complex128(
+        &self,
+        py: Python<'_>,
+        dst: Py<PyGpuBufferC128>,
+        src: PyReadonlyArray1<'_, Complex64>,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        copy_from_numpy_complex_typed::<f64, C64, Complex64, PyGpuBufferC128>(
+            py,
+            &self.actor_ref,
+            &dst,
+            src,
+            |c| C64([c.re, c.im]),
+            timeout_secs,
+        )
+    }
+
+    /// Download a `GpuBufferC64` into a fresh `numpy.complex64` array.
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_complex64<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferC64>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyArray1<Complex32>>> {
+        copy_to_numpy_complex_with::<f32, C32, Complex32, PyGpuBufferC64>(
+            py,
+            &self.actor_ref,
+            &src,
+            |g| Complex32::new(g.0[0], g.0[1]),
+            timeout_secs,
+        )
+    }
+
+    /// Download a `GpuBufferC128` into a fresh `numpy.complex128` array.
+    #[pyo3(signature = (src, timeout_secs=10.0))]
+    fn copy_to_numpy_complex128<'py>(
+        &self,
+        py: Python<'py>,
+        src: Py<PyGpuBufferC128>,
+        timeout_secs: f64,
+    ) -> PyResult<Bound<'py, PyArray1<Complex64>>> {
+        copy_to_numpy_complex_with::<f64, C64, Complex64, PyGpuBufferC128>(
+            py,
+            &self.actor_ref,
+            &src,
+            |g| Complex64::new(g.0[0], g.0[1]),
+            timeout_secs,
+        )
     }
 
     // ─── BLAS: SGEMM (legacy alias) + typed gemm ─────────────────
@@ -893,6 +996,8 @@ impl_borrow!(PyGpuBufferF64, f64);
 impl_borrow!(PyGpuBufferI32, i32);
 impl_borrow!(PyGpuBufferU32, u32);
 impl_borrow!(PyGpuBufferU8, u8);
+impl_borrow!(PyGpuBufferC64, C32);
+impl_borrow!(PyGpuBufferC128, C64);
 
 fn copy_from_numpy_typed<T, B>(
     py: Python<'_>,
@@ -969,6 +1074,106 @@ where
             }
         })
     })?;
+    Ok(PyArray1::from_vec_bound(py, host))
+}
+
+/// Phase 1.5++ — typed-complex variant of [`copy_from_numpy_typed`].
+///
+/// Bridges between the numpy host element type `NumpyT` (e.g.
+/// `Complex32`) and the GPU element type `GpuT` (e.g. `C32`) via a
+/// caller-supplied converter `to_gpu`. Used because numpy's
+/// `Complex<T>` (`#[repr(C)] { re, im }`) and our `C32`/`C64`
+/// (`#[repr(transparent)] [T; 2]`) are layout-equivalent but distinct
+/// Rust types — `Element` is not impl'd on the GPU type and we can't
+/// orphan-impl it here.
+fn copy_from_numpy_complex_typed<S, GpuT, NumpyT, B>(
+    py: Python<'_>,
+    actor: &ActorRef<DeviceMsg>,
+    dst: &Py<B>,
+    src: PyReadonlyArray1<'_, NumpyT>,
+    to_gpu: impl Fn(&NumpyT) -> GpuT,
+    timeout_secs: f64,
+) -> PyResult<()>
+where
+    S: Copy + Send + Sync + 'static,
+    GpuT: CudaDtype + Copy + 'static,
+    NumpyT: Element + Copy + 'static,
+    Py<B>: BorrowGpuRef<GpuT>,
+    B: pyo3::PyClass,
+{
+    let host_np = src.as_slice().map_err(errors::map_str)?;
+    let host: Vec<GpuT> = host_np.iter().map(&to_gpu).collect();
+    let g = dst
+        .borrow_ref(py)
+        .ok_or_else(|| errors::map_str("destination buffer has been consumed"))?;
+    if host.len() != g.len() {
+        return Err(errors::map_str(format!(
+            "copy_from_numpy: src len {} != dst len {}",
+            host.len(),
+            g.len()
+        )));
+    }
+    let actor = actor.clone();
+    let rt = runtime();
+    py.allow_threads(|| {
+        rt.block_on(async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(DeviceMsg::copy_from_host::<GpuT>(
+                HostBuf::Owned(host),
+                g,
+                tx,
+            ));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(_))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+                Err(_) => Err(errors::map_str("copy_from_numpy timed out")),
+            }
+        })
+    })
+}
+
+/// Phase 1.5++ — typed-complex variant of [`copy_to_numpy_with`]. The
+/// device returns `Vec<GpuT>`; we convert element-wise to `Vec<NumpyT>`
+/// via the caller's `to_np` and hand the resulting slice to numpy.
+fn copy_to_numpy_complex_with<'py, S, GpuT, NumpyT, B>(
+    py: Python<'py>,
+    actor: &ActorRef<DeviceMsg>,
+    src: &Py<B>,
+    to_np: impl Fn(&GpuT) -> NumpyT,
+    timeout_secs: f64,
+) -> PyResult<Bound<'py, PyArray1<NumpyT>>>
+where
+    S: Copy + Send + Sync + 'static,
+    GpuT: CudaDtype + Copy + Default + 'static,
+    NumpyT: Element + Copy + 'static,
+    Py<B>: BorrowGpuRef<GpuT>,
+    B: pyo3::PyClass,
+{
+    let g = src
+        .borrow_ref(py)
+        .ok_or_else(|| errors::map_str("source buffer has been consumed"))?;
+    let len = g.len();
+    let actor = actor.clone();
+    let rt = runtime();
+    let host_gpu = py.allow_threads(|| {
+        rt.block_on(async move {
+            let (tx, rx) = oneshot::channel();
+            actor.tell(DeviceMsg::copy_to_host::<GpuT>(
+                g,
+                HostBuf::Owned(vec![GpuT::default(); len]),
+                tx,
+            ));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(HostBuf::Owned(v)))) => Ok(v),
+                Ok(Ok(Ok(_))) => Err(errors::map_str("unexpected pinned reply")),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("device dropped reply")),
+                Err(_) => Err(errors::map_str("copy_to_numpy timed out")),
+            }
+        })
+    })?;
+    let host: Vec<NumpyT> = host_gpu.iter().map(&to_np).collect();
     Ok(PyArray1::from_vec_bound(py, host))
 }
 

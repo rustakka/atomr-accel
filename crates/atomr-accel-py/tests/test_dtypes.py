@@ -14,7 +14,15 @@ import atomr_accel
 
 @pytest.mark.parametrize(
     "method_name",
-    ["allocate_f32", "allocate_f64", "allocate_i32", "allocate_u32", "allocate_u8"],
+    [
+        "allocate_f32",
+        "allocate_f64",
+        "allocate_i32",
+        "allocate_u32",
+        "allocate_u8",
+        "allocate_complex64",
+        "allocate_complex128",
+    ],
 )
 def test_typed_allocate_unrecoverable_in_mock(method_name):
     """Every typed allocate routes through `DeviceMsg::alloc::<T>` and
@@ -35,10 +43,19 @@ def test_buffer_classes_distinct():
         atomr_accel.GpuBufferI32,
         atomr_accel.GpuBufferU32,
         atomr_accel.GpuBufferU8,
+        atomr_accel.GpuBufferC64,
+        atomr_accel.GpuBufferC128,
     }
-    assert len(classes) == 5
+    assert len(classes) == 7
     # GpuBuffer is the f32 alias.
     assert atomr_accel.GpuBuffer is atomr_accel.GpuBufferF32
+
+
+def test_complex_buffer_classes_present():
+    """Phase 1.5++ — typed complex buffer classes are exported."""
+    assert atomr_accel.GpuBufferC64 is not None
+    assert atomr_accel.GpuBufferC128 is not None
+    assert atomr_accel.GpuBufferC64 is not atomr_accel.GpuBufferC128
 
 
 def test_copy_signatures_take_typed_buffers():
@@ -53,11 +70,15 @@ def test_copy_signatures_take_typed_buffers():
             "copy_from_numpy_i32",
             "copy_from_numpy_u32",
             "copy_from_numpy_u8",
+            "copy_from_numpy_complex64",
+            "copy_from_numpy_complex128",
             "copy_to_numpy",
             "copy_to_numpy_f64",
             "copy_to_numpy_i32",
             "copy_to_numpy_u32",
             "copy_to_numpy_u8",
+            "copy_to_numpy_complex64",
+            "copy_to_numpy_complex128",
         ]:
             assert callable(getattr(dev, name)), name
 

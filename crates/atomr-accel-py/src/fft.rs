@@ -4,44 +4,37 @@
 //! compiled in *and* the device's `EnabledLibraries::CUFFT` flag is
 //! set).
 //!
-//! # Phase 1.5++ — cuFFT depth (Path B: host-driven 1-shot FFTs)
+//! # Phase 1.5++ — cuFFT depth, two paths
 //!
-//! The four legacy 1-shot variants (`Forward1dR2C`, `Inverse1dC2R`,
-//! `Exec1dC2C`, `Forward2dR2C`) take pre-built `GpuRef<f32>` /
-//! `GpuRef<cufft_sys::float2>` buffers. Exposing those buffers as
-//! Python `GpuBufferC64` classes would require `cufft_sys::float2` to
-//! impl the crate's `CudaDtype` (which subsumes `AccelDtype` /
-//! `DeviceRepr` / `ValidAsZeroBits`) — none of which is a thing we
-//! can add from the Python crate (it'd require touching
-//! `atomr-accel-cuda`).
+//! ## Path B — host-driven 1-shot FFTs (kept for ergonomics)
 //!
-//! Instead we go through the canonical typed `FftMsg::Exec(
-//! Box<dyn FftDispatch>)` path with a `FftRequest<f32>` that carries
-//! `GpuRef<u8>` raw byte buffers. The wrapper internally:
+//! The four 1-shot methods (`forward_1d_r2c_f32`, `inverse_1d_c2r_f32`,
+//! `exec_1d_c2c_f32`, `forward_2d_r2c_f32`) take a `numpy` host array,
+//! allocate scratch device byte buffers, upload, dispatch via
+//! `FftMsg::Exec(FftRequest::<f32, u8, u8>::new(...))`, then download.
+//! Convenient for one-off transforms; less efficient than reusing
+//! pinned GPU buffers across calls.
 //!
-//! 1. Allocates u8 device buffers sized for the input + output.
-//! 2. Uploads the numpy host array as raw bytes
-//!    (`HostBuf::Owned<u8>`).  Complex (`numpy.complex64`,
-//!    `numpy::Complex32`) is `#[repr(C)] (re, im)` and laid out
-//!    identically to `cufft_sys::float2` `{ x, y }`, so this is just
-//!    a transmute on the boundary.
-//! 3. Sends `FftMsg::Exec(FftRequest::<f32>::new(plan_key, direction,
-//!    src_u8, dst_u8, reply))` to the `FftActor`.
-//! 4. Downloads the output bytes and reinterprets them as `f32` or
-//!    `Complex32` for return.
+//! ## Path A — typed Complex GPU buffers
+//!
+//! `exec_typed_f32` (and the f64 counterpart) take pre-allocated
+//! typed buffers (`GpuBufferF32` for the real lane, `GpuBufferC64`
+//! for the complex lane; `GpuBufferF64` / `GpuBufferC128` for the f64
+//! lane). The dispatch goes through
+//! `FftMsg::Exec(FftRequest::<T, I, O>::new(...))` directly — no
+//! host-side scratch alloc, no byte marshalling. Reuse the same
+//! buffers across many calls (and pair with `Device.allocate_*` to
+//! keep VRAM steady-state).
 //!
 //! Inverse C2R is **not** normalized by 1/N (cuFFT contract); the
 //! Python wrapper documents this and leaves normalization to the
 //! caller (typically a downstream kernel or `numpy` divide).
 //!
 //! TODO Phase 1.5++ followups:
-//! * Typed `GpuBufferC64` / `GpuBufferC128` — requires
-//!   `CudaDtype for cufft_sys::float2/double2` upstream.
-//! * f64 / 2-D / 3-D / plan-many / callback-mode coverage via a
-//!   single `exec_typed` method (deferred until typed complex buffers
-//!   land).
 //! * Plan-cache stats / explicit plan handles surfaced to Python.
 //! * RTC + multi-GPU FFT.
+//! * 2-D / 3-D + plan-many for `exec_typed_*` (the plan-key API
+//!   already supports them; we just need richer Python signatures).
 
 #![cfg(feature = "cufft")]
 
@@ -52,10 +45,14 @@ use pyo3::prelude::*;
 use tokio::sync::oneshot;
 
 use atomr_accel_cuda::device::{DeviceMsg, HostBuf};
+use atomr_accel_cuda::dtype::{C32, C64};
 use atomr_accel_cuda::gpu_ref::GpuRef;
 use atomr_accel_cuda::kernel::{FftDirection, FftKind, FftMsg, FftRequest, PlanKey};
 use atomr_core::actor::ActorRef;
 
+use crate::buffer::{
+    PyGpuBufferC128, PyGpuBufferC64, PyGpuBufferF32, PyGpuBufferF64,
+};
 use crate::errors;
 use crate::runtime::runtime;
 
@@ -87,6 +84,89 @@ fn direction_from_str(s: &str) -> PyResult<FftDirection> {
             "direction must be 'forward' or 'inverse' (got {other:?})"
         ))),
     }
+}
+
+/// Map a transform-kind string ('r2c' / 'c2r' / 'c2c' / 'd2z' / 'z2d'
+/// / 'z2z') into [`FftKind`]. Case-insensitive.
+fn kind_from_str(s: &str) -> PyResult<FftKind> {
+    match s.to_ascii_lowercase().as_str() {
+        "r2c" => Ok(FftKind::R2C),
+        "c2r" => Ok(FftKind::C2R),
+        "c2c" => Ok(FftKind::C2C),
+        "d2z" => Ok(FftKind::D2Z),
+        "z2d" => Ok(FftKind::Z2D),
+        "z2z" => Ok(FftKind::Z2Z),
+        other => Err(errors::map_str(format!(
+            "kind must be one of r2c|c2r|c2c|d2z|z2d|z2z (got {other:?})"
+        ))),
+    }
+}
+
+/// Build a [`PlanKey`] from rank + dims + kind + batch. `rank` is
+/// inferred from how many of `nx`/`ny`/`nz` are positive.
+fn plan_key_from_dims(
+    nx: i32,
+    ny: Option<i32>,
+    nz: Option<i32>,
+    kind: FftKind,
+    batch: i32,
+) -> PyResult<PlanKey> {
+    if nx <= 0 {
+        return Err(errors::map_str("nx must be >= 1"));
+    }
+    if batch <= 0 {
+        return Err(errors::map_str("batch must be >= 1"));
+    }
+    Ok(match (ny, nz) {
+        (None, _) => PlanKey::plan_1d(nx, kind, batch),
+        (Some(ny), None) => {
+            if ny <= 0 {
+                return Err(errors::map_str("ny must be >= 1"));
+            }
+            PlanKey::plan_2d(nx, ny, kind)
+        }
+        (Some(ny), Some(nz)) => {
+            if ny <= 0 || nz <= 0 {
+                return Err(errors::map_str("ny and nz must be >= 1"));
+            }
+            PlanKey::plan_3d(nx, ny, nz, kind)
+        }
+    })
+}
+
+/// Generic typed-buffer FFT dispatch — Path A. Both buffers are
+/// already-typed `GpuRef`s on-device; no host scratch is allocated.
+/// `T` is the scalar lane (`f32` or `f64`), `I`/`O` are the per-side
+/// element types.
+fn exec_typed_blocking<T, I, O>(
+    py: Python<'_>,
+    fft: &ActorRef<FftMsg>,
+    plan_key: PlanKey,
+    direction: FftDirection,
+    input: GpuRef<I>,
+    output: GpuRef<O>,
+    timeout_secs: f64,
+) -> PyResult<()>
+where
+    T: atomr_accel_cuda::dtype::FftSupported,
+    I: Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
+    let actor = fft.clone();
+    let rt = runtime();
+    py.allow_threads(|| {
+        rt.block_on(async move {
+            let (tx, rx) = oneshot::channel();
+            let req = FftRequest::<T, I, O>::new(plan_key, direction, input, output, tx);
+            actor.tell(FftMsg::Exec(Box::new(req)));
+            match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
+                Ok(Ok(Ok(()))) => Ok(()),
+                Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
+                Ok(Err(_)) => Err(errors::map_str("fft dropped reply")),
+                Err(_) => Err(errors::map_str("fft exec timed out")),
+            }
+        })
+    })
 }
 
 /// Allocate `len` `u8` bytes on-device through the shared runtime,
@@ -473,6 +553,279 @@ impl PyFft {
             download_bytes_blocking(py, &self.device_ref, dst_u8, bytes_len, timeout_secs)?;
         let out_vec = bytes_to_complex32_vec(out_bytes);
         Ok(PyArray1::from_vec_bound(py, out_vec))
+    }
+
+    /// Phase 1.5++ Path A — typed-buffer cuFFT dispatch on the f32
+    /// scalar lane (R2C / C2R / C2C). Takes pre-allocated typed
+    /// `GpuBufferF32` (real lane) and `GpuBufferC64` (complex lane)
+    /// instead of host arrays — no scratch alloc, no byte marshalling.
+    ///
+    /// Args:
+    ///     kind: one of ``"r2c"``, ``"c2r"``, ``"c2c"``.
+    ///     real_buf: `GpuBufferF32`. Source for ``r2c``, destination
+    ///         for ``c2r``. Pass `None` for ``c2c`` (the complex
+    ///         source/dest pair drives that path).
+    ///     complex_buf: `GpuBufferC64`. Destination for ``r2c``,
+    ///         source for ``c2r``, both for ``c2c`` if
+    ///         ``complex_buf_out`` is omitted (in-place).
+    ///     complex_buf_out: optional second `GpuBufferC64`. Only used
+    ///         by ``c2c`` to override the destination (otherwise
+    ///         ``complex_buf`` is the in-place input + output).
+    ///     direction: ``"forward"`` (default) or ``"inverse"``. Only
+    ///         meaningful for ``c2c``.
+    ///     nx, ny, nz: transform dimensions. ``ny`` / ``nz`` are
+    ///         optional — `None` means a 1-D / 2-D plan respectively.
+    ///     batch: number of independent transforms (default 1, only
+    ///         honored on 1-D plans).
+    ///
+    /// Returns:
+    ///     `None`. The output buffer is mutated in-place.
+    ///
+    /// Caller is responsible for sizing the buffers correctly:
+    /// R2C input length is `n_real * batch`; output is
+    /// `(n_real // 2 + 1) * batch`. C2R is the reverse. C2C is
+    /// `n_real * batch` on both sides. cuFFT does **not** normalize
+    /// inverse transforms by 1/N.
+    #[pyo3(signature = (
+        kind,
+        real_buf=None,
+        complex_buf=None,
+        complex_buf_out=None,
+        direction="forward",
+        nx=None,
+        ny=None,
+        nz=None,
+        batch=1,
+        timeout_secs=10.0
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn exec_typed_f32(
+        &self,
+        py: Python<'_>,
+        kind: &str,
+        real_buf: Option<Py<PyGpuBufferF32>>,
+        complex_buf: Option<Py<PyGpuBufferC64>>,
+        complex_buf_out: Option<Py<PyGpuBufferC64>>,
+        direction: &str,
+        nx: Option<i32>,
+        ny: Option<i32>,
+        nz: Option<i32>,
+        batch: i32,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let kind = kind_from_str(kind)?;
+        let dir = direction_from_str(direction)?;
+        // The f32 lane only covers R2C / C2R / C2C — D2Z / Z2D / Z2Z
+        // belong to `exec_typed_f64`.
+        match kind {
+            FftKind::R2C | FftKind::C2R | FftKind::C2C => {}
+            other => {
+                return Err(errors::map_str(format!(
+                    "exec_typed_f32: kind {:?} is not on the f32 lane (use exec_typed_f64)",
+                    other
+                )));
+            }
+        }
+        let nx = nx.ok_or_else(|| errors::map_str("nx is required"))?;
+        let plan_key = plan_key_from_dims(nx, ny, nz, kind, batch)?;
+
+        match kind {
+            FftKind::R2C => {
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("r2c requires complex_buf (output)"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                exec_typed_blocking::<f32, f32, C32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    r_ref,
+                    c_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::C2R => {
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("c2r requires complex_buf (input)"))?;
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                exec_typed_blocking::<f32, C32, f32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    c_ref,
+                    r_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::C2C => {
+                let src = complex_buf
+                    .ok_or_else(|| errors::map_str("c2c requires complex_buf (input)"))?;
+                let src_ref = src
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let dst_ref = match complex_buf_out {
+                    Some(d) => d
+                        .borrow(py)
+                        .clone_ref()
+                        .ok_or_else(|| errors::map_str("complex_buf_out consumed"))?,
+                    // In-place: alias the source buffer.
+                    None => src_ref.clone(),
+                };
+                exec_typed_blocking::<f32, C32, C32>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    src_ref,
+                    dst_ref,
+                    timeout_secs,
+                )
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    /// Phase 1.5++ Path A — typed-buffer cuFFT dispatch on the f64
+    /// scalar lane (D2Z / Z2D / Z2Z). Mirrors [`Self::exec_typed_f32`]
+    /// with `GpuBufferF64` / `GpuBufferC128` buffers.
+    ///
+    /// Args mirror `exec_typed_f32`; ``kind`` is one of
+    /// ``"d2z"`` (real → complex), ``"z2d"`` (complex → real),
+    /// ``"z2z"`` (complex ↔ complex).
+    #[pyo3(signature = (
+        kind,
+        real_buf=None,
+        complex_buf=None,
+        complex_buf_out=None,
+        direction="forward",
+        nx=None,
+        ny=None,
+        nz=None,
+        batch=1,
+        timeout_secs=10.0
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn exec_typed_f64(
+        &self,
+        py: Python<'_>,
+        kind: &str,
+        real_buf: Option<Py<PyGpuBufferF64>>,
+        complex_buf: Option<Py<PyGpuBufferC128>>,
+        complex_buf_out: Option<Py<PyGpuBufferC128>>,
+        direction: &str,
+        nx: Option<i32>,
+        ny: Option<i32>,
+        nz: Option<i32>,
+        batch: i32,
+        timeout_secs: f64,
+    ) -> PyResult<()> {
+        let kind = kind_from_str(kind)?;
+        let dir = direction_from_str(direction)?;
+        match kind {
+            FftKind::D2Z | FftKind::Z2D | FftKind::Z2Z => {}
+            other => {
+                return Err(errors::map_str(format!(
+                    "exec_typed_f64: kind {:?} is not on the f64 lane (use exec_typed_f32)",
+                    other
+                )));
+            }
+        }
+        let nx = nx.ok_or_else(|| errors::map_str("nx is required"))?;
+        let plan_key = plan_key_from_dims(nx, ny, nz, kind, batch)?;
+
+        match kind {
+            FftKind::D2Z => {
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("d2z requires complex_buf (output)"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                exec_typed_blocking::<f64, f64, C64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    r_ref,
+                    c_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::Z2D => {
+                let c = complex_buf
+                    .ok_or_else(|| errors::map_str("z2d requires complex_buf (input)"))?;
+                let r = real_buf
+                    .ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
+                let c_ref = c
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let r_ref = r
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("real_buf consumed"))?;
+                exec_typed_blocking::<f64, C64, f64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    c_ref,
+                    r_ref,
+                    timeout_secs,
+                )
+            }
+            FftKind::Z2Z => {
+                let src = complex_buf
+                    .ok_or_else(|| errors::map_str("z2z requires complex_buf (input)"))?;
+                let src_ref = src
+                    .borrow(py)
+                    .clone_ref()
+                    .ok_or_else(|| errors::map_str("complex_buf consumed"))?;
+                let dst_ref = match complex_buf_out {
+                    Some(d) => d
+                        .borrow(py)
+                        .clone_ref()
+                        .ok_or_else(|| errors::map_str("complex_buf_out consumed"))?,
+                    None => src_ref.clone(),
+                };
+                exec_typed_blocking::<f64, C64, C64>(
+                    py,
+                    &self.actor_ref,
+                    plan_key,
+                    dir,
+                    src_ref,
+                    dst_ref,
+                    timeout_secs,
+                )
+            }
+            _ => unreachable!(),
+        }
     }
 
     /// 2-D real → complex forward FFT (f32 in, complex64 out).

@@ -44,6 +44,163 @@ pub use atomr_accel::DType as DTypeKind;
 /// satisfy cudarc's orphan-rule constraint for `unsafe impl DeviceRepr`.
 /// Convertible from/to the backend-agnostic `atomr_accel::dtype::*`
 /// equivalents.
+/// 64-bit interleaved complex (`{re, im}` of f32). Layout matches
+/// `cufft_sys::float2` and `numpy.complex64`. Phase 1.5++.
+///
+/// `#[repr(transparent)]` over `[f32; 2]` so `unsafe impl DeviceRepr`
+/// is sound (cudarc's orphan rule blocks blanket impls on tuple-struct
+/// shapes from foreign crates) and so transmutes from `Vec<C32>` to /
+/// from `Vec<num_complex::Complex<f32>>` (also `#[repr(C)]` with two
+/// `f32` fields) are layout-safe.
+///
+/// Maps to `cudaDataType_t::CUDA_C_32F` and `cuComplex` in CUDA C++.
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct C32(pub [f32; 2]);
+
+impl C32 {
+    /// Construct from real / imaginary components.
+    #[inline]
+    pub const fn new(re: f32, im: f32) -> Self {
+        Self([re, im])
+    }
+    #[inline]
+    pub fn re(self) -> f32 {
+        self.0[0]
+    }
+    #[inline]
+    pub fn im(self) -> f32 {
+        self.0[1]
+    }
+}
+
+/// 128-bit interleaved complex (`{re, im}` of f64). Layout matches
+/// `cufft_sys::double2` and `numpy.complex128`. Phase 1.5++.
+///
+/// Maps to `cudaDataType_t::CUDA_C_64F` and `cuDoubleComplex`.
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct C64(pub [f64; 2]);
+
+impl C64 {
+    /// Construct from real / imaginary components.
+    #[inline]
+    pub const fn new(re: f64, im: f64) -> Self {
+        Self([re, im])
+    }
+    #[inline]
+    pub fn re(self) -> f64 {
+        self.0[0]
+    }
+    #[inline]
+    pub fn im(self) -> f64 {
+        self.0[1]
+    }
+}
+
+// Layout bridges to the cudarc cuFFT FFI structs. `cufft_sys::float2`
+// is `#[repr(C)] #[repr(align(8))] { x: f32, y: f32 }` — slightly
+// stricter alignment than `[f32; 2]` (align 4). The `From` impl is a
+// field-by-field copy, not a transmute, so the alignment mismatch is
+// harmless on the value side. (Transmuting `*const float2` → `*const
+// C32` is _not_ sound because the alignment shrinks; callers needing
+// a pointer-level bridge should keep `cufft_sys::float2` typed.)
+//
+// Gated on the `cufft` cargo feature because the cudarc::cufft module
+// is itself feature-gated.
+#[cfg(feature = "cufft")]
+impl From<cudarc::cufft::sys::float2> for C32 {
+    #[inline]
+    fn from(v: cudarc::cufft::sys::float2) -> Self {
+        C32([v.x, v.y])
+    }
+}
+
+#[cfg(feature = "cufft")]
+impl From<C32> for cudarc::cufft::sys::float2 {
+    #[inline]
+    fn from(v: C32) -> Self {
+        cudarc::cufft::sys::float2 {
+            x: v.0[0],
+            y: v.0[1],
+        }
+    }
+}
+
+#[cfg(feature = "cufft")]
+impl From<cudarc::cufft::sys::double2> for C64 {
+    #[inline]
+    fn from(v: cudarc::cufft::sys::double2) -> Self {
+        C64([v.x, v.y])
+    }
+}
+
+#[cfg(feature = "cufft")]
+impl From<C64> for cudarc::cufft::sys::double2 {
+    #[inline]
+    fn from(v: C64) -> Self {
+        cudarc::cufft::sys::double2 {
+            x: v.0[0],
+            y: v.0[1],
+        }
+    }
+}
+
+// SAFETY: `C32` / `C64` are `#[repr(transparent)]` over `[f32; 2]` /
+// `[f64; 2]`, both of which are POD; cudarc allows arbitrary `Copy +
+// 'static` over device-mappable bit patterns to be `DeviceRepr`. All
+// bit patterns of `f32` / `f64` (including NaN, inf, signaling NaN)
+// are valid floats, so `ValidAsZeroBits` is sound — the all-zeros
+// pattern represents `+0.0 + 0.0i`.
+unsafe impl DeviceRepr for C32 {}
+unsafe impl ValidAsZeroBits for C32 {}
+unsafe impl DeviceRepr for C64 {}
+unsafe impl ValidAsZeroBits for C64 {}
+
+// `AccelDtype` requires a `DType` discriminant. The base atomr-accel
+// `DType` enum has no Complex variant; reuse the matching scalar lane
+// (`F32` for C32, `F64` for C64) — the same convention `FftKind`'s
+// `scalar_dtype()` already uses for cuFFT plan keys. Callers that
+// need to distinguish complex from real branch on `T` directly, not
+// on `KIND`.
+impl atomr_accel::AccelDtype for C32 {
+    type Scalar = f32;
+    const KIND: DType = DType::F32;
+    const SIZE: usize = 8;
+    const NAME: &'static str = "complex64";
+    #[inline]
+    fn zero() -> Self {
+        C32([0.0, 0.0])
+    }
+    #[inline]
+    fn one() -> Self {
+        C32([1.0, 0.0])
+    }
+    #[inline]
+    fn nan() -> Option<Self> {
+        Some(C32([f32::NAN, f32::NAN]))
+    }
+}
+
+impl atomr_accel::AccelDtype for C64 {
+    type Scalar = f64;
+    const KIND: DType = DType::F64;
+    const SIZE: usize = 16;
+    const NAME: &'static str = "complex128";
+    #[inline]
+    fn zero() -> Self {
+        C64([0.0, 0.0])
+    }
+    #[inline]
+    fn one() -> Self {
+        C64([1.0, 0.0])
+    }
+    #[inline]
+    fn nan() -> Option<Self> {
+        Some(C64([f64::NAN, f64::NAN]))
+    }
+}
+
 #[cfg(feature = "f8")]
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -380,6 +537,62 @@ mod fp8_impls {
     impl NcclReduceSupported for F8E5m2 {}
 }
 
+impl CudaDtype for C32 {
+    #[inline]
+    fn cuda_data_type() -> cublas_sys::cudaDataType_t {
+        cublas_sys::cudaDataType_t::CUDA_C_32F
+    }
+    #[inline]
+    fn cublas_compute_type() -> cublas_sys::cublasComputeType_t {
+        cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
+    }
+    #[inline]
+    fn cuda_type_name() -> &'static str {
+        "cuComplex"
+    }
+    #[cfg(feature = "cudnn")]
+    #[inline]
+    fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {
+        // cuDNN has no native complex tensor element. Phase 1.5++ does
+        // not surface a CudnnSupported impl for complex dtypes; calling
+        // this method is a programmer error.
+        panic!("C32 is not a cuDNN tensor element type");
+    }
+    #[cfg(feature = "nccl")]
+    #[inline]
+    fn nccl_data_type() -> nccl_sys::ncclDataType_t {
+        // NCCL has no native complex reduce element. Same gating as
+        // above — Phase 1.5++ does not impl `NcclReduceSupported` for
+        // complex dtypes.
+        panic!("C32 is not an NCCL reduce element type");
+    }
+}
+
+impl CudaDtype for C64 {
+    #[inline]
+    fn cuda_data_type() -> cublas_sys::cudaDataType_t {
+        cublas_sys::cudaDataType_t::CUDA_C_64F
+    }
+    #[inline]
+    fn cublas_compute_type() -> cublas_sys::cublasComputeType_t {
+        cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_64F
+    }
+    #[inline]
+    fn cuda_type_name() -> &'static str {
+        "cuDoubleComplex"
+    }
+    #[cfg(feature = "cudnn")]
+    #[inline]
+    fn cudnn_data_type() -> cudnn_sys::cudnnDataType_t {
+        panic!("C64 is not a cuDNN tensor element type");
+    }
+    #[cfg(feature = "nccl")]
+    #[inline]
+    fn nccl_data_type() -> nccl_sys::ncclDataType_t {
+        panic!("C64 is not an NCCL reduce element type");
+    }
+}
+
 impl CudnnSupported for f32 {}
 impl CudnnSupported for f64 {}
 impl CudnnSupported for i8 {}
@@ -393,6 +606,8 @@ impl CudnnSupported for half::bf16 {}
 
 impl FftSupported for f32 {}
 impl FftSupported for f64 {}
+impl FftSupported for C32 {}
+impl FftSupported for C64 {}
 #[cfg(feature = "f16")]
 impl FftSupported for half::f16 {}
 
@@ -510,5 +725,80 @@ mod tests {
     fn capability_compile_time_check() {
         _assert_capability_bounds::<f32, f32, f32, f32>();
         _assert_capability_bounds::<f64, f64, f64, f64>();
+    }
+
+    #[test]
+    fn complex_dtype_size_and_layout() {
+        assert_eq!(<C32 as AccelDtype>::SIZE, 8);
+        assert_eq!(<C64 as AccelDtype>::SIZE, 16);
+        assert_eq!(<C32 as AccelDtype>::KIND, DType::F32);
+        assert_eq!(<C64 as AccelDtype>::KIND, DType::F64);
+        assert_eq!(<C32 as AccelDtype>::NAME, "complex64");
+        assert_eq!(<C64 as AccelDtype>::NAME, "complex128");
+
+        // Layout matches `[T; 2]` exactly (transparent).
+        assert_eq!(std::mem::size_of::<C32>(), 8);
+        assert_eq!(std::mem::size_of::<C64>(), 16);
+        assert_eq!(std::mem::align_of::<C32>(), std::mem::align_of::<f32>());
+        assert_eq!(std::mem::align_of::<C64>(), std::mem::align_of::<f64>());
+    }
+
+    #[test]
+    fn complex_cuda_data_type_mapping() {
+        assert_eq!(
+            <C32 as CudaDtype>::cuda_data_type(),
+            cublas_sys::cudaDataType_t::CUDA_C_32F
+        );
+        assert_eq!(
+            <C64 as CudaDtype>::cuda_data_type(),
+            cublas_sys::cudaDataType_t::CUDA_C_64F
+        );
+        assert_eq!(<C32 as CudaDtype>::cuda_type_name(), "cuComplex");
+        assert_eq!(<C64 as CudaDtype>::cuda_type_name(), "cuDoubleComplex");
+        assert_eq!(
+            <C32 as CudaDtype>::cublas_compute_type(),
+            cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_32F
+        );
+        assert_eq!(
+            <C64 as CudaDtype>::cublas_compute_type(),
+            cublas_sys::cublasComputeType_t::CUBLAS_COMPUTE_64F
+        );
+    }
+
+    #[test]
+    fn complex_fft_supported_compile_time_check() {
+        fn _check<T: FftSupported>() {}
+        _check::<C32>();
+        _check::<C64>();
+    }
+
+    #[test]
+    fn complex_zero_one_nan_identities() {
+        assert_eq!(<C32 as AccelDtype>::zero(), C32([0.0, 0.0]));
+        assert_eq!(<C32 as AccelDtype>::one(), C32([1.0, 0.0]));
+        assert!(<C32 as AccelDtype>::nan()
+            .map(|n| n.0[0].is_nan() && n.0[1].is_nan())
+            .unwrap_or(false));
+        assert_eq!(<C64 as AccelDtype>::zero(), C64([0.0, 0.0]));
+        assert_eq!(<C64 as AccelDtype>::one(), C64([1.0, 0.0]));
+    }
+
+    #[cfg(feature = "cufft")]
+    #[test]
+    fn complex_round_trips_cufft_sys() {
+        use cudarc::cufft::sys as s;
+        let f = s::float2 { x: 1.5, y: -2.5 };
+        let c: C32 = f.into();
+        assert_eq!(c, C32([1.5, -2.5]));
+        let f2: s::float2 = c.into();
+        assert_eq!(f2.x, 1.5);
+        assert_eq!(f2.y, -2.5);
+
+        let d = s::double2 { x: 7.0, y: 8.0 };
+        let c64: C64 = d.into();
+        assert_eq!(c64, C64([7.0, 8.0]));
+        let d2: s::double2 = c64.into();
+        assert_eq!(d2.x, 7.0);
+        assert_eq!(d2.y, 8.0);
     }
 }

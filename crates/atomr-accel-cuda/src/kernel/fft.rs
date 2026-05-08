@@ -361,36 +361,41 @@ impl FftPlan {
 
 /// Typed cuFFT request — the canonical Phase-1 entry point.
 ///
-/// `T` is the *scalar* dtype of the transform (`f32` for the float
-/// lane, `f64` for the double lane). Complex buffers are still typed
-/// as `cufft_sys::float2` / `cufft_sys::double2`; the request keeps
-/// `src` and `dst` as `GpuRef<u8>` raw buffers so the same struct
-/// works for R2C (f32 in, complex out), C2R (complex in, f32 out),
-/// and C2C (complex in, complex out) without three different
-/// `GpuRef<T>` parameters.
+/// Type parameters
+/// ---------------
+/// - `T` is the *scalar* dtype of the transform (`f32` for the float
+///   lane, `f64` for the double lane). Used for `T::KIND` reporting
+///   on the [`FftDispatch`] trait.
+/// - `I` is the input buffer's element type (default `u8` for the
+///   raw-byte Path B). Phase 1.5++ adds typed Path A by using e.g.
+///   `I = f32` (R2C input), `I = C32` (C2R / C2C input).
+/// - `O` is the output buffer's element type (default `u8`). Path A
+///   uses `O = C32` (R2C / C2C output) or `O = f32` (C2R output).
 ///
 /// Plan resolution is performed by the actor on receipt of the
 /// `FftMsg::Exec` message — the request only carries a [`PlanKey`].
 /// Repeat calls with the same key hit the LRU cache on the actor.
 ///
 /// In-place transforms: `output` may alias `input` (cuFFT supports
-/// this when shapes line up).
-pub struct FftRequest<T: FftSupported> {
+/// this when shapes line up — only meaningful when `I = O`).
+pub struct FftRequest<T: FftSupported, I = u8, O = u8> {
     pub plan_key: PlanKey,
     pub direction: FftDirection,
-    pub input: GpuRef<u8>,
-    pub output: GpuRef<u8>,
+    pub input: GpuRef<I>,
+    pub output: GpuRef<O>,
     pub reply: oneshot::Sender<Result<(), GpuError>>,
     _scalar: std::marker::PhantomData<T>,
 }
 
-impl<T: FftSupported> FftRequest<T> {
-    /// Construct a request from already-byte-cast buffers.
+impl<T: FftSupported, I, O> FftRequest<T, I, O> {
+    /// Construct a request. For Path B, `I = O = u8` and the buffers
+    /// are byte-cast on the caller side. For Path A, `I` and `O` are
+    /// the per-side element types (e.g. `f32`/`C32` for R2C).
     pub fn new(
         plan_key: PlanKey,
         direction: FftDirection,
-        input: GpuRef<u8>,
-        output: GpuRef<u8>,
+        input: GpuRef<I>,
+        output: GpuRef<O>,
         reply: oneshot::Sender<Result<(), GpuError>>,
     ) -> Self {
         Self {
@@ -404,7 +409,12 @@ impl<T: FftSupported> FftRequest<T> {
     }
 }
 
-impl<T: FftSupported> FftDispatch for FftRequest<T> {
+impl<T, I, O> FftDispatch for FftRequest<T, I, O>
+where
+    T: FftSupported,
+    I: Send + Sync + 'static,
+    O: Send + Sync + 'static,
+{
     fn dtype_kind(&self) -> DType {
         T::KIND
     }
@@ -453,11 +463,14 @@ impl<T: FftSupported> FftDispatch for FftRequest<T> {
         envelope::run_kernel(LIB, &stream, &completion, (), reply, move || {
             // SAFETY: cuFFT exec entry points take typed `*mut`
             // pointers. We hold owning Arcs to the underlying
-            // CudaSlice<u8> for the duration of the kernel
-            // (`run_kernel`'s keep-alive guarantees that), so the
-            // device pointers stay valid. The dtype matches because
-            // the plan was created with `kind`'s cufftType — so we
-            // pick the matching exec entry point at runtime.
+            // CudaSlice<I> / CudaSlice<O> for the duration of the
+            // kernel (`run_kernel`'s keep-alive guarantees that), so
+            // the device pointers stay valid. The dtype matches
+            // because the plan was created with `kind`'s cufftType
+            // — so we pick the matching exec entry point at runtime.
+            // The reinterpret to `*mut c_void` happens inside
+            // `exec_kernel`; the source/dest element type is opaque
+            // there.
             let res = unsafe {
                 exec_kernel(&plan, &src_arc, &dst_arc, kind, direction, &stream_for_exec)
             };
@@ -475,13 +488,18 @@ impl<T: FftSupported> FftDispatch for FftRequest<T> {
 /// so we can dispatch off a runtime [`FftKind`] without a separate
 /// trait dispatch per dtype.
 ///
+/// Generic over `I` / `O` so both Path B (`u8`) and Path A (typed
+/// `f32` / `C32` / `f64` / `C64`) buffers feed the same exec entry.
+/// The element type is opaque here — only the device pointer matters.
+///
 /// # Safety
 /// The plan must have been created with `kind`'s `cufftType`. `src`
-/// and `dst` must point into device memory of the appropriate sizes.
-unsafe fn exec_kernel(
+/// and `dst` must point into device memory of the appropriate sizes
+/// for that transform kind.
+unsafe fn exec_kernel<I, O>(
     plan: &Arc<CudaFft>,
-    src: &Arc<cudarc::driver::CudaSlice<u8>>,
-    dst: &Arc<cudarc::driver::CudaSlice<u8>>,
+    src: &Arc<cudarc::driver::CudaSlice<I>>,
+    dst: &Arc<cudarc::driver::CudaSlice<O>>,
     kind: FftKind,
     direction: FftDirection,
     stream: &Arc<cudarc::driver::CudaStream>,

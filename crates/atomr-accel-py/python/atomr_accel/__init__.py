@@ -36,6 +36,8 @@ from ._native import (  # noqa: F401
     GpuBufferI32,
     GpuBufferU32,
     GpuBufferU8,
+    GpuBufferC64,
+    GpuBufferC128,
     Blas,
     GpuRuntimeError,
     ContextPoisoned,
@@ -127,6 +129,8 @@ __all__ = [
     "GpuBufferI32",
     "GpuBufferU32",
     "GpuBufferU8",
+    "GpuBufferC64",
+    "GpuBufferC128",
     "Blas",
     # Phase 1.5 — graphs + memory
     "GraphCapture",

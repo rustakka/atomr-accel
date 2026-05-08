@@ -2,8 +2,11 @@
 //!
 //! Phase 1 ships one Python class per supported numpy-friendly dtype:
 //! `GpuBufferF32`, `GpuBufferF64`, `GpuBufferI32`, `GpuBufferU32`,
-//! `GpuBufferU8`. The original `GpuBuffer` (alias for `GpuBufferF32`)
-//! is kept so existing scripts don't break.
+//! `GpuBufferU8`. Phase 1.5++ adds typed complex buffers
+//! (`GpuBufferC64` over `C32 = [f32; 2]`, `GpuBufferC128` over
+//! `C64 = [f64; 2]`) for the cuFFT typed dispatch path. The original
+//! `GpuBuffer` (alias for `GpuBufferF32`) is kept so existing scripts
+//! don't break.
 //!
 //! Each class wraps `Mutex<Option<GpuRef<T>>>` — the `Option` lets a
 //! follow-up op move the inner `GpuRef` out (e.g. into a kernel
@@ -14,6 +17,7 @@
 use parking_lot::Mutex;
 use pyo3::prelude::*;
 
+use atomr_accel_cuda::dtype::{C32, C64};
 use atomr_accel_cuda::gpu_ref::GpuRef;
 
 macro_rules! py_gpu_buffer {
@@ -89,6 +93,14 @@ py_gpu_buffer!(PyGpuBufferI32, "GpuBufferI32", i32);
 py_gpu_buffer!(PyGpuBufferU32, "GpuBufferU32", u32);
 py_gpu_buffer!(PyGpuBufferU8, "GpuBufferU8", u8);
 
+// Phase 1.5++ — typed complex buffers for the cuFFT Path A dispatch.
+// `C32` / `C64` are `#[repr(transparent)]` over `[f32; 2]` / `[f64; 2]`
+// (defined in `atomr-accel-cuda::dtype`); they map to
+// `numpy.complex64` / `numpy.complex128` and to cuFFT's `cuComplex` /
+// `cuDoubleComplex`.
+py_gpu_buffer!(PyGpuBufferC64, "GpuBufferC64", C32);
+py_gpu_buffer!(PyGpuBufferC128, "GpuBufferC128", C64);
+
 /// Back-compat alias: `atomr_accel.GpuBuffer == GpuBufferF32`.
 pub type PyGpuBuffer = PyGpuBufferF32;
 
@@ -98,6 +110,8 @@ pub fn register(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyGpuBufferI32>()?;
     m.add_class::<PyGpuBufferU32>()?;
     m.add_class::<PyGpuBufferU8>()?;
+    m.add_class::<PyGpuBufferC64>()?;
+    m.add_class::<PyGpuBufferC128>()?;
     // Add the back-compat name "GpuBuffer" as an alias for GpuBufferF32.
     let f32_cls = m.py().get_type_bound::<PyGpuBufferF32>();
     m.add("GpuBuffer", f32_cls)?;

@@ -64,6 +64,9 @@ _FFT_METHODS = [
     "inverse_1d_c2r_f32",
     "exec_1d_c2c_f32",
     "forward_2d_r2c_f32",
+    # Phase 1.5++ Path A — typed complex buffer dispatch.
+    "exec_typed_f32",
+    "exec_typed_f64",
 ]
 
 
@@ -253,5 +256,67 @@ def test_exec_1d_c2c_batched() -> None:
         x = np.zeros(n * batch, dtype=np.complex64)
         with pytest.raises(atomr_accel.GpuRuntimeError):
             fft.exec_1d_c2c_f32(x, direction="forward", n=n, batch=batch)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+# ─────────────────────── Path A — typed buffer dispatch ───────────────────────
+
+
+def test_exec_typed_f32_rejects_f64_kind() -> None:
+    """``exec_typed_f32`` covers R2C / C2R / C2C only. Passing a
+    double-lane kind (D2Z / Z2D / Z2Z) must error fast at the binding
+    layer rather than reaching the actor."""
+    sys_cm, _dev, fft = _open_fft("fft-typed-wrong-lane")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="d2z", nx=16)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f64_rejects_f32_kind() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-wrong-lane-2")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f64(kind="r2c", nx=16)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f32_rejects_unknown_kind() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-bad-kind")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="not-a-kind", nx=16)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f32_requires_nx() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-need-nx")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c")
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f32_requires_buffers() -> None:
+    """R2C without `real_buf` (input) or `complex_buf` (output) must
+    fail with a clear error before reaching the actor."""
+    sys_cm, _dev, fft = _open_fft("fft-typed-no-bufs")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c", nx=16)
+    finally:
+        sys_cm.__exit__(None, None, None)
+
+
+def test_exec_typed_f32_rejects_bad_batch() -> None:
+    sys_cm, _dev, fft = _open_fft("fft-typed-bad-batch")
+    try:
+        with pytest.raises(atomr_accel.GpuRuntimeError):
+            fft.exec_typed_f32(kind="r2c", nx=16, batch=0)
     finally:
         sys_cm.__exit__(None, None, None)
