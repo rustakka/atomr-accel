@@ -19,10 +19,13 @@ control whether it's loaded:
 
 1. **`atomr-accel-cuda` feature `tensorrt`** — pulls in
    `atomr-accel-tensorrt` so `TrtActor` types are in scope.
-2. **`atomr-accel-tensorrt/tensorrt-link` feature** — actually
-   link `libnvinfer.so` at build time. `build.rs` probes
-   `LIBNVINFER_PATH` first, then standard libdirs, and panics with
-   a clear hint if the library is missing.
+2. **`atomr-accel-tensorrt/tensorrt-link` feature** — _currently
+   disabled_. Enabling it triggers a `compile_error!` until the
+   `nvinfer_shim.cpp` C-ABI shim lands; tracked by
+   <https://github.com/rustakka/atomr-accel/issues/6>. The eventual
+   shipping behaviour is: `build.rs` probes `LIBNVINFER_PATH`
+   first, then standard libdirs, and panics with a clear hint if
+   `libnvinfer.so` is missing.
 
 Without `tensorrt-link` the crate compiles and unit-tests on hosts
 without TensorRT — `TrtActor::ensure_runtime` returns
@@ -37,14 +40,14 @@ features = ["tensorrt", "tensorrt-onnx", "tensorrt-int8"]
 
 [dependencies.atomr-accel-tensorrt]
 version  = "0.1"
-features = ["tensorrt-link"]   # actually link libnvinfer.so
+features = ["tensorrt-link"]   # disabled until nvinfer_shim.cpp lands (issue #6)
 ```
 
 Per-feature add-ons:
 
 | Feature | Adds |
 |---|---|
-| `tensorrt-link` | link `libnvinfer.so` (set `LIBNVINFER_PATH` if non-standard) |
+| `tensorrt-link` | _disabled_ — see [issue #6](https://github.com/rustakka/atomr-accel/issues/6); will link `libnvinfer.so` once the C++ shim lands |
 | `tensorrt-onnx` | `OnnxParser` + `onnx_resnet50_int8` example |
 | `tensorrt-int8` | INT8 entropy / minmax PTQ calibrator helpers |
 | `tensorrt-fp8` | FP8 PTQ helpers (Hopper-class GPUs) |

@@ -58,11 +58,13 @@ cutlass   = ["dep:atomr-accel-cutlass"]
 flashattn = ["dep:atomr-accel-flashattn"]
 tensorrt  = ["dep:atomr-accel-tensorrt"]
 # Pass-through to atomr-accel-tensorrt's own opt-in feature gates.
-# `tensorrt-link` actually links libnvinfer at build time (requires
-# TensorRT installed or `LIBNVINFER_PATH` set); `tensorrt-onnx` adds
-# `nvonnxparser` for ONNX import; `tensorrt-int8` / `tensorrt-fp8` /
-# `tensorrt-plugin` mirror the upstream optional surfaces. All
-# auto-imply `tensorrt` so `--features tensorrt-link` is enough.
+# `tensorrt-link` would link libnvinfer at build time, but is currently
+# fenced off via a `compile_error!` in `atomr-accel-tensorrt` until
+# `nvinfer_shim.cpp` lands — see
+# https://github.com/rustakka/atomr-accel/issues/6. Enabling it here
+# surfaces that error transitively. `tensorrt-onnx` adds `nvonnxparser`
+# for ONNX import; `tensorrt-int8` / `tensorrt-fp8` / `tensorrt-plugin`
+# mirror the upstream optional surfaces. All auto-imply `tensorrt`.
 tensorrt-link    = ["tensorrt", "atomr-accel-tensorrt/tensorrt-link"]
 tensorrt-onnx    = ["tensorrt", "atomr-accel-tensorrt/tensorrt-onnx"]
 tensorrt-int8    = ["tensorrt", "atomr-accel-tensorrt/tensorrt-int8"]

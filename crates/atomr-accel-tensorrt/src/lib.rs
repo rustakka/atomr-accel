@@ -39,6 +39,21 @@
     clippy::arc_with_non_send_sync
 )]
 
+// The `tensorrt-link` feature instructs the linker to resolve a set of
+// `atomr_trt_*` C-ABI shim symbols (declared in `sys.rs`). Their
+// implementations live in a hand-written `nvinfer_shim.cpp` that has
+// not been committed yet, so enabling this feature today produces an
+// opaque linker error against `libnvinfer.so`. Fail fast with a clear
+// pointer to the tracking issue until the shim lands.
+#[cfg(feature = "tensorrt-link")]
+compile_error!(
+    "atomr-accel-tensorrt: the `tensorrt-link` feature is currently \
+     non-functional — the C++ shim (`nvinfer_shim.cpp`) defining the \
+     `atomr_trt_*` symbols has not landed yet. See \
+     https://github.com/rustakka/atomr-accel/issues/6 for status. \
+     Disable the feature to build."
+);
+
 pub mod actor;
 pub mod builder;
 pub mod engine;

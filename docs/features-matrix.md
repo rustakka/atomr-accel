@@ -293,7 +293,7 @@ NVRTC-instantiated against the Phase 0 persistent kernel cache.
 | Feature             | Adds                                                  |
 |---------------------|-------------------------------------------------------|
 | (default)           | `TrtActor` host-side surface + `IBuilderConfig` types |
-| `tensorrt-link`     | build.rs probes `LIBNVINFER_PATH` + standard libdirs  |
+| `tensorrt-link`     | _disabled_ — pending `nvinfer_shim.cpp`; see [#6][trt-shim] |
 | `tensorrt-onnx`     | `OnnxParser` wrapper + `onnx_resnet50_int8` example   |
 | `tensorrt-int8`     | INT8 entropy/minmax calibrator helpers                |
 | `tensorrt-fp8`      | FP8 PTQ helpers (Hopper)                              |
@@ -301,6 +301,8 @@ NVRTC-instantiated against the Phase 0 persistent kernel cache.
 | `cuda-runtime-tests` | lazy-load smoke (skips cleanly when libnvinfer missing) |
 
 `libnvinfer.so` is **not** vendored — link only.
+
+[trt-shim]: https://github.com/rustakka/atomr-accel/issues/6
 
 ### `atomr-accel-telemetry` (Phase 9)
 

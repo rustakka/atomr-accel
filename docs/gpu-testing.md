@@ -159,8 +159,10 @@ Coverage gaps (TODO):
   vendored CUTLASS template subset to be expanded beyond placeholders.
 - A real fa2 forward correctness check: needs the vendored fa2 csrc
   populated with a working kernel + a reference attention impl.
-- TensorRT engine-build: needs libnvinfer; the `tensorrt-link` feature
-  exists but the build.rs probe panics with a hint when missing.
+- TensorRT engine-build: the `tensorrt-link` feature is currently
+  fenced off (compile_error!) until `nvinfer_shim.cpp` lands —
+  https://github.com/rustakka/atomr-accel/issues/6. Once the shim
+  ships this re-enables a libnvinfer link probe.
 
 ## Why this isn't in CI
 
