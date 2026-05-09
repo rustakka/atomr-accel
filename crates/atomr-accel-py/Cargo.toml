@@ -72,16 +72,16 @@ tensorrt-plugin  = ["tensorrt", "atomr-accel-tensorrt/tensorrt-plugin"]
 [dependencies]
 atomr-core   = { workspace = true }
 atomr-config = { workspace = true }
-atomr-accel-cuda          = { path = "../atomr-accel-cuda",          version = "0.3.3" }
-atomr-accel-patterns      = { path = "../atomr-accel-patterns",      version = "0.3.3" }
-atomr-accel-train         = { path = "../atomr-accel-train",         version = "0.3.3" }
-atomr-accel-agents        = { path = "../atomr-accel-agents",        version = "0.3.3" }
-atomr-accel-cuda-realtime = { path = "../atomr-accel-cuda-realtime", version = "0.3.3" }
-atomr-accel-telemetry     = { path = "../atomr-accel-telemetry",     version = "0.3.3", optional = true }
-atomr-accel-cub           = { path = "../atomr-accel-cub",           version = "0.3.3", optional = true }
-atomr-accel-cutlass       = { path = "../atomr-accel-cutlass",       version = "0.3.3", optional = true }
-atomr-accel-flashattn     = { path = "../atomr-accel-flashattn",     version = "0.3.3", optional = true }
-atomr-accel-tensorrt      = { path = "../atomr-accel-tensorrt",      version = "0.3.3", optional = true }
+atomr-accel-cuda          = { path = "../atomr-accel-cuda",          version = "0.4.0" }
+atomr-accel-patterns      = { path = "../atomr-accel-patterns",      version = "0.4.0" }
+atomr-accel-train         = { path = "../atomr-accel-train",         version = "0.4.0" }
+atomr-accel-agents        = { path = "../atomr-accel-agents",        version = "0.4.0" }
+atomr-accel-cuda-realtime = { path = "../atomr-accel-cuda-realtime", version = "0.4.0" }
+atomr-accel-telemetry     = { path = "../atomr-accel-telemetry",     version = "0.4.0", optional = true }
+atomr-accel-cub           = { path = "../atomr-accel-cub",           version = "0.4.0", optional = true }
+atomr-accel-cutlass       = { path = "../atomr-accel-cutlass",       version = "0.4.0", optional = true }
+atomr-accel-flashattn     = { path = "../atomr-accel-flashattn",     version = "0.4.0", optional = true }
+atomr-accel-tensorrt      = { path = "../atomr-accel-tensorrt",      version = "0.4.0", optional = true }
 cudarc       = { workspace = true }
 
 pyo3                = { workspace = true, features = ["abi3-py310", "macros"] }

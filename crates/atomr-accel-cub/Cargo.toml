@@ -27,7 +27,7 @@ nvrtc-lto = ["atomr-accel-cuda/nvrtc-lto"]
 
 [dependencies]
 atomr-core      = { workspace = true }
-atomr-accel-cuda = { path = "../atomr-accel-cuda", version = "0.3.3", default-features = false, features = ["nvrtc"] }
+atomr-accel-cuda = { path = "../atomr-accel-cuda", version = "0.4.0", default-features = false, features = ["nvrtc"] }
 cudarc          = { workspace = true }
 tokio           = { workspace = true }
 async-trait     = { workspace = true }
