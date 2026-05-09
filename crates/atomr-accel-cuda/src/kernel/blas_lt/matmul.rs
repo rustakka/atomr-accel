@@ -319,7 +319,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dtype::CudaDtype;
 
     fn make_request<T: GemmSupported>() -> MatmulRequest<T>
     where
