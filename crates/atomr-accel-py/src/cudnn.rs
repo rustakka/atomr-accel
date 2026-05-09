@@ -2116,8 +2116,7 @@ impl PyCudnn {
         let dq = dq.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dq not set"))?;
         let dk = dk.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dk not set"))?;
         let dv = dv.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.dv not set"))?;
-        let stats =
-            stats.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.stats not set"))?;
+        let stats = stats.ok_or_else(|| errors::map_str("MultiHeadAttnBwdInputs.stats not set"))?;
         let scale = scale.unwrap_or_else(|| 1.0 / (head_dim as f64).sqrt());
         let params = AttentionParams {
             batch,
@@ -2190,9 +2189,18 @@ impl PyCudnn {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let w = w.borrow(py).clone_ref().ok_or_else(|| errors::map_str("w consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let w = w
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("w consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let conv = ConvDescParams {
             spatial_dims: 2,
             pre_padding: vec![pad.0, pad.1],
@@ -2208,9 +2216,20 @@ impl PyCudnn {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(ConvFwdRequest::<f32> {
-                x, x_dims, w, w_dims, y, y_dims, bias: None, conv,
-                layout: TensorLayout::NchwPacked, epilogue: EpilogueKind::None,
-                alpha, beta, reply: tx, _ty: PhantomData,
+                x,
+                x_dims,
+                w,
+                w_dims,
+                y,
+                y_dims,
+                bias: None,
+                conv,
+                layout: TensorLayout::NchwPacked,
+                epilogue: EpilogueKind::None,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2247,9 +2266,18 @@ impl PyCudnn {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let dy = dy.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dy consumed"))?;
-        let w = w.borrow(py).clone_ref().ok_or_else(|| errors::map_str("w consumed"))?;
-        let dx = dx.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dx consumed"))?;
+        let dy = dy
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dy consumed"))?;
+        let w = w
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("w consumed"))?;
+        let dx = dx
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dx consumed"))?;
         let conv = ConvDescParams {
             spatial_dims: 2,
             pre_padding: vec![pad.0, pad.1],
@@ -2265,8 +2293,18 @@ impl PyCudnn {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(ConvBwdDataRequest::<f32> {
-                dy, dy_dims, w, w_dims, dx, dx_dims, conv,
-                layout: TensorLayout::NchwPacked, alpha, beta, reply: tx, _ty: PhantomData,
+                dy,
+                dy_dims,
+                w,
+                w_dims,
+                dx,
+                dx_dims,
+                conv,
+                layout: TensorLayout::NchwPacked,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2303,9 +2341,18 @@ impl PyCudnn {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let dy = dy.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dy consumed"))?;
-        let dw = dw.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dw consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let dy = dy
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dy consumed"))?;
+        let dw = dw
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dw consumed"))?;
         let conv = ConvDescParams {
             spatial_dims: 2,
             pre_padding: vec![pad.0, pad.1],
@@ -2321,8 +2368,18 @@ impl PyCudnn {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(ConvBwdFilterRequest::<f32> {
-                x, x_dims, dy, dy_dims, dw, dw_dims, conv,
-                layout: TensorLayout::NchwPacked, alpha, beta, reply: tx, _ty: PhantomData,
+                x,
+                x_dims,
+                dy,
+                dy_dims,
+                dw,
+                dw_dims,
+                conv,
+                layout: TensorLayout::NchwPacked,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2358,8 +2415,14 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mode = pool_mode_from_str(mode)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let params = PoolParams {
             mode,
             window: vec![kernel.0, kernel.1],
@@ -2373,9 +2436,16 @@ impl PyCudnn {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(PoolFwdRequest::<f32> {
-                x, y, x_dims, y_dims,
-                layout: TensorLayout::NchwPacked, params,
-                alpha, beta, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                x_dims,
+                y_dims,
+                layout: TensorLayout::NchwPacked,
+                params,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2413,10 +2483,22 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mode = pool_mode_from_str(mode)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let dy = dy.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dy consumed"))?;
-        let dx = dx.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dx consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let dy = dy
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dy consumed"))?;
+        let dx = dx
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dx consumed"))?;
         let params = PoolParams {
             mode,
             window: vec![kernel.0, kernel.1],
@@ -2430,9 +2512,18 @@ impl PyCudnn {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(PoolBwdRequest::<f32> {
-                x, y, dy, dx, x_dims, y_dims,
-                layout: TensorLayout::NchwPacked, params,
-                alpha, beta, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                dy,
+                dx,
+                x_dims,
+                y_dims,
+                layout: TensorLayout::NchwPacked,
+                params,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2460,14 +2551,27 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mode = softmax_mode_from_str(mode)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(SoftmaxFwdRequest::<f32> {
-                mode, x, y, dims,
-                layout: TensorLayout::NchwPacked, alpha, beta, reply: tx, _ty: PhantomData,
+                mode,
+                x,
+                y,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2495,14 +2599,27 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let kind = activation_kind_from_str(kind)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(ActivationFwdRequest::<f32> {
-                kind, x, y, dims,
-                layout: TensorLayout::NchwPacked, alpha, beta, reply: tx, _ty: PhantomData,
+                kind,
+                x,
+                y,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2540,30 +2657,57 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let phase = norm_phase_from_str(phase)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let scale = scale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("scale consumed"))?;
-        let bias = bias.borrow(py).clone_ref().ok_or_else(|| errors::map_str("bias consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let scale = scale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("scale consumed"))?;
+        let bias = bias
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("bias consumed"))?;
         let running_mean = running_mean
             .map(|b| b.borrow(py).clone_ref().ok_or("running_mean consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let running_var = running_var
             .map(|b| b.borrow(py).clone_ref().ok_or("running_var consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let saved_mean = saved_mean
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_mean consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let saved_var = saved_var
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_var consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(BatchNormRequest::<f32> {
-                phase, x, y, scale, bias,
-                running_mean, running_var, saved_mean, saved_var,
-                dims, layout: TensorLayout::NchwPacked,
-                epsilon, exp_avg_factor, reply: tx, _ty: PhantomData,
+                phase,
+                x,
+                y,
+                scale,
+                bias,
+                running_mean,
+                running_var,
+                saved_mean,
+                saved_var,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                epsilon,
+                exp_avg_factor,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2594,22 +2738,46 @@ impl PyCudnn {
         epsilon: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let scale = scale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("scale consumed"))?;
-        let bias = bias.borrow(py).clone_ref().ok_or_else(|| errors::map_str("bias consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let scale = scale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("scale consumed"))?;
+        let bias = bias
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("bias consumed"))?;
         let saved_mean = saved_mean
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_mean consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let saved_var = saved_var
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_var consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(LayerNormRequest::<f32> {
-                x, y, scale, bias, saved_mean, saved_var, dims, norm_axes,
-                layout: TensorLayout::NchwPacked, epsilon, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                scale,
+                bias,
+                saved_mean,
+                saved_var,
+                dims,
+                norm_axes,
+                layout: TensorLayout::NchwPacked,
+                epsilon,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2639,22 +2807,45 @@ impl PyCudnn {
         epsilon: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let scale = scale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("scale consumed"))?;
-        let bias = bias.borrow(py).clone_ref().ok_or_else(|| errors::map_str("bias consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let scale = scale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("scale consumed"))?;
+        let bias = bias
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("bias consumed"))?;
         let saved_mean = saved_mean
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_mean consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let saved_var = saved_var
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_var consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(InstanceNormRequest::<f32> {
-                x, y, scale, bias, saved_mean, saved_var, dims,
-                layout: TensorLayout::NchwPacked, epsilon, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                scale,
+                bias,
+                saved_mean,
+                saved_var,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                epsilon,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2685,22 +2876,46 @@ impl PyCudnn {
         epsilon: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let scale = scale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("scale consumed"))?;
-        let bias = bias.borrow(py).clone_ref().ok_or_else(|| errors::map_str("bias consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let scale = scale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("scale consumed"))?;
+        let bias = bias
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("bias consumed"))?;
         let saved_mean = saved_mean
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_mean consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let saved_var = saved_var
             .map(|b| b.borrow(py).clone_ref().ok_or("saved_var consumed"))
-            .transpose().map_err(errors::map_str)?;
+            .transpose()
+            .map_err(errors::map_str)?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(GroupNormRequest::<f32> {
-                x, y, scale, bias, saved_mean, saved_var, dims, groups,
-                layout: TensorLayout::NchwPacked, epsilon, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                scale,
+                bias,
+                saved_mean,
+                saved_var,
+                dims,
+                groups,
+                layout: TensorLayout::NchwPacked,
+                epsilon,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2733,20 +2948,56 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mode = norm_mode_from_str(mode)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let dy = dy.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dy consumed"))?;
-        let scale = scale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("scale consumed"))?;
-        let mean = mean.borrow(py).clone_ref().ok_or_else(|| errors::map_str("mean consumed"))?;
-        let var = var.borrow(py).clone_ref().ok_or_else(|| errors::map_str("var consumed"))?;
-        let dx = dx.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dx consumed"))?;
-        let dscale = dscale.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dscale consumed"))?;
-        let dbias = dbias.borrow(py).clone_ref().ok_or_else(|| errors::map_str("dbias consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let dy = dy
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dy consumed"))?;
+        let scale = scale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("scale consumed"))?;
+        let mean = mean
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("mean consumed"))?;
+        let var = var
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("var consumed"))?;
+        let dx = dx
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dx consumed"))?;
+        let dscale = dscale
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dscale consumed"))?;
+        let dbias = dbias
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("dbias consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(NormBwdRequest::<f32> {
-                mode, x, dy, scale, mean, var, dx, dscale, dbias, dims,
-                layout: TensorLayout::NchwPacked, epsilon, reply: tx, _ty: PhantomData,
+                mode,
+                x,
+                dy,
+                scale,
+                mean,
+                var,
+                dx,
+                dscale,
+                dbias,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                epsilon,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2773,15 +3024,31 @@ impl PyCudnn {
         seed: u64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let mask = mask.borrow(py).clone_ref().ok_or_else(|| errors::map_str("mask consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let mask = mask
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("mask consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(DropoutFwdRequest::<f32> {
-                x, y, mask, dims,
-                layout: TensorLayout::NchwPacked, probability, seed, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                mask,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                probability,
+                seed,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2812,15 +3079,28 @@ impl PyCudnn {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let params = LrnParams::new(n, lrn_alpha, lrn_beta, lrn_k);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(LrnFwdRequest::<f32> {
-                x, y, dims,
-                layout: TensorLayout::NchwPacked, params, alpha, beta, reply: tx, _ty: PhantomData,
+                x,
+                y,
+                dims,
+                layout: TensorLayout::NchwPacked,
+                params,
+                alpha,
+                beta,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2863,20 +3143,59 @@ impl PyCudnn {
     ) -> PyResult<Bound<'py, PyAny>> {
         let mode = rnn_mode_from_str(mode)?;
         let direction = rnn_direction_from_str(direction)?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let h_in = h_in.borrow(py).clone_ref().ok_or_else(|| errors::map_str("h_in consumed"))?;
-        let weights = weights.borrow(py).clone_ref().ok_or_else(|| errors::map_str("weights consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let h_out = h_out.borrow(py).clone_ref().ok_or_else(|| errors::map_str("h_out consumed"))?;
-        let c_in = c_in.map(|b| b.borrow(py).clone_ref().ok_or("c_in consumed")).transpose().map_err(errors::map_str)?;
-        let c_out = c_out.map(|b| b.borrow(py).clone_ref().ok_or("c_out consumed")).transpose().map_err(errors::map_str)?;
-        let params = RnnParams { mode, direction, num_layers, input_size, hidden_size, seq_length, batch_size, dropout };
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let h_in = h_in
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("h_in consumed"))?;
+        let weights = weights
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("weights consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let h_out = h_out
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("h_out consumed"))?;
+        let c_in = c_in
+            .map(|b| b.borrow(py).clone_ref().ok_or("c_in consumed"))
+            .transpose()
+            .map_err(errors::map_str)?;
+        let c_out = c_out
+            .map(|b| b.borrow(py).clone_ref().ok_or("c_out consumed"))
+            .transpose()
+            .map_err(errors::map_str)?;
+        let params = RnnParams {
+            mode,
+            direction,
+            num_layers,
+            input_size,
+            hidden_size,
+            seq_length,
+            batch_size,
+            dropout,
+        };
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(RnnFwdRequest::<f32> {
-                x, h_in, c_in, weights, y, h_out, c_out,
-                layout: TensorLayout::NchwPacked, params, reply: tx, _ty: PhantomData,
+                x,
+                h_in,
+                c_in,
+                weights,
+                y,
+                h_out,
+                c_out,
+                layout: TensorLayout::NchwPacked,
+                params,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2921,20 +3240,57 @@ impl PyCudnn {
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mask = attention_mask_from_str(mask, window)?;
-        let q = q.borrow(py).clone_ref().ok_or_else(|| errors::map_str("q consumed"))?;
-        let k = k.borrow(py).clone_ref().ok_or_else(|| errors::map_str("k consumed"))?;
-        let v = v.borrow(py).clone_ref().ok_or_else(|| errors::map_str("v consumed"))?;
-        let o = o.borrow(py).clone_ref().ok_or_else(|| errors::map_str("o consumed"))?;
-        let stats = stats.map(|b| b.borrow(py).clone_ref().ok_or("stats consumed")).transpose().map_err(errors::map_str)?;
-        let bias = bias.map(|b| b.borrow(py).clone_ref().ok_or("bias consumed")).transpose().map_err(errors::map_str)?;
+        let q = q
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("q consumed"))?;
+        let k = k
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("k consumed"))?;
+        let v = v
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("v consumed"))?;
+        let o = o
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("o consumed"))?;
+        let stats = stats
+            .map(|b| b.borrow(py).clone_ref().ok_or("stats consumed"))
+            .transpose()
+            .map_err(errors::map_str)?;
+        let bias = bias
+            .map(|b| b.borrow(py).clone_ref().ok_or("bias consumed"))
+            .transpose()
+            .map_err(errors::map_str)?;
         let scale = scale.unwrap_or(1.0 / (head_dim as f64).sqrt());
-        let params = AttentionParams { batch, seq_q, seq_kv, heads_q, heads_kv, head_dim, mask, scale, dropout, dropout_seed };
+        let params = AttentionParams {
+            batch,
+            seq_q,
+            seq_kv,
+            heads_q,
+            heads_kv,
+            head_dim,
+            mask,
+            scale,
+            dropout,
+            dropout_seed,
+        };
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(CudnnMsg::Op(Box::new(MultiHeadAttnFwdRequest::<f32> {
-                q, k, v, o, stats, bias,
-                layout: TensorLayout::NchwPacked, params, reply: tx, _ty: PhantomData,
+                q,
+                k,
+                v,
+                o,
+                stats,
+                bias,
+                layout: TensorLayout::NchwPacked,
+                params,
+                reply: tx,
+                _ty: PhantomData,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),

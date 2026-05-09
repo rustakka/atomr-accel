@@ -212,29 +212,33 @@ impl ContextActor {
             let mut children = KernelChildren::new(stub);
             #[cfg(feature = "cusolver")]
             {
-                if self.config.enabled_libraries.contains(EnabledLibraries::CUSOLVER) {
+                if self
+                    .config
+                    .enabled_libraries
+                    .contains(EnabledLibraries::CUSOLVER)
+                {
                     let solver_stub = ctx
                         .spawn::<crate::kernel::SolverActor>(
                             crate::kernel::SolverActor::mock_props(),
                             "solver",
                         )
-                        .unwrap_or_else(|e| {
-                            panic!("Unrecoverable: spawn mock SolverActor: {e}")
-                        });
+                        .unwrap_or_else(|e| panic!("Unrecoverable: spawn mock SolverActor: {e}"));
                     children.solver = Some(solver_stub);
                 }
             }
             #[cfg(feature = "nvrtc")]
             {
-                if self.config.enabled_libraries.contains(EnabledLibraries::NVRTC) {
+                if self
+                    .config
+                    .enabled_libraries
+                    .contains(EnabledLibraries::NVRTC)
+                {
                     let nvrtc_stub = ctx
                         .spawn::<crate::kernel::NvrtcActor>(
                             crate::kernel::NvrtcActor::mock_props(),
                             "nvrtc",
                         )
-                        .unwrap_or_else(|e| {
-                            panic!("Unrecoverable: spawn mock NvrtcActor: {e}")
-                        });
+                        .unwrap_or_else(|e| panic!("Unrecoverable: spawn mock NvrtcActor: {e}"));
                     children.nvrtc = Some(nvrtc_stub);
                 }
             }

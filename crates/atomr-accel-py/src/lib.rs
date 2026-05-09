@@ -30,18 +30,18 @@ mod runtime;
 mod system;
 mod train;
 
+#[cfg(feature = "nccl")]
+mod collective;
 #[cfg(feature = "cudnn")]
 mod cudnn;
 #[cfg(feature = "cufft")]
 mod fft;
+#[cfg(feature = "nvrtc")]
+mod nvrtc;
 #[cfg(feature = "curand")]
 mod rng;
 #[cfg(feature = "cusolver")]
 mod solver;
-#[cfg(feature = "nccl")]
-mod collective;
-#[cfg(feature = "nvrtc")]
-mod nvrtc;
 
 #[cfg(feature = "telemetry")]
 mod telemetry;

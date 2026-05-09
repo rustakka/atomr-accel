@@ -890,7 +890,10 @@ impl PyRngGenerator {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(RngMsg::SetGenerator { kind: kind_enum, reply: tx });
+            actor.tell(RngMsg::SetGenerator {
+                kind: kind_enum,
+                reply: tx,
+            });
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -909,12 +912,17 @@ impl PyRngGenerator {
         hi: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Uniform { lo, hi }, reply: tx,
+                buf: g,
+                dist: Distribution::Uniform { lo, hi },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -934,12 +942,17 @@ impl PyRngGenerator {
         hi: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Uniform { lo, hi }, reply: tx,
+                buf: g,
+                dist: Distribution::Uniform { lo, hi },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -959,12 +972,17 @@ impl PyRngGenerator {
         std: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Normal { mean, std }, reply: tx,
+                buf: g,
+                dist: Distribution::Normal { mean, std },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -984,12 +1002,17 @@ impl PyRngGenerator {
         std: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Normal { mean, std }, reply: tx,
+                buf: g,
+                dist: Distribution::Normal { mean, std },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1009,12 +1032,17 @@ impl PyRngGenerator {
         std: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::LogNormal { mean, std }, reply: tx,
+                buf: g,
+                dist: Distribution::LogNormal { mean, std },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1034,12 +1062,17 @@ impl PyRngGenerator {
         std: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::LogNormal { mean, std }, reply: tx,
+                buf: g,
+                dist: Distribution::LogNormal { mean, std },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1058,12 +1091,17 @@ impl PyRngGenerator {
         lambda: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Poisson { lambda }, reply: tx,
+                buf: g,
+                dist: Distribution::Poisson { lambda },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1082,12 +1120,17 @@ impl PyRngGenerator {
         lambda: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Poisson { lambda }, reply: tx,
+                buf: g,
+                dist: Distribution::Poisson { lambda },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1106,12 +1149,17 @@ impl PyRngGenerator {
         lambda: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Exponential { lambda }, reply: tx,
+                buf: g,
+                dist: Distribution::Exponential { lambda },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1130,12 +1178,17 @@ impl PyRngGenerator {
         lambda: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Exponential { lambda }, reply: tx,
+                buf: g,
+                dist: Distribution::Exponential { lambda },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1155,12 +1208,17 @@ impl PyRngGenerator {
         beta: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Beta { alpha, beta }, reply: tx,
+                buf: g,
+                dist: Distribution::Beta { alpha, beta },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1180,12 +1238,17 @@ impl PyRngGenerator {
         beta: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Beta { alpha, beta }, reply: tx,
+                buf: g,
+                dist: Distribution::Beta { alpha, beta },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1205,12 +1268,17 @@ impl PyRngGenerator {
         scale: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Cauchy { loc, scale }, reply: tx,
+                buf: g,
+                dist: Distribution::Cauchy { loc, scale },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1230,12 +1298,17 @@ impl PyRngGenerator {
         scale: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Cauchy { loc, scale }, reply: tx,
+                buf: g,
+                dist: Distribution::Cauchy { loc, scale },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1255,12 +1328,17 @@ impl PyRngGenerator {
         scale: f32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Gamma { shape, scale }, reply: tx,
+                buf: g,
+                dist: Distribution::Gamma { shape, scale },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1280,12 +1358,17 @@ impl PyRngGenerator {
         scale: f64,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Gamma { shape, scale }, reply: tx,
+                buf: g,
+                dist: Distribution::Gamma { shape, scale },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1304,13 +1387,21 @@ impl PyRngGenerator {
         weights: Py<PyGpuBufferF32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
-        let w = weights.borrow(py).clone_ref().ok_or_else(|| errors::map_str("weights consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
+        let w = weights
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("weights consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f32> {
-                buf: g, dist: Distribution::Discrete { weights: w }, reply: tx,
+                buf: g,
+                dist: Distribution::Discrete { weights: w },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1329,13 +1420,21 @@ impl PyRngGenerator {
         weights: Py<PyGpuBufferF32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
-        let w = weights.borrow(py).clone_ref().ok_or_else(|| errors::map_str("weights consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
+        let w = weights
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("weights consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(RngMsg::Fill(Box::new(FillRequest::<f64> {
-                buf: g, dist: Distribution::Discrete { weights: w }, reply: tx,
+                buf: g,
+                dist: Distribution::Discrete { weights: w },
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -1353,7 +1452,10 @@ impl PyRngGenerator {
         buf: Py<PyGpuBufferU32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let g = buf.borrow(py).clone_ref().ok_or_else(|| errors::map_str("buf consumed"))?;
+        let g = buf
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("buf consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();

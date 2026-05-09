@@ -222,7 +222,10 @@ mod nvml_impl {
             })?;
 
             let dict = PyDict::new_bound(py);
-            dict.set_item("generated_at_unix_nanos", snap.generated_at_unix_nanos as u64)?;
+            dict.set_item(
+                "generated_at_unix_nanos",
+                snap.generated_at_unix_nanos as u64,
+            )?;
             let devices = PyList::empty_bound(py);
             for d in snap.devices.iter() {
                 let dd = PyDict::new_bound(py);

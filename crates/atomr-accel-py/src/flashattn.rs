@@ -26,9 +26,7 @@ use std::time::Duration;
 
 use pyo3::prelude::*;
 
-use atomr_accel_flashattn::{
-    Fa2FwdRequest, FlashAttnMsg, MaskKind, PositionBias, SmArch, F16,
-};
+use atomr_accel_flashattn::{Fa2FwdRequest, FlashAttnMsg, MaskKind, PositionBias, SmArch, F16};
 use atomr_core::actor::ActorRef;
 
 use crate::errors;
@@ -122,18 +120,10 @@ impl PyFlashAttn {
         } else {
             PositionBias::None
         };
-        let scale =
-            softmax_scale.unwrap_or_else(|| 1.0_f32 / (head_dim as f32).sqrt());
-        let (req, rx) = Fa2FwdRequest::<F16>::new(
-            arch,
-            head_dim,
-            gqa_ratio,
-            mask,
-            bias,
-            sink_tokens,
-            scale,
-        )
-        .map_err(|e| errors::map_str(e.to_string()))?;
+        let scale = softmax_scale.unwrap_or_else(|| 1.0_f32 / (head_dim as f32).sqrt());
+        let (req, rx) =
+            Fa2FwdRequest::<F16>::new(arch, head_dim, gqa_ratio, mask, bias, sink_tokens, scale)
+                .map_err(|e| errors::map_str(e.to_string()))?;
         let actor = self.actor_ref.clone();
         let rt = runtime();
         py.allow_threads(|| {

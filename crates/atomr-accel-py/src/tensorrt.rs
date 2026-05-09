@@ -157,9 +157,7 @@ impl PyTrtEngine {
         // is `(tensor_name, CUdeviceptr_u64)`. We accept the dtype-
         // tagged buffer wrappers and pull the raw pointer out of the
         // underlying GpuRef.
-        let mut bindings: Vec<(String, u64)> = Vec::with_capacity(
-            inputs.len() + outputs.len(),
-        );
+        let mut bindings: Vec<(String, u64)> = Vec::with_capacity(inputs.len() + outputs.len());
         collect_bindings(inputs, &mut bindings)?;
         collect_bindings(outputs, &mut bindings)?;
 
@@ -189,20 +187,15 @@ impl PyTrtEngine {
 /// Helper: pull `(name, raw_device_ptr)` out of a Python dict mapping
 /// `str → GpuBuffer*` and append to `out`. Accepts every dtype-tagged
 /// buffer class we ship.
-fn collect_bindings(
-    map: &Bound<'_, PyDict>,
-    out: &mut Vec<(String, u64)>,
-) -> PyResult<()> {
+fn collect_bindings(map: &Bound<'_, PyDict>, out: &mut Vec<(String, u64)>) -> PyResult<()> {
     for (k, v) in map.iter() {
         let name: String = k.extract()?;
         // Try each typed buffer class until one matches.
         macro_rules! try_cast {
             ($ty:ty, $rust:ty) => {{
                 if let Ok(buf) = v.extract::<Py<$ty>>() {
-                    let g: GpuRef<$rust> = Python::with_gil(|py| {
-                        buf.borrow(py).clone_ref()
-                    })
-                    .ok_or_else(|| errors::map_str(format!("buffer {name:?} consumed")))?;
+                    let g: GpuRef<$rust> = Python::with_gil(|py| buf.borrow(py).clone_ref())
+                        .ok_or_else(|| errors::map_str(format!("buffer {name:?} consumed")))?;
                     let ptr = g.raw_device_ptr().map_err(errors::map_gpu)?;
                     out.push((name, ptr));
                     continue;
@@ -300,9 +293,8 @@ impl PyTensorRt {
         timeout_secs: f64,
     ) -> PyResult<String> {
         let _ = timeout_secs; // synchronous path; arg reserved for the actor variant
-        let onnx_bytes = std::fs::read(onnx_path).map_err(|e| {
-            errors::map_str(format!("failed to read ONNX file {onnx_path:?}: {e}"))
-        })?;
+        let onnx_bytes = std::fs::read(onnx_path)
+            .map_err(|e| errors::map_str(format!("failed to read ONNX file {onnx_path:?}: {e}")))?;
 
         let precision = match (fp16, int8) {
             (false, false) => Precision::Fp32,

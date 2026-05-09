@@ -27,9 +27,7 @@ use std::sync::Arc;
 
 use pyo3::prelude::*;
 
-use atomr_accel_cutlass::{
-    CutlassActor, CutlassMsg, GemmRequest, GemmShape, SmArch,
-};
+use atomr_accel_cutlass::{CutlassActor, CutlassMsg, GemmRequest, GemmShape, SmArch};
 
 use crate::errors;
 
@@ -68,14 +66,7 @@ impl PyCutlass {
     /// a `compile_sink` is wired in, the source is forwarded to the
     /// downstream NVRTC actor for compilation.
     #[pyo3(signature = (m, n, k, arch="sm_80"))]
-    fn gemm_f32_plan(
-        &self,
-        py: Python<'_>,
-        m: u32,
-        n: u32,
-        k: u32,
-        arch: &str,
-    ) -> PyResult<u64> {
+    fn gemm_f32_plan(&self, py: Python<'_>, m: u32, n: u32, k: u32, arch: &str) -> PyResult<u64> {
         let arch = arch_from_str(arch)?;
         let actor = self.actor.clone();
         py.allow_threads(|| {
@@ -88,14 +79,7 @@ impl PyCutlass {
     /// f64 variant of `gemm_f32_plan`. Same semantics; exercises the
     /// dtype generic.
     #[pyo3(signature = (m, n, k, arch="sm_80"))]
-    fn gemm_f64_plan(
-        &self,
-        py: Python<'_>,
-        m: u32,
-        n: u32,
-        k: u32,
-        arch: &str,
-    ) -> PyResult<u64> {
+    fn gemm_f64_plan(&self, py: Python<'_>, m: u32, n: u32, k: u32, arch: &str) -> PyResult<u64> {
         let arch = arch_from_str(arch)?;
         let actor = self.actor.clone();
         py.allow_threads(|| {

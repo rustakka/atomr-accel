@@ -64,14 +64,10 @@ use tokio::sync::oneshot;
 use atomr_accel_cuda::device::{DeviceMsg, HostBuf};
 use atomr_accel_cuda::dtype::{C32, C64};
 use atomr_accel_cuda::gpu_ref::GpuRef;
-use atomr_accel_cuda::kernel::{
-    FftDirection, FftKind, FftMsg, FftPlanMany, FftRequest, PlanKey,
-};
+use atomr_accel_cuda::kernel::{FftDirection, FftKind, FftMsg, FftPlanMany, FftRequest, PlanKey};
 use atomr_core::actor::ActorRef;
 
-use crate::buffer::{
-    PyGpuBufferC128, PyGpuBufferC64, PyGpuBufferF32, PyGpuBufferF64,
-};
+use crate::buffer::{PyGpuBufferC128, PyGpuBufferC64, PyGpuBufferF32, PyGpuBufferF64};
 use crate::errors;
 use crate::runtime::runtime;
 
@@ -759,8 +755,7 @@ impl PyFft {
 
         match kind {
             FftKind::R2C => {
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
+                let r = real_buf.ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("r2c requires complex_buf (output)"))?;
                 let r_ref = r
@@ -784,8 +779,8 @@ impl PyFft {
             FftKind::C2R => {
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("c2r requires complex_buf (input)"))?;
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
+                let r =
+                    real_buf.ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
                 let c_ref = c
                     .borrow(py)
                     .clone_ref()
@@ -883,8 +878,7 @@ impl PyFft {
 
         match kind {
             FftKind::D2Z => {
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
+                let r = real_buf.ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("d2z requires complex_buf (output)"))?;
                 let r_ref = r
@@ -908,8 +902,8 @@ impl PyFft {
             FftKind::Z2D => {
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("z2d requires complex_buf (input)"))?;
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
+                let r =
+                    real_buf.ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
                 let c_ref = c
                     .borrow(py)
                     .clone_ref()
@@ -1114,8 +1108,7 @@ impl PyFft {
 
         match kind {
             FftKind::R2C => {
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
+                let r = real_buf.ok_or_else(|| errors::map_str("r2c requires real_buf (input)"))?;
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("r2c requires complex_buf (output)"))?;
                 let r_ref = r
@@ -1139,8 +1132,8 @@ impl PyFft {
             FftKind::C2R => {
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("c2r requires complex_buf (input)"))?;
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
+                let r =
+                    real_buf.ok_or_else(|| errors::map_str("c2r requires real_buf (output)"))?;
                 let c_ref = c
                     .borrow(py)
                     .clone_ref()
@@ -1255,8 +1248,7 @@ impl PyFft {
 
         match kind {
             FftKind::D2Z => {
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
+                let r = real_buf.ok_or_else(|| errors::map_str("d2z requires real_buf (input)"))?;
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("d2z requires complex_buf (output)"))?;
                 let r_ref = r
@@ -1280,8 +1272,8 @@ impl PyFft {
             FftKind::Z2D => {
                 let c = complex_buf
                     .ok_or_else(|| errors::map_str("z2d requires complex_buf (input)"))?;
-                let r = real_buf
-                    .ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
+                let r =
+                    real_buf.ok_or_else(|| errors::map_str("z2d requires real_buf (output)"))?;
                 let c_ref = c
                     .borrow(py)
                     .clone_ref()

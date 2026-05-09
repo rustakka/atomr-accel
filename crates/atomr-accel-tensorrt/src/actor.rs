@@ -335,7 +335,9 @@ impl TrtActor {
                 if cfg_ptr.is_null() {
                     crate::sys::atomr_trt_onnx_parser_destroy(parser);
                     crate::sys::atomr_trt_builder_destroy(builder);
-                    return Err(TrtError::Build("builder_create_config returned null".into()));
+                    return Err(TrtError::Build(
+                        "builder_create_config returned null".into(),
+                    ));
                 }
                 // Replay caller-requested flags onto the C++ config.
                 let flags = _config.effective_flags();
@@ -376,7 +378,9 @@ impl TrtActor {
                 };
                 if host_mem.is_null() {
                     cleanup();
-                    return Err(TrtError::Build("buildSerializedNetwork returned null".into()));
+                    return Err(TrtError::Build(
+                        "buildSerializedNetwork returned null".into(),
+                    ));
                 }
                 let data_ptr = crate::sys::atomr_trt_host_memory_data(host_mem);
                 let data_len = crate::sys::atomr_trt_host_memory_size(host_mem);

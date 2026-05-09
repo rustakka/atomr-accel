@@ -95,8 +95,14 @@ impl PyCub {
         output: Py<PyGpuBufferF32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let input = input.borrow(py).clone_ref().ok_or_else(|| errors::map_str("input consumed"))?;
-        let output = output.borrow(py).clone_ref().ok_or_else(|| errors::map_str("output consumed"))?;
+        let input = input
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("input consumed"))?;
+        let output = output
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("output consumed"))?;
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();

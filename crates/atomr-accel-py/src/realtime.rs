@@ -17,18 +17,14 @@ use tokio::sync::oneshot;
 
 use atomr_accel_cuda_realtime::cloth::{ClothConfig, ClothMsg, ClothSimulationActor};
 use atomr_accel_cuda_realtime::fluid::{FluidConfig, FluidMsg, FluidSimulationActor};
-use atomr_accel_cuda_realtime::hashmap::{
-    GpuHashMapActor, GpuHashMapConfig, GpuHashMapMsg,
-};
+use atomr_accel_cuda_realtime::hashmap::{GpuHashMapActor, GpuHashMapConfig, GpuHashMapMsg};
 use atomr_accel_cuda_realtime::image_filter::{
     ImageFilterConfig, ImageFilterMsg, ImageFilterPipeline,
 };
 use atomr_accel_cuda_realtime::particle::{
-    ParticleSystemActor, ParticleSystemConfig, ParticleMsg, Vec3,
+    ParticleMsg, ParticleSystemActor, ParticleSystemConfig, Vec3,
 };
-use atomr_accel_cuda_realtime::spatial_index::{
-    SpatialIndexActor, SpatialIndexConfig, SpatialMsg,
-};
+use atomr_accel_cuda_realtime::spatial_index::{SpatialIndexActor, SpatialIndexConfig, SpatialMsg};
 use atomr_core::actor::ActorRef;
 
 use crate::errors;
@@ -344,12 +340,7 @@ impl PySpatialIndexActor {
         py.allow_threads(|| {
             rt.block_on(async move {
                 let (tx, rx) = oneshot::channel();
-                actor.tell(SpatialMsg::QueryNeighbors {
-                    x,
-                    y,
-                    z,
-                    reply: tx,
-                });
+                actor.tell(SpatialMsg::QueryNeighbors { x, y, z, reply: tx });
                 match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                     Ok(Ok(v)) => Ok(v),
                     Ok(Err(_)) => Err(errors::map_str("spatial index dropped reply")),
@@ -507,12 +498,7 @@ impl PyImageFilterPipeline {
     /// Host-side per-pixel 3×3 convolve + clamp. Frame must be
     /// `width × height × channels` bytes.
     #[pyo3(signature = (frame, timeout_secs=10.0))]
-    fn process(
-        &self,
-        py: Python<'_>,
-        frame: Vec<u8>,
-        timeout_secs: f64,
-    ) -> PyResult<Vec<u8>> {
+    fn process(&self, py: Python<'_>, frame: Vec<u8>, timeout_secs: f64) -> PyResult<Vec<u8>> {
         let actor = self.actor_ref.clone();
         let rt = runtime();
         py.allow_threads(|| {

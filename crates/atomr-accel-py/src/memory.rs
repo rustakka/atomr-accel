@@ -427,11 +427,7 @@ mod ipc {
         /// Allocation size in bytes.
         #[getter]
         fn bytes(&self) -> usize {
-            self.inner
-                .lock()
-                .as_ref()
-                .map(|m| m.bytes())
-                .unwrap_or(0)
+            self.inner.lock().as_ref().map(|m| m.bytes()).unwrap_or(0)
         }
 
         /// Explicitly close the handle. Idempotent — calling twice is
@@ -445,7 +441,11 @@ mod ipc {
         fn __repr__(&self) -> String {
             let g = self.inner.lock();
             match g.as_ref() {
-                Some(m) => format!("IpcOpenedMem(ptr=0x{:x}, bytes={})", m.dev_ptr() as usize, m.bytes()),
+                Some(m) => format!(
+                    "IpcOpenedMem(ptr=0x{:x}, bytes={})",
+                    m.dev_ptr() as usize,
+                    m.bytes()
+                ),
                 None => "IpcOpenedMem(closed)".to_string(),
             }
         }

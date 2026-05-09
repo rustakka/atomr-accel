@@ -2064,19 +2064,49 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { k });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { k } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            k
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            k
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::gemm::<f32>(GemmRequest::<f32> {
-                a, b, c, m, n, k, alpha, beta, trans_a, trans_b, lda, ldb, ldc, reply: tx,
+                a,
+                b,
+                c,
+                m,
+                n,
+                k,
+                alpha,
+                beta,
+                trans_a,
+                trans_b,
+                lda,
+                ldb,
+                ldc,
+                reply: tx,
             }));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2113,19 +2143,49 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { k });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { k } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            k
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            k
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::gemm::<f64>(GemmRequest::<f64> {
-                a, b, c, m, n, k, alpha, beta, trans_a, trans_b, lda, ldb, ldc, reply: tx,
+                a,
+                b,
+                c,
+                m,
+                n,
+                k,
+                alpha,
+                beta,
+                trans_a,
+                trans_b,
+                lda,
+                ldb,
+                ldc,
+                reply: tx,
             }));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2167,21 +2227,56 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { k });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { k } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            k
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            k
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::gemm_strided_batched::<f32>(GemmStridedBatchedRequest::<f32> {
-                a, b, c, m, n, k, alpha, beta, trans_a, trans_b, lda, ldb, ldc,
-                stride_a, stride_b, stride_c, batch_size: batch_count, reply: tx,
-            }));
+            actor.tell(BlasMsg::gemm_strided_batched::<f32>(
+                GemmStridedBatchedRequest::<f32> {
+                    a,
+                    b,
+                    c,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    trans_a,
+                    trans_b,
+                    lda,
+                    ldb,
+                    ldc,
+                    stride_a,
+                    stride_b,
+                    stride_c,
+                    batch_size: batch_count,
+                    reply: tx,
+                },
+            ));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2222,21 +2317,56 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { k });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { k } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            k
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            k
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::gemm_strided_batched::<f64>(GemmStridedBatchedRequest::<f64> {
-                a, b, c, m, n, k, alpha, beta, trans_a, trans_b, lda, ldb, ldc,
-                stride_a, stride_b, stride_c, batch_size: batch_count, reply: tx,
-            }));
+            actor.tell(BlasMsg::gemm_strided_batched::<f64>(
+                GemmStridedBatchedRequest::<f64> {
+                    a,
+                    b,
+                    c,
+                    m,
+                    n,
+                    k,
+                    alpha,
+                    beta,
+                    trans_a,
+                    trans_b,
+                    lda,
+                    ldb,
+                    ldc,
+                    stride_a,
+                    stride_b,
+                    stride_c,
+                    batch_size: batch_count,
+                    reply: tx,
+                },
+            ));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2258,13 +2388,27 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(AxpyRequest::<f32> { n, alpha, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(AxpyRequest::<f32> {
+                n,
+                alpha,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2286,13 +2430,27 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(AxpyRequest::<f64> { n, alpha, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(AxpyRequest::<f64> {
+                n,
+                alpha,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2313,13 +2471,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(DotRequest::<f32> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(DotRequest::<f32> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2340,13 +2511,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(DotRequest::<f64> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(DotRequest::<f64> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2365,12 +2549,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(Nrm2Request::<f32> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(Nrm2Request::<f32> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2389,12 +2581,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(Nrm2Request::<f64> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(Nrm2Request::<f64> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2414,12 +2614,21 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(ScalRequest::<f32> { n, alpha, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(ScalRequest::<f32> {
+                n,
+                alpha,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2439,12 +2648,21 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(ScalRequest::<f64> { n, alpha, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(ScalRequest::<f64> {
+                n,
+                alpha,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2463,12 +2681,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(AsumRequest::<f32> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(AsumRequest::<f32> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2487,12 +2713,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(AsumRequest::<f64> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(AsumRequest::<f64> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2511,12 +2745,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(IamaxRequest::<f32> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(IamaxRequest::<f32> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2535,12 +2777,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(IamaxRequest::<f64> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(IamaxRequest::<f64> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2559,12 +2809,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(IaminRequest::<f32> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(IaminRequest::<f32> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2583,12 +2841,20 @@ impl PyBlas {
         incx: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(IaminRequest::<f64> { n, x, incx, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(IaminRequest::<f64> {
+                n,
+                x,
+                incx,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(v))) => Ok(v),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2609,13 +2875,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(CopyRequest::<f32> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(CopyRequest::<f32> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2636,13 +2915,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(CopyRequest::<f64> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(CopyRequest::<f64> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2663,13 +2955,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(SwapRequest::<f32> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(SwapRequest::<f32> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2690,13 +2995,26 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(SwapRequest::<f64> { n, x, incx, y, incy, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(SwapRequest::<f64> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2720,13 +3038,28 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(RotRequest::<f32> { n, x, incx, y, incy, c, s, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(RotRequest::<f32> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                c,
+                s,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2750,13 +3083,28 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let n = n.unwrap_or_else(|| x.len() as i32);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
-            actor.tell(BlasMsg::L1(Box::new(RotRequest::<f64> { n, x, incx, y, incy, c, s, reply: tx })));
+            actor.tell(BlasMsg::L1(Box::new(RotRequest::<f64> {
+                n,
+                x,
+                incx,
+                y,
+                incy,
+                c,
+                s,
+                reply: tx,
+            })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
                 Ok(Ok(Err(e))) => Err(errors::map_gpu(e)),
@@ -2789,16 +3137,36 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let trans = op_from_str(trans)?;
         let lda = lda.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L2(Box::new(GemvRequest::<f32> {
-                trans, m, n, alpha, beta, a, lda, x, incx, y, incy, reply: tx,
+                trans,
+                m,
+                n,
+                alpha,
+                beta,
+                a,
+                lda,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2832,16 +3200,36 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
         let trans = op_from_str(trans)?;
         let lda = lda.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L2(Box::new(GemvRequest::<f64> {
-                trans, m, n, alpha, beta, a, lda, x, incx, y, incy, reply: tx,
+                trans,
+                m,
+                n,
+                alpha,
+                beta,
+                a,
+                lda,
+                x,
+                incx,
+                y,
+                incy,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2872,15 +3260,33 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
         let lda = lda.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L2(Box::new(GerRequest::<f32> {
-                m, n, alpha, x, incx, y, incy, a, lda, reply: tx,
+                m,
+                n,
+                alpha,
+                x,
+                incx,
+                y,
+                incy,
+                a,
+                lda,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2911,15 +3317,33 @@ impl PyBlas {
         incy: i32,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let x = x.borrow(py).clone_ref().ok_or_else(|| errors::map_str("x consumed"))?;
-        let y = y.borrow(py).clone_ref().ok_or_else(|| errors::map_str("y consumed"))?;
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
+        let x = x
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("x consumed"))?;
+        let y = y
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("y consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
         let lda = lda.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L2(Box::new(GerRequest::<f64> {
-                m, n, alpha, x, incx, y, incy, a, lda, reply: tx,
+                m,
+                n,
+                alpha,
+                x,
+                incx,
+                y,
+                incy,
+                a,
+                lda,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -2955,19 +3379,48 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { n });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { m } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            n
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(GeamRequest::<f32> {
-                trans_a, trans_b, m, n, alpha, a, lda, beta, b, ldb, c, ldc, reply: tx,
+                trans_a,
+                trans_b,
+                m,
+                n,
+                alpha,
+                a,
+                lda,
+                beta,
+                b,
+                ldb,
+                c,
+                ldc,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -3003,19 +3456,48 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let trans_a = op_from_str(trans_a)?;
         let trans_b = op_from_str(trans_b)?;
-        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N { m } else { n });
-        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N { m } else { n });
+        let lda = lda.unwrap_or(if trans_a == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            n
+        });
+        let ldb = ldb.unwrap_or(if trans_b == cublasOperation_t::CUBLAS_OP_N {
+            m
+        } else {
+            n
+        });
         let ldc = ldc.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(GeamRequest::<f64> {
-                trans_a, trans_b, m, n, alpha, a, lda, beta, b, ldb, c, ldc, reply: tx,
+                trans_a,
+                trans_b,
+                m,
+                n,
+                alpha,
+                a,
+                lda,
+                beta,
+                b,
+                ldb,
+                c,
+                ldc,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -3049,17 +3531,37 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let uplo = fill_from_str(uplo)?;
         let trans = op_from_str(trans)?;
-        let lda = lda.unwrap_or(if trans == cublasOperation_t::CUBLAS_OP_N { n } else { k });
+        let lda = lda.unwrap_or(if trans == cublasOperation_t::CUBLAS_OP_N {
+            n
+        } else {
+            k
+        });
         let ldc = ldc.unwrap_or(n);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(SyrkRequest::<f32> {
-                uplo, trans, n, k, alpha, a, lda, beta, c, ldc, reply: tx,
+                uplo,
+                trans,
+                n,
+                k,
+                alpha,
+                a,
+                lda,
+                beta,
+                c,
+                ldc,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -3093,17 +3595,37 @@ impl PyBlas {
         ldc: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let c = c.borrow(py).clone_ref().ok_or_else(|| errors::map_str("c consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let c = c
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("c consumed"))?;
         let uplo = fill_from_str(uplo)?;
         let trans = op_from_str(trans)?;
-        let lda = lda.unwrap_or(if trans == cublasOperation_t::CUBLAS_OP_N { n } else { k });
+        let lda = lda.unwrap_or(if trans == cublasOperation_t::CUBLAS_OP_N {
+            n
+        } else {
+            k
+        });
         let ldc = ldc.unwrap_or(n);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(SyrkRequest::<f64> {
-                uplo, trans, n, k, alpha, a, lda, beta, c, ldc, reply: tx,
+                uplo,
+                trans,
+                n,
+                k,
+                alpha,
+                a,
+                lda,
+                beta,
+                c,
+                ldc,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -3138,19 +3660,40 @@ impl PyBlas {
         ldb: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
         let side = side_from_str(side)?;
         let uplo = fill_from_str(uplo)?;
         let trans = op_from_str(trans)?;
         let diag = diag_from_str(diag)?;
-        let lda = lda.unwrap_or(if side == cublasSideMode_t::CUBLAS_SIDE_LEFT { m } else { n });
+        let lda = lda.unwrap_or(if side == cublasSideMode_t::CUBLAS_SIDE_LEFT {
+            m
+        } else {
+            n
+        });
         let ldb = ldb.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(TrsmRequest::<f32> {
-                side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, reply: tx,
+                side,
+                uplo,
+                trans,
+                diag,
+                m,
+                n,
+                alpha,
+                a,
+                lda,
+                b,
+                ldb,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),
@@ -3185,19 +3728,40 @@ impl PyBlas {
         ldb: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let a = a.borrow(py).clone_ref().ok_or_else(|| errors::map_str("a consumed"))?;
-        let b = b.borrow(py).clone_ref().ok_or_else(|| errors::map_str("b consumed"))?;
+        let a = a
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("a consumed"))?;
+        let b = b
+            .borrow(py)
+            .clone_ref()
+            .ok_or_else(|| errors::map_str("b consumed"))?;
         let side = side_from_str(side)?;
         let uplo = fill_from_str(uplo)?;
         let trans = op_from_str(trans)?;
         let diag = diag_from_str(diag)?;
-        let lda = lda.unwrap_or(if side == cublasSideMode_t::CUBLAS_SIDE_LEFT { m } else { n });
+        let lda = lda.unwrap_or(if side == cublasSideMode_t::CUBLAS_SIDE_LEFT {
+            m
+        } else {
+            n
+        });
         let ldb = ldb.unwrap_or(m);
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();
             actor.tell(BlasMsg::L3(Box::new(TrsmRequest::<f64> {
-                side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, reply: tx,
+                side,
+                uplo,
+                trans,
+                diag,
+                m,
+                n,
+                alpha,
+                a,
+                lda,
+                b,
+                ldb,
+                reply: tx,
             })));
             match tokio::time::timeout(Duration::from_secs_f64(timeout_secs), rx).await {
                 Ok(Ok(Ok(()))) => Ok(()),

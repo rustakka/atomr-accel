@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 use tokio::sync::oneshot;
 
 use atomr_accel_cuda::device::{DeviceLoad, DeviceMsg, HostBuf, KernelChildren, SgemmRequest};
-use atomr_accel_cuda::dtype::{C32, C64, CudaDtype};
+use atomr_accel_cuda::dtype::{CudaDtype, C32, C64};
 use atomr_accel_cuda::error::GpuError;
 use atomr_accel_cuda::gpu_ref::GpuRef;
 use atomr_accel_cuda::kernel::{BlasMsg, GemmRequest};
@@ -590,11 +590,7 @@ impl PyDevice {
     /// device.
     #[cfg(feature = "curand")]
     #[pyo3(signature = (timeout_secs=2.0))]
-    fn rng(
-        &self,
-        py: Python<'_>,
-        timeout_secs: f64,
-    ) -> PyResult<Py<crate::rng::PyRngGenerator>> {
+    fn rng(&self, py: Python<'_>, timeout_secs: f64) -> PyResult<Py<crate::rng::PyRngGenerator>> {
         let kc = self
             .snapshot_children(py, timeout_secs)?
             .ok_or_else(|| errors::map_str("device children not ready"))?;
@@ -610,11 +606,7 @@ impl PyDevice {
     /// this device.
     #[cfg(feature = "cusolver")]
     #[pyo3(signature = (timeout_secs=2.0))]
-    fn solver(
-        &self,
-        py: Python<'_>,
-        timeout_secs: f64,
-    ) -> PyResult<Py<crate::solver::PySolver>> {
+    fn solver(&self, py: Python<'_>, timeout_secs: f64) -> PyResult<Py<crate::solver::PySolver>> {
         let kc = self
             .snapshot_children(py, timeout_secs)?
             .ok_or_else(|| errors::map_str("device children not ready"))?;
@@ -889,11 +881,7 @@ impl PyDevice {
     }
 
     #[pyo3(signature = (timeout_secs=2.0))]
-    fn stats_async<'py>(
-        &self,
-        py: Python<'py>,
-        timeout_secs: f64,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn stats_async<'py>(&self, py: Python<'py>, timeout_secs: f64) -> PyResult<Bound<'py, PyAny>> {
         let actor = self.actor_ref.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let (tx, rx) = oneshot::channel();

@@ -298,12 +298,7 @@ impl PyGraphCapture {
     /// completion before returning. In mock mode replies
     /// `Unrecoverable`.
     #[pyo3(signature = (handle, timeout_secs=30.0))]
-    fn launch(
-        &self,
-        py: Python<'_>,
-        handle: Py<PyGraphHandle>,
-        timeout_secs: f64,
-    ) -> PyResult<()> {
+    fn launch(&self, py: Python<'_>, handle: Py<PyGraphHandle>, timeout_secs: f64) -> PyResult<()> {
         let h = handle.borrow(py).inner.clone();
         let actor = self.actor_ref.clone();
         let rt = runtime();
