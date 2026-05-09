@@ -8,12 +8,12 @@
 //! the surface (script construction, message round-trip, error
 //! mapping) without a CUDA driver.
 //!
-//! Real-mode capture requires a `CudaStream` + `CompletionStrategy`
-//! + `DeviceState`, which today live behind the `Device` actor and
-//! are not handed out as kernel children. Wiring `Device.graph()`
-//! lives in Phase 5 alongside the Phase-5 device.rs changes —
-//! once landed, [`PyGraphCapture::spawn_for_device`] can replace
-//! the `mock_props` call and the rest of the surface keeps working
+//! Real-mode capture requires a `CudaStream`, a `CompletionStrategy`,
+//! and a `DeviceState`, which today live behind the `Device` actor
+//! and are not handed out as kernel children. Wiring `Device.graph()`
+//! lives in Phase 5 alongside the Phase-5 device.rs changes; once
+//! landed, [`PyGraphCapture::spawn_for_device`] can replace the
+//! `mock_props` call and the rest of the surface keeps working
 //! verbatim.
 //!
 //! ```text

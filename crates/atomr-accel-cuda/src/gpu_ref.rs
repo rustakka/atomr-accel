@@ -162,7 +162,7 @@ impl<T> GpuRef<T> {
         // returned `u64` immediately on an FFI call. The underlying
         // CudaSlice<T> remains alive via the strong Arc held by
         // `self.inner.slice` for as long as this `GpuRef` lives.
-        Ok(ptr as u64)
+        Ok(ptr)
     }
 }
 

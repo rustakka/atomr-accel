@@ -206,11 +206,20 @@ jobs:
         with: { workspaces: atomr-accel }
       - name: Install build tools
         run: pip install maturin pytest numpy
+      - name: Create venv (maturin develop requires VIRTUAL_ENV)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip maturin pytest numpy
+        working-directory: atomr-accel/crates/atomr-accel-py
       - name: maturin develop
-        run: maturin develop --release --no-default-features --features extension-module
+        run: |
+          source .venv/bin/activate
+          maturin develop --release --no-default-features --features extension-module
         working-directory: atomr-accel/crates/atomr-accel-py
       - name: pytest
-        run: pytest tests/ -v
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v
         working-directory: atomr-accel/crates/atomr-accel-py
 
   # ─── Aggregate gate (required for branch protection) ─────────────────

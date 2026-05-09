@@ -319,7 +319,7 @@ impl PyDevice {
         src: PyReadonlyArray1<'_, Complex32>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        copy_from_numpy_complex_typed::<f32, C32, Complex32, PyGpuBufferC64>(
+        copy_from_numpy_complex_typed::<C32, Complex32, PyGpuBufferC64>(
             py,
             &self.actor_ref,
             &dst,
@@ -338,7 +338,7 @@ impl PyDevice {
         src: PyReadonlyArray1<'_, Complex64>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        copy_from_numpy_complex_typed::<f64, C64, Complex64, PyGpuBufferC128>(
+        copy_from_numpy_complex_typed::<C64, Complex64, PyGpuBufferC128>(
             py,
             &self.actor_ref,
             &dst,
@@ -356,7 +356,7 @@ impl PyDevice {
         src: Py<PyGpuBufferC64>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyArray1<Complex32>>> {
-        copy_to_numpy_complex_with::<f32, C32, Complex32, PyGpuBufferC64>(
+        copy_to_numpy_complex_with::<C32, Complex32, PyGpuBufferC64>(
             py,
             &self.actor_ref,
             &src,
@@ -373,7 +373,7 @@ impl PyDevice {
         src: Py<PyGpuBufferC128>,
         timeout_secs: f64,
     ) -> PyResult<Bound<'py, PyArray1<Complex64>>> {
-        copy_to_numpy_complex_with::<f64, C64, Complex64, PyGpuBufferC128>(
+        copy_to_numpy_complex_with::<C64, Complex64, PyGpuBufferC128>(
             py,
             &self.actor_ref,
             &src,
@@ -1126,7 +1126,7 @@ where
 /// (`#[repr(transparent)] [T; 2]`) are layout-equivalent but distinct
 /// Rust types — `Element` is not impl'd on the GPU type and we can't
 /// orphan-impl it here.
-fn copy_from_numpy_complex_typed<S, GpuT, NumpyT, B>(
+fn copy_from_numpy_complex_typed<GpuT, NumpyT, B>(
     py: Python<'_>,
     actor: &ActorRef<DeviceMsg>,
     dst: &Py<B>,
@@ -1135,7 +1135,6 @@ fn copy_from_numpy_complex_typed<S, GpuT, NumpyT, B>(
     timeout_secs: f64,
 ) -> PyResult<()>
 where
-    S: Copy + Send + Sync + 'static,
     GpuT: CudaDtype + Copy + 'static,
     NumpyT: Element + Copy + 'static,
     Py<B>: BorrowGpuRef<GpuT>,
@@ -1176,7 +1175,7 @@ where
 /// Phase 1.5++ — typed-complex variant of [`copy_to_numpy_with`]. The
 /// device returns `Vec<GpuT>`; we convert element-wise to `Vec<NumpyT>`
 /// via the caller's `to_np` and hand the resulting slice to numpy.
-fn copy_to_numpy_complex_with<'py, S, GpuT, NumpyT, B>(
+fn copy_to_numpy_complex_with<'py, GpuT, NumpyT, B>(
     py: Python<'py>,
     actor: &ActorRef<DeviceMsg>,
     src: &Py<B>,
@@ -1184,7 +1183,6 @@ fn copy_to_numpy_complex_with<'py, S, GpuT, NumpyT, B>(
     timeout_secs: f64,
 ) -> PyResult<Bound<'py, PyArray1<NumpyT>>>
 where
-    S: Copy + Send + Sync + 'static,
     GpuT: CudaDtype + Copy + Default + 'static,
     NumpyT: Element + Copy + 'static,
     Py<B>: BorrowGpuRef<GpuT>,
