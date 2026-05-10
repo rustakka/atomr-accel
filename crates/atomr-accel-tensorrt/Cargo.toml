@@ -22,13 +22,14 @@ default = []
 # them by default). Run with `cargo xtask gpu-test tensorrt`.
 cuda-runtime-tests = []
 
-# Real link-and-load path against libnvinfer. **Currently fenced off**:
-# the C++ shim (`nvinfer_shim.cpp`) defining the `atomr_trt_*` symbols
-# referenced by `src/sys.rs` has not landed yet, so enabling this
-# feature triggers a `compile_error!` in `src/lib.rs` pointing at
-# https://github.com/rustakka/atomr-accel/issues/6. Once the shim ships
-# the `compile_error!` and the no-op short-circuit in `build.rs` get
-# removed and the probe-and-link path resumes.
+# Real link-and-load path against libnvinfer. Compiles
+# `csrc/nvinfer_shim.cpp` via cc::Build and links the resulting
+# static lib against the system libnvinfer (and libnvonnxparser /
+# libnvinfer_plugin when their sub-features are also on). Requires
+# TensorRT 10.x headers + libs; honours `LIBNVINFER_PATH`,
+# `TENSORRT_INCLUDE_PATH`, and `CUDA_PATH` env vars to locate them.
+# Off by default so the crate continues to compile cleanly on hosts
+# without TensorRT.
 tensorrt-link = []
 
 # ONNX import via libnvonnxparser. Enabling pulls the
@@ -62,6 +63,9 @@ cudarc       = { workspace = true }
 [dev-dependencies]
 tokio              = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
 tracing-subscriber = { workspace = true }
+
+[build-dependencies]
+cc = "1.1"
 
 [[example]]
 name = "onnx_resnet50_int8"

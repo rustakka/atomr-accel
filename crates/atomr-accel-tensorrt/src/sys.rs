@@ -167,8 +167,20 @@ pub struct Dims {
 // in the source as documentation; they're never referenced and so
 // never produce link errors.
 
+/// Logger callback signature: invoked from the C++ shim's
+/// `RustBridgeLogger::log()` once per TRT log line. Severity follows
+/// `nvinfer1::ILogger::Severity` — 0 = INTERNAL_ERROR, 1 = ERROR,
+/// 2 = WARNING, 3 = INFO, 4 = VERBOSE.
+#[cfg(feature = "tensorrt-link")]
+pub type AtomrTrtLogCb =
+    unsafe extern "C" fn(severity: c_int, msg: *const c_char, len: usize, user: *mut c_void);
+
 #[cfg(feature = "tensorrt-link")]
 extern "C" {
+    /// Install a Rust callback that the C++ shim's static `ILogger`
+    /// forwards every TRT log line to. Idempotent — last call wins.
+    pub fn atomr_trt_install_logger(cb: AtomrTrtLogCb, user: *mut c_void);
+
     // Builder lifecycle
     pub fn atomr_trt_builder_create(logger_severity: c_int) -> *mut IBuilder;
     pub fn atomr_trt_builder_destroy(builder: *mut IBuilder);

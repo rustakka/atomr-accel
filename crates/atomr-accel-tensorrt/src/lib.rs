@@ -39,20 +39,11 @@
     clippy::arc_with_non_send_sync
 )]
 
-// The `tensorrt-link` feature instructs the linker to resolve a set of
-// `atomr_trt_*` C-ABI shim symbols (declared in `sys.rs`). Their
-// implementations live in a hand-written `nvinfer_shim.cpp` that has
-// not been committed yet, so enabling this feature today produces an
-// opaque linker error against `libnvinfer.so`. Fail fast with a clear
-// pointer to the tracking issue until the shim lands.
-#[cfg(feature = "tensorrt-link")]
-compile_error!(
-    "atomr-accel-tensorrt: the `tensorrt-link` feature is currently \
-     non-functional — the C++ shim (`nvinfer_shim.cpp`) defining the \
-     `atomr_trt_*` symbols has not landed yet. See \
-     https://github.com/rustakka/atomr-accel/issues/6 for status. \
-     Disable the feature to build."
-);
+// The `tensorrt-link` feature compiles `csrc/nvinfer_shim.cpp` and
+// links the resulting static lib against system libnvinfer (and
+// libnvonnxparser / libnvinfer_plugin when their sub-features are
+// also on). See `build.rs` for the probe order and the env-var
+// contract (`LIBNVINFER_PATH`, `TENSORRT_INCLUDE_PATH`, `CUDA_PATH`).
 
 pub mod actor;
 pub mod builder;
@@ -80,3 +71,42 @@ pub use builder::{
 pub use engine::{EnginePlan, TrtEngine, TrtRefitter};
 pub use error::TrtError;
 pub use runtime::{EnqueueRequest, ExecutionBindings, ExecutionContext, TensorShape, TrtRuntime};
+
+/// Install the Rust→`tracing` logger bridge into the C++ shim's
+/// `RustBridgeLogger`. Called from `TrtActor::new`, `TrtRuntime::new`,
+/// and `IBuilderConfig::default` so any entry point sets it up before
+/// the first TRT call. `Once` makes it idempotent across the process
+/// lifetime.
+#[cfg(feature = "tensorrt-link")]
+pub fn init_logger() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| unsafe {
+        sys::atomr_trt_install_logger(rust_log_trampoline, std::ptr::null_mut());
+    });
+}
+
+/// No-op when the `tensorrt-link` feature is off so callers don't
+/// need to gate their `init_logger()` calls.
+#[cfg(not(feature = "tensorrt-link"))]
+pub fn init_logger() {}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn rust_log_trampoline(
+    sev: std::os::raw::c_int,
+    msg: *const std::os::raw::c_char,
+    len: usize,
+    _user: *mut std::os::raw::c_void,
+) {
+    if msg.is_null() || len == 0 {
+        return;
+    }
+    let bytes = std::slice::from_raw_parts(msg as *const u8, len);
+    let text = String::from_utf8_lossy(bytes);
+    match sev {
+        0 | 1 => tracing::error!(target: "tensorrt", "{text}"),
+        2 => tracing::warn!(target: "tensorrt", "{text}"),
+        3 => tracing::info!(target: "tensorrt", "{text}"),
+        _ => tracing::debug!(target: "tensorrt", "{text}"),
+    }
+}

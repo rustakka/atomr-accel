@@ -276,7 +276,7 @@ impl TrtActor {
                     Ok(())
                 };
                 crate::sys::atomr_trt_context_destroy(ctx_ptr);
-                return result;
+                result
             }
         }
         #[cfg(not(feature = "tensorrt-link"))]
