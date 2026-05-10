@@ -310,9 +310,10 @@ jobs:
           #                          optional deps on these; they must be on
           #                          crates.io before cuda can publish)
           #   3. atomr-accel-cuda  — depends on atomr-accel + the layer-0 leaves
-          #   4. blueprints        — patterns / agents / cuda-realtime
+          #   4. atomr-accel-cub   — depends on atomr-accel-cuda (Phase 5 NVRTC)
+          #   5. blueprints        — patterns / agents / cuda-realtime
           #                          (each depends only on atomr-accel-cuda)
-          #   5. atomr-accel-train — depends on atomr-accel-patterns
+          #   6. atomr-accel-train — depends on atomr-accel-patterns
           for crate in \
             atomr-accel \
             atomr-accel-telemetry \
@@ -320,6 +321,7 @@ jobs:
             atomr-accel-tensorrt \
             atomr-accel-cutlass \
             atomr-accel-cuda \
+            atomr-accel-cub \
             atomr-accel-patterns \
             atomr-accel-agents \
             atomr-accel-cuda-realtime \
@@ -348,7 +350,7 @@ jobs:
       - name: Dry-run publish
         working-directory: atomr-accel
         run: |
-          for c in atomr-accel atomr-accel-telemetry atomr-accel-flashattn atomr-accel-tensorrt atomr-accel-cutlass atomr-accel-cuda atomr-accel-patterns atomr-accel-agents atomr-accel-cuda-realtime atomr-accel-train; do
+          for c in atomr-accel atomr-accel-telemetry atomr-accel-flashattn atomr-accel-tensorrt atomr-accel-cutlass atomr-accel-cuda atomr-accel-cub atomr-accel-patterns atomr-accel-agents atomr-accel-cuda-realtime atomr-accel-train; do
             echo "==> $c"
             cargo publish -p "$c" --dry-run --allow-dirty || true
           done

@@ -12,11 +12,10 @@ readme = "../../README.md"
 keywords.workspace = true
 categories.workspace = true
 description = "CUB-backed device-wide reductions, scans, sorts, histograms, and selects, surfaced as an atomr actor compiled per-(op, dtype) via NVRTC against the atomr-accel-cuda Phase 0.6 disk cache."
-# Phase 5.1 — every dispatch impl currently returns
-# `GpuError::Unrecoverable("kernel compile path lands in Phase 5.1")`.
-# Flip to true (and slot into release.yml's publish-crates layer 4)
-# once the NVRTC emitters land.
-publish = false
+# Phase 5.1 ships block-level CUB primitives (reduce/scan multi-block,
+# sort/select/partition single-tile up to 1024 elements). Multi-block
+# sort/select/partition + true device-wide CUB via CDP/RDC are slated
+# for Phase 5.2.
 
 [features]
 default = []
