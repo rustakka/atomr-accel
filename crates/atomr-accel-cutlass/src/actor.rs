@@ -121,6 +121,16 @@ impl CutlassActor {
         }
     }
 
+    /// `true` when the crate was built with `cutlass-prebuilt` and
+    /// `nvcc` was found at build time, so `libatomr_cutlass_prebuilt.a`
+    /// is statically linked into the binary. Phase 6.1 ships one
+    /// canonical GEMM placeholder cell (proves the wiring); Phase 6.2
+    /// expands the cell matrix and routes hits through the prebuilt
+    /// symbol table before falling back to NVRTC.
+    pub fn prebuilt_active() -> bool {
+        cfg!(cutlass_prebuilt_active)
+    }
+
     pub fn inner(&self) -> Arc<CutlassInner> {
         self.inner.clone()
     }
