@@ -1,9 +1,14 @@
 name: Release
 
-# Releases are tagged from `main`. Push a tag matching `v*` (e.g.
-# `v0.1.0`, `v1.0.0-rc.1`) to fire this pipeline. The bump-and-tag
-# step is automated by `.github/workflows/version-bump.yml` (see the
-# `.claude/skills/version-bump/SKILL.md` skill).
+# Releases are tagged from `main`. There are two ways to fire this
+# pipeline:
+#   1. Push a tag matching `v*` directly (e.g. `git push origin v0.2.0`).
+#   2. `workflow_dispatch` against a `v*` tag ref. This is how
+#      `version-bump.yml` triggers a publish — tag pushes authored by
+#      the default `GITHUB_TOKEN` do NOT fire `on: push: tags` workflows
+#      (a long-standing GitHub safety feature), so the bump job calls
+#      `gh workflow run release.yml --ref vX.Y.Z -f dry_run=false`
+#      after pushing the tag.
 #
 # This workflow:
 #   1. Runs the local release-pipeline gate (`cargo xtask verify`).
@@ -54,12 +59,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
@@ -117,12 +122,12 @@ jobs:
             manylinux: "off"
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
       - uses: actions/setup-python@v5
@@ -151,12 +156,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
       - uses: actions/setup-python@v5
@@ -177,13 +182,19 @@ jobs:
   # ─── GitHub Release ──────────────────────────────────────────────────
   github-release:
     name: GitHub Release
-    needs: [verify, build-wheels]
+    needs: [verify, build-wheels, build-sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Run for direct tag pushes AND for `workflow_dispatch` runs
+    # targeting a `v*` ref with `dry_run=false` (the trampoline
+    # path used by `version-bump.yml`).
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true'))
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - uses: actions/download-artifact@v4
@@ -234,7 +245,11 @@ jobs:
     name: Publish to crates.io
     needs: [verify, github-release]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.inputs.skip_crates != 'true'
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      github.event.inputs.skip_crates != 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true'))
     environment: crates-io
     permissions:
       contents: read
@@ -242,12 +257,12 @@ jobs:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
@@ -319,12 +334,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' && github.event.inputs.skip_crates != 'true'
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
       - uses: dtolnay/rust-toolchain@stable
@@ -343,7 +358,11 @@ jobs:
     name: Publish wheels + sdist to PyPI
     needs: [verify, build-wheels, build-sdist, github-release]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.inputs.skip_python != 'true'
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      github.event.inputs.skip_python != 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true'))
     # Trusted publishing — configure on PyPI: pypi.org → manage project →
     # publishing → add GitHub publisher (owner / repo / workflow / env).
     environment:

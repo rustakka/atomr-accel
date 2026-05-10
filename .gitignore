@@ -34,6 +34,8 @@ perf.data*
 
 # Claude harness worktrees
 .claude/worktrees/
+# Per-session scheduled-tasks lock (PID + sessionId; not durable state)
+.claude/scheduled_tasks.lock
 
 # Python virtualenvs / build artifacts (already partially ignored elsewhere)
 .venv/

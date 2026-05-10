@@ -17,7 +17,16 @@ name: Version bump + tag
 # decision without committing or tagging.
 #
 # Mirrors the atomr workspace's version-bump.yml — the only difference
-# is the bot identity and the tag namespace ("atomr-accel v…").
+# is the bot identity, the tag namespace ("atomr-accel v…"), and the
+# sibling-checkout dance for the path-dep on `../atomr`.
+#
+# After tagging, the workflow explicitly dispatches `release.yml`
+# against the new tag ref via `gh workflow run`. This trampoline step
+# is required: tag pushes authored by the default `GITHUB_TOKEN` do
+# NOT fire `on: push: tags` workflows (a long-standing GitHub safety
+# feature). Without the trampoline the bumped tag would land in git
+# but `release.yml` would silently never run. See
+# `docs/release-process.md` → "Why the trampoline exists".
 
 on:
   push:
@@ -39,6 +48,12 @@ concurrency:
 
 permissions:
   contents: write
+  # Needed so the post-tag step can `gh workflow run release.yml`
+  # against the freshly-pushed `vX.Y.Z` tag. Tags pushed by a job
+  # using the default `GITHUB_TOKEN` do NOT trigger downstream
+  # workflows on their own (a long-standing GitHub safety feature),
+  # so the release pipeline has to be kicked off explicitly.
+  actions: write
 
 jobs:
   decide-and-bump:
@@ -49,12 +64,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):')
     steps:
       - name: Checkout sibling atomr
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustakka/atomr
           path: atomr
       - name: Checkout atomr-accel (full history for `git tag`)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: atomr-accel
           fetch-depth: 0
@@ -144,6 +159,23 @@ jobs:
           git commit -m "chore(release): v${NEW_VERSION}"
           git tag -a "v${NEW_VERSION}" -m "atomr-accel v${NEW_VERSION}"
           git push origin HEAD --follow-tags
+
+      - name: Trigger release.yml against the new tag
+        if: steps.decide.outputs.kind != 'skip' && github.event.inputs.dry_run != 'true'
+        working-directory: atomr-accel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Tag pushes authored by GITHUB_TOKEN don't fire `on: push: tags`
+          # workflows, so dispatch release.yml ourselves against the freshly
+          # pushed tag ref. `dry_run=false` performs the real publish.
+          gh workflow run release.yml \
+            --ref "v${NEW_VERSION}" \
+            -f dry_run=false \
+            -f skip_python=false \
+            -f skip_crates=false
 
       - name: Summary
         run: |

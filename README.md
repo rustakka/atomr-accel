@@ -447,8 +447,11 @@ the verify gate, builds Python wheels (manylinux x86_64 + aarch64,
 musllinux x86_64 + aarch64, macOS universal2, Windows x86_64) + an
 sdist, creates a GitHub Release, publishes the workspace crates to
 crates.io in topological order, and uploads wheels + sdist to PyPI
-via trusted publishing. See [`RELEASING.md`](RELEASING.md) for the
-end-to-end flow.
+via trusted publishing. See
+[`docs/release-process.md`](docs/release-process.md) for the
+end-to-end operator flow and
+[`docs/release-pipeline.md`](docs/release-pipeline.md) for the
+workflow internals.
 
 ## Learn more
 
@@ -472,8 +475,12 @@ end-to-end flow.
   bundle into Claude Code, Cursor, Codex CLI, Gemini CLI, or any
   harness that reads `SKILL.md`. Covers the foundation actors plus
   per-crate skills for FlashAttention, CUTLASS, and TensorRT.
-- [`RELEASING.md`](RELEASING.md) — release pipeline, secrets,
-  yanking, post-release verification.
+- [`docs/release-process.md`](docs/release-process.md) — operator
+  guide: how to ship a release, conventional-commit rules, the
+  trampoline architecture, and a troubleshooting cookbook.
+- [`docs/release-pipeline.md`](docs/release-pipeline.md) — workflow
+  internals: jobs, matrix entries, secrets, and dep-order publish
+  list.
 
 ## License
 
