@@ -693,10 +693,22 @@ impl PySolver {
         lda: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        // TODO Phase 1.5++ wire `lda` and caller-supplied `info`
-        // buffer once `GetrfBatchedRequest` exposes them.
-        let _ = lda;
-        let _ = info;
+        // Phase 1.5++: `lda` and `info` are accepted for parity with
+        // cuSOLVER's C surface. The current `GetrfBatchedRequest`
+        // assumes a dense leading dimension (`lda == n`); we validate
+        // that contract here so a wrong `lda` raises a clear error
+        // instead of silently producing wrong factorizations.
+        // `info` is captured to keep the user-supplied buffer alive
+        // across the dispatch; per-batch failure status surfaces
+        // through the `LibraryError` reply, not via this buffer.
+        if let Some(l) = lda {
+            if l != n {
+                return Err(errors::map_str(&format!(
+                    "getrf_batched_f32: only lda == n is supported (got lda={l}, n={n})"
+                )));
+            }
+        }
+        let _info_keepalive = info;
         let a = a
             .borrow(py)
             .clone_ref()
@@ -742,8 +754,14 @@ impl PySolver {
         lda: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        let _ = lda;
-        let _ = info;
+        if let Some(l) = lda {
+            if l != n {
+                return Err(errors::map_str(&format!(
+                    "getrf_batched_f64: only lda == n is supported (got lda={l}, n={n})"
+                )));
+            }
+        }
+        let _info_keepalive = info;
         let a = a
             .borrow(py)
             .clone_ref()
@@ -793,10 +811,17 @@ impl PySolver {
         lda: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        // TODO Phase 1.5++ wire `lda` and caller-supplied `info`
-        // buffer once `PotrfBatchedRequest` exposes them.
-        let _ = lda;
-        let _ = info;
+        // Phase 1.5++: same `lda == n` validation as
+        // `getrf_batched_f32`. `info` is captured to keep the
+        // user-supplied buffer alive for the duration of the call.
+        if let Some(l) = lda {
+            if l != n {
+                return Err(errors::map_str(&format!(
+                    "potrf_batched_f32: only lda == n is supported (got lda={l}, n={n})"
+                )));
+            }
+        }
+        let _info_keepalive = info;
         let uplo = uplo_from_str(uplo)?;
         let a = a
             .borrow(py)
@@ -838,8 +863,14 @@ impl PySolver {
         lda: Option<i32>,
         timeout_secs: f64,
     ) -> PyResult<()> {
-        let _ = lda;
-        let _ = info;
+        if let Some(l) = lda {
+            if l != n {
+                return Err(errors::map_str(&format!(
+                    "potrf_batched_f64: only lda == n is supported (got lda={l}, n={n})"
+                )));
+            }
+        }
+        let _info_keepalive = info;
         let uplo = uplo_from_str(uplo)?;
         let a = a
             .borrow(py)

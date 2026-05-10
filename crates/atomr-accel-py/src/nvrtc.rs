@@ -18,10 +18,10 @@
 //! f32/f64/i32/u32/u8 buffer wrappers). When a GpuBufferI64 lands the
 //! variant is one new arm.
 //!
-//! TODO Phase 1.5++ — wire up `KernelArg::Usize` once the device side
-//! grows a portable representation. The Rust enum has the variant; we
-//! just don't expose it from Python because `usize` round-trips
-//! ambiguously through pyo3.
+//! `KernelArg::Usize` is exposed from Python as `KernelArg.usize(int)`.
+//! Python ints are platform-portable; we route them through `usize` so
+//! kernel signatures using `size_t` (e.g. CUB's per-block tile counts)
+//! marshal without an `i64`/`u32` mismatch.
 
 use std::time::Duration;
 
@@ -64,6 +64,7 @@ enum KernelArgPyInner {
     ScalarF64(f64),
     ScalarU32(u32),
     ScalarU64(u64),
+    Usize(usize),
 }
 
 impl PyKernelArg {
@@ -142,6 +143,15 @@ impl PyKernelArg {
         Self::wrap(KernelArgPyInner::ScalarU64(v))
     }
 
+    /// Wrap a `usize` scalar — the platform-native size type used by
+    /// `size_t` kernel parameters. Python `int`s are accepted up to
+    /// `usize::MAX` on the host; values out of range raise an
+    /// `OverflowError` from the underlying pyo3 conversion.
+    #[staticmethod]
+    fn usize(v: usize) -> Self {
+        Self::wrap(KernelArgPyInner::Usize(v))
+    }
+
     fn __repr__(&self) -> String {
         let g = self.inner.lock();
         match g.as_ref() {
@@ -157,6 +167,7 @@ impl PyKernelArg {
             Some(KernelArgPyInner::ScalarF64(v)) => format!("KernelArg(scalar_f64={v})"),
             Some(KernelArgPyInner::ScalarU32(v)) => format!("KernelArg(scalar_u32={v})"),
             Some(KernelArgPyInner::ScalarU64(v)) => format!("KernelArg(scalar_u64={v})"),
+            Some(KernelArgPyInner::Usize(v)) => format!("KernelArg(usize={v})"),
         }
     }
 }
@@ -215,6 +226,7 @@ impl PyKernelArg {
             KernelArgPyInner::ScalarF64(v) => KernelArg::Scalar(Box::new(v)),
             KernelArgPyInner::ScalarU32(v) => KernelArg::Scalar(Box::new(v)),
             KernelArgPyInner::ScalarU64(v) => KernelArg::Scalar(Box::new(v)),
+            KernelArgPyInner::Usize(v) => KernelArg::Usize(v),
         })
     }
 }
