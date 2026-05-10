@@ -702,7 +702,17 @@ fn gpu_test_plan(suite: &str) -> Option<GpuTestPlan> {
         "cub" => ("atomr-accel-cub", vec!["cuda-runtime-tests"], ""),
         "cutlass" => ("atomr-accel-cutlass", vec!["cuda-runtime-tests"], ""),
         "flashattn" => ("atomr-accel-flashattn", vec!["cuda-runtime-tests"], ""),
-        "tensorrt" => ("atomr-accel-tensorrt", vec!["cuda-runtime-tests"], ""),
+        "tensorrt" => (
+            "atomr-accel-tensorrt",
+            vec![
+                "cuda-runtime-tests",
+                "tensorrt-link",
+                "tensorrt-onnx",
+                "tensorrt-plugin",
+                "tensorrt-int8",
+            ],
+            "",
+        ),
         "telemetry" => ("atomr-accel-telemetry", vec!["nvtx", "nvml", "cupti"], ""),
         _ => return None,
     };

@@ -272,6 +272,29 @@ extern "C" {
     pub fn atomr_trt_register_plugin_creator(creator: *mut IPluginCreator) -> c_int;
 }
 
+/// Vtable mirrored in `csrc/rust_bridge.h`. Each function pointer
+/// dispatches a vtable-method call from the C++ proxy back to the
+/// corresponding Rust trait method on `dyn PluginV3`.
+#[cfg(all(feature = "tensorrt-link", feature = "tensorrt-plugin"))]
+#[repr(C)]
+pub struct AtomrPluginVTable {
+    pub get_name: unsafe extern "C" fn(user: *const c_void) -> *const c_char,
+    pub get_version: unsafe extern "C" fn(user: *const c_void) -> *const c_char,
+    pub get_namespace: unsafe extern "C" fn(user: *const c_void) -> *const c_char,
+    pub create_plugin:
+        unsafe extern "C" fn(user: *const c_void, name: *const c_char) -> *mut c_void,
+    pub destroy: unsafe extern "C" fn(user: *mut c_void),
+    pub destroy_instance: unsafe extern "C" fn(instance: *mut c_void),
+}
+
+#[cfg(all(feature = "tensorrt-link", feature = "tensorrt-plugin"))]
+extern "C" {
+    pub fn atomr_trt_make_plugin_creator(
+        vt: *const AtomrPluginVTable,
+        user: *mut c_void,
+    ) -> *mut IPluginCreator;
+}
+
 #[cfg(all(feature = "tensorrt-link", feature = "tensorrt-onnx"))]
 extern "C" {
     pub fn atomr_trt_onnx_parser_create(

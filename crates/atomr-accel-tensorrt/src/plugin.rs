@@ -115,27 +115,134 @@ pub fn make<P: PluginV3 + 'static>(plugin: P) -> Arc<dyn PluginV3> {
 /// `TrtError::NotLinked`. With the feature on, it constructs a C++
 /// `IPluginCreator` proxy that bridges to the supplied trait object
 /// and calls `getPluginRegistry()->registerCreator()`.
-pub fn register_plugin(_plugin: Arc<dyn PluginV3>) -> Result<(), TrtError> {
+pub fn register_plugin(plugin: Arc<dyn PluginV3>) -> Result<(), TrtError> {
     #[cfg(feature = "tensorrt-link")]
     {
-        // The link-gated path leaks the `Arc<dyn PluginV3>` into a
-        // C++ `IPluginCreator` proxy whose vtable methods
-        // re-deref the Rust trait object. This file declares the
-        // trait surface; the proxy implementation lives in the C++
-        // shim source under `tensorrt-link`.
-        let _ = _plugin;
-        Err(TrtError::Plugin(
-            "C++ IPluginCreator proxy not yet implemented in this Phase 8 skeleton; \
-             stub returns Plugin error. Link-time registration arrives in a follow-up commit."
-                .into(),
-        ))
+        crate::init_logger();
+
+        // Leak the `Arc<dyn PluginV3>` into a `Box`; the raw pointer
+        // becomes the `void* user` carried inside the C++ proxy. The
+        // proxy's destructor calls back into `plugin_destroy_user`
+        // (registered in the vtable below) which reclaims and drops
+        // the `Box`, releasing the `Arc`.
+        let user = Box::into_raw(Box::new(plugin)) as *mut std::ffi::c_void;
+        let vt = sys::AtomrPluginVTable {
+            get_name: plugin_get_name,
+            get_version: plugin_get_version,
+            get_namespace: plugin_get_namespace,
+            create_plugin: plugin_create_instance,
+            destroy: plugin_destroy_user,
+            destroy_instance: plugin_destroy_instance,
+        };
+        unsafe {
+            let creator = sys::atomr_trt_make_plugin_creator(&vt, user);
+            if creator.is_null() {
+                // Reclaim the Arc on creator-construction failure so
+                // we don't leak memory.
+                drop(Box::from_raw(user as *mut Arc<dyn PluginV3>));
+                return Err(TrtError::Plugin(
+                    "atomr_trt_make_plugin_creator returned null".into(),
+                ));
+            }
+            let rc = sys::atomr_trt_register_plugin_creator(creator);
+            if rc != 0 {
+                return Err(TrtError::Plugin(format!(
+                    "registerCreator returned {rc}; plugin name/namespace may collide \
+                     with an existing entry"
+                )));
+            }
+        }
+        Ok(())
     }
     #[cfg(not(feature = "tensorrt-link"))]
     {
+        let _ = plugin;
         Err(TrtError::NotLinked(
             "register_plugin requires the `tensorrt-link` feature",
         ))
     }
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_get_name(user: *const std::ffi::c_void) -> *const std::os::raw::c_char {
+    let arc = &*(user as *const Arc<dyn PluginV3>);
+    cstr_for_str(arc.name(), &PLUGIN_NAME_CACHE)
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_get_version(
+    user: *const std::ffi::c_void,
+) -> *const std::os::raw::c_char {
+    let arc = &*(user as *const Arc<dyn PluginV3>);
+    cstr_for_str(arc.version(), &PLUGIN_VERSION_CACHE)
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_get_namespace(
+    user: *const std::ffi::c_void,
+) -> *const std::os::raw::c_char {
+    let arc = &*(user as *const Arc<dyn PluginV3>);
+    cstr_for_str(arc.namespace(), &PLUGIN_NS_CACHE)
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_create_instance(
+    user: *const std::ffi::c_void,
+    _name: *const std::os::raw::c_char,
+) -> *mut std::ffi::c_void {
+    // Phase 8: clone the boxed plugin into a fresh per-instance
+    // `Box<Box<dyn PluginV3>>` so the proxy holds its own copy. The
+    // C++ proxy stores this raw pointer and frees via
+    // `plugin_destroy_instance` when its destructor fires.
+    let arc = &*(user as *const Arc<dyn PluginV3>);
+    let cloned: Box<dyn PluginV3> = arc.clone_boxed();
+    Box::into_raw(Box::new(cloned)) as *mut std::ffi::c_void
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_destroy_user(user: *mut std::ffi::c_void) {
+    if !user.is_null() {
+        drop(Box::from_raw(user as *mut Arc<dyn PluginV3>));
+    }
+}
+
+#[cfg(feature = "tensorrt-link")]
+unsafe extern "C" fn plugin_destroy_instance(instance: *mut std::ffi::c_void) {
+    if !instance.is_null() {
+        drop(Box::from_raw(instance as *mut Box<dyn PluginV3>));
+    }
+}
+
+/// CString cache so the C side gets a stable NUL-terminated pointer
+/// without us re-allocating on every `getPluginName()` call. Process-
+/// wide because TRT may keep the proxy alive across many calls.
+#[cfg(feature = "tensorrt-link")]
+static PLUGIN_NAME_CACHE: std::sync::OnceLock<
+    parking_lot::Mutex<std::collections::HashMap<String, std::ffi::CString>>,
+> = std::sync::OnceLock::new();
+
+#[cfg(feature = "tensorrt-link")]
+static PLUGIN_VERSION_CACHE: std::sync::OnceLock<
+    parking_lot::Mutex<std::collections::HashMap<String, std::ffi::CString>>,
+> = std::sync::OnceLock::new();
+
+#[cfg(feature = "tensorrt-link")]
+static PLUGIN_NS_CACHE: std::sync::OnceLock<
+    parking_lot::Mutex<std::collections::HashMap<String, std::ffi::CString>>,
+> = std::sync::OnceLock::new();
+
+#[cfg(feature = "tensorrt-link")]
+fn cstr_for_str(
+    s: &str,
+    cache: &std::sync::OnceLock<
+        parking_lot::Mutex<std::collections::HashMap<String, std::ffi::CString>>,
+    >,
+) -> *const std::os::raw::c_char {
+    let map = cache.get_or_init(|| parking_lot::Mutex::new(std::collections::HashMap::new()));
+    let mut g = map.lock();
+    g.entry(s.to_string())
+        .or_insert_with(|| std::ffi::CString::new(s).unwrap_or_default())
+        .as_ptr()
 }
 
 #[cfg(test)]
