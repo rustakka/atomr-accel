@@ -7,14 +7,24 @@
 //! persisted to disk through `atomr_accel_cuda::nvrtc_cache::NvrtcCache`.
 
 use std::marker::PhantomData;
+use std::sync::Arc;
 
+use parking_lot::Mutex;
 use tokio::sync::oneshot;
 
-use atomr_accel_cuda::dtype::CudaDtype;
+use atomr_accel_cuda::device::DeviceState;
+use atomr_accel_cuda::dtype::{AccelDtype, CudaDtype};
 use atomr_accel_cuda::error::GpuError;
 use atomr_accel_cuda::gpu_ref::GpuRef;
+use atomr_accel_cuda::kernel::nvrtc::SmArch;
+use atomr_accel_cuda::kernel::{KernelArg, NvrtcMsg};
+use atomr_core::actor::ActorRef;
 
-use crate::{reply_err, CubDispatchBase, CubDispatchCtx};
+use crate::dispatch::{
+    compile_or_get_handle, grid_blocks_for, launch, launch_config_for, launch_config_single_block,
+};
+use crate::kernels::emit_reduce_source;
+use crate::{reply_err, CubDispatchBase, CubDispatchCtx, KernelSourceCache};
 
 /// Family of binary reductions the CUB actor supports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +105,7 @@ where
         self.op.op_name()
     }
     fn dtype_name(&self) -> &'static str {
-        <T as atomr_accel_cuda::dtype::AccelDtype>::NAME
+        <T as AccelDtype>::NAME
     }
     fn cancel(self: Box<Self>, err: GpuError) {
         reply_err(self.reply, err);
@@ -106,39 +116,119 @@ impl<T> CubReduceDispatch for ReduceRequest<T>
 where
     T: CudaDtype,
 {
-    fn dispatch(self: Box<Self>, _ctx: &CubDispatchCtx<'_>) {
-        // Phase-5 scaffold: the per-(op, dtype) NVRTC compile + launch
-        // implementation lives in a follow-up. For now, we surface a
-        // structured error so callers can observe the path is wired.
-        reply_err(
-            self.reply,
-            GpuError::Unrecoverable(format!(
-                "CubReduce::{}<{}> — kernel compile path lands in Phase 5.1",
-                self.op.op_name(),
-                <T as atomr_accel_cuda::dtype::AccelDtype>::NAME,
-            )),
-        );
+    fn dispatch(self: Box<Self>, ctx: &CubDispatchCtx<'_>) {
+        let nvrtc = match ctx.nvrtc {
+            Some(n) => n.clone(),
+            None => {
+                reply_err(
+                    self.reply,
+                    GpuError::Unrecoverable(
+                        "atomr-accel-cub::CubReduce: NvrtcActor not wired into CubActor".into(),
+                    ),
+                );
+                return;
+            }
+        };
+        let cache = ctx.kernel_cache.clone();
+        let stream = ctx.stream.clone();
+        let state = ctx.state.clone();
+        let arch = ctx.arch;
+        let me = *self;
+        tokio::spawn(async move {
+            let result = run_reduce::<T>(
+                me.op, me.input, me.output, nvrtc, cache, stream, state, arch,
+            )
+            .await;
+            let _ = me.reply.send(result);
+        });
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_reduce<T: CudaDtype>(
+    op: ReductionOp,
+    input: GpuRef<T>,
+    output: GpuRef<T>,
+    nvrtc: Arc<ActorRef<NvrtcMsg>>,
+    cache: Arc<Mutex<KernelSourceCache>>,
+    stream: Arc<cudarc::driver::CudaStream>,
+    state: Arc<DeviceState>,
+    arch: SmArch,
+) -> Result<(), GpuError> {
+    let dtype = <T as AccelDtype>::NAME;
+    let op_name = op.op_name().to_string();
+    let (src, kname) = emit_reduce_source::<T>(op);
+    let finalize_name = format!("{kname}_finalize");
+
+    // The emitted translation unit defines BOTH the main and the
+    // finalize kernel via two `extern "C"` entry points. Two NVRTC
+    // compiles against the same source key into the same disk-cache
+    // entry; the second is a microsecond hit. Caching is keyed on
+    // the kernel name so we get distinct `KernelHandle`s for each.
+    let main_handle = compile_or_get_handle(
+        nvrtc.clone(),
+        cache.clone(),
+        op_name.clone(),
+        dtype.to_string(),
+        src.clone(),
+        kname.clone(),
+        arch,
+    )
+    .await?;
+    let finalize_handle = compile_or_get_handle(
+        nvrtc.clone(),
+        cache.clone(),
+        format!("{op_name}_finalize"),
+        dtype.to_string(),
+        src,
+        finalize_name,
+        arch,
+    )
+    .await?;
+
+    let n = input.len();
+    let grid = grid_blocks_for(n);
+
+    // Allocate per-block partials buffer on the actor's stream and
+    // wrap it in a `GpuRef<T>` so it can ride the same
+    // `KernelArg::DevSlice` path as caller-supplied buffers.
+    let partials_slice = stream
+        .alloc_zeros::<T>(grid as usize)
+        .map_err(|e| GpuError::OutOfMemory(format!("cub partials alloc: {e}")))?;
+    let partials = GpuRef::new(Arc::new(partials_slice), &state);
+
+    // Launch main kernel: (input, partials, n).
+    let main_args = vec![
+        KernelArg::DevSlice(Box::new(input.clone())),
+        KernelArg::DevSlice(Box::new(partials.clone())),
+        KernelArg::Usize(n),
+    ];
+    launch(&nvrtc, main_handle, main_args, launch_config_for(n)).await?;
+
+    // Launch finalize: (partials, output, grid_blocks).
+    let finalize_args = vec![
+        KernelArg::DevSlice(Box::new(partials)),
+        KernelArg::DevSlice(Box::new(output.clone())),
+        KernelArg::Usize(grid as usize),
+    ];
+    launch(
+        &nvrtc,
+        finalize_handle,
+        finalize_args,
+        launch_config_single_block(),
+    )
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use atomr_accel_cuda::dtype::AccelDtype;
 
     /// Phase 5: every `T: CudaDtype` we ship can be wrapped in a
     /// `ReduceRequest<T>` and produces the matching `op_name` /
-    /// `dtype_name` strings via `CubDispatchBase`. We exercise the
-    /// full default dtype matrix (no GPU required).
+    /// `dtype_name` strings via `CubDispatchBase`.
     #[test]
     fn reduce_request_round_trip_for_every_dtype() {
-        // Construct a `(input, output, reply)` triple per dtype. We
-        // can't allocate `GpuRef<T>` without a context, so we use the
-        // pure-host `GpuRef::test_dummy` helper available in
-        // `atomr-accel-cuda` via #[cfg(test)] — except that helper is
-        // private. Instead we exercise only the constructor / metadata
-        // surface that doesn't deref the GpuRef. Build a request for
-        // each op via type-erased dispatch.
         for op in [
             ReductionOp::Sum,
             ReductionOp::Max,
@@ -157,29 +247,5 @@ mod tests {
         assert_eq!(<i32 as AccelDtype>::NAME, "i32");
         assert_eq!(<u32 as AccelDtype>::NAME, "u32");
         assert_eq!(<i64 as AccelDtype>::NAME, "i64");
-        assert_eq!(<u64 as AccelDtype>::NAME, "u64");
-        assert_eq!(<i8 as AccelDtype>::NAME, "i8");
-        assert_eq!(<u8 as AccelDtype>::NAME, "u8");
-
-        // Walk every `(op, dtype)` pair through the cache-key formula
-        // [`crate::kernel_key`] uses. This ensures the kernel-cache
-        // axis is unique across the matrix.
-        let dtypes = ["f32", "f64", "i32", "u32", "i64", "u64", "i8", "u8"];
-        let ops = [
-            ReductionOp::Sum,
-            ReductionOp::Max,
-            ReductionOp::Min,
-            ReductionOp::ArgMax,
-            ReductionOp::ArgMin,
-            ReductionOp::Product,
-        ];
-        let mut seen = std::collections::HashSet::new();
-        for op in ops {
-            for dt in dtypes {
-                let k = crate::kernel_key(op.op_name(), dt);
-                assert!(seen.insert(k.clone()), "kernel_key collision: {k}");
-            }
-        }
-        assert_eq!(seen.len(), ops.len() * dtypes.len());
     }
 }

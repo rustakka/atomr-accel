@@ -41,7 +41,10 @@ use tokio::sync::oneshot;
 use atomr_accel_cuda::completion::CompletionStrategy;
 use atomr_accel_cuda::device::DeviceState;
 use atomr_accel_cuda::error::GpuError;
-use atomr_accel_cuda::kernel::KernelHandle;
+use atomr_accel_cuda::kernel::nvrtc::SmArch;
+use atomr_accel_cuda::kernel::{KernelHandle, NvrtcMsg};
+
+pub mod dispatch;
 
 pub mod histogram;
 pub mod kernels;
@@ -72,18 +75,36 @@ pub enum CubMsg {
 }
 
 /// Per-call context bundle handed to every CUB dispatcher. Captures
-/// the actor's stream, completion strategy, and `DeviceState` snapshot
-/// so dispatch impls don't need to know how the parent supervisor
-/// wired things up.
+/// the actor's stream, completion strategy, `DeviceState` snapshot,
+/// and the (optional) `NvrtcActor` ref so dispatch impls can
+/// JIT-compile the per-(op, dtype) kernel without knowing how the
+/// parent supervisor wired things up.
+///
+/// All fields are passed by reference so the dispatcher can clone
+/// just the bits it needs (the `Arc<ActorRef<NvrtcMsg>>`, the stream,
+/// the kernel cache) into a spawned `tokio::spawn(...)` task that
+/// drives the async compile + launch round-trip. The borrow does not
+/// outlive the [`CubActor::handle`] call frame.
 pub struct CubDispatchCtx<'a> {
     pub stream: &'a Arc<cudarc::driver::CudaStream>,
     pub completion: &'a Arc<dyn CompletionStrategy>,
     pub state: &'a Arc<DeviceState>,
     pub ctx: &'a Arc<cudarc::driver::CudaContext>,
-    /// Compiled-kernel cache shared across requests in this actor's
-    /// lifetime. Keys: `(op_name, dtype_name)`; values: opaque cubin
-    /// bytes returned by NVRTC for the matching template instantiation.
-    pub kernel_cache: &'a Mutex<KernelSourceCache>,
+    /// In-actor `(op, dtype) → KernelHandle` cache. Wrapped in an
+    /// `Arc<Mutex<…>>` so the dispatcher can clone it into a spawned
+    /// task without a 'static-lifetime headache.
+    pub kernel_cache: &'a Arc<Mutex<KernelSourceCache>>,
+    /// Phase 5.1 — `NvrtcActor` ref used to compile + launch the
+    /// per-(op, dtype) kernel. `None` when the actor was constructed
+    /// without an NVRTC sibling (dispatchers in that mode reply with a
+    /// structured `GpuError::Unrecoverable("CubActor: NvrtcActor not
+    /// wired")`).
+    pub nvrtc: Option<&'a Arc<ActorRef<NvrtcMsg>>>,
+    /// Phase 5.1 — detected SM compute capability for the current
+    /// device. Drives the `--gpu-architecture=…` flag passed into
+    /// NVRTC. Defaults to [`SmArch::Sm80`] when detection fails (a
+    /// reasonable Ampere-or-newer baseline).
+    pub arch: SmArch,
 }
 
 /// In-actor cache mapping `(op, dtype)` to the NVRTC compile result.
@@ -151,26 +172,37 @@ enum CubInner {
         stream: Arc<cudarc::driver::CudaStream>,
         completion: Arc<dyn CompletionStrategy>,
         state: Arc<DeviceState>,
-        kernel_cache: Mutex<KernelSourceCache>,
+        kernel_cache: Arc<Mutex<KernelSourceCache>>,
+        nvrtc: Option<Arc<ActorRef<NvrtcMsg>>>,
+        arch: SmArch,
     },
     Mock,
 }
 
 impl CubActor {
     /// Build a [`Props`] for a CUB child of the given context.
+    ///
+    /// `nvrtc` is the parent context's `NvrtcActor` ref — passing
+    /// `None` keeps the actor in a "no compile path" mode where every
+    /// dispatch returns [`GpuError::NotWired`]. Pass `Some(...)` for a
+    /// fully functional CUB actor.
     pub fn props(
         stream: Arc<cudarc::driver::CudaStream>,
         completion: Arc<dyn CompletionStrategy>,
         state: Arc<DeviceState>,
         ctx: Arc<cudarc::driver::CudaContext>,
+        nvrtc: Option<Arc<ActorRef<NvrtcMsg>>>,
     ) -> Props<Self> {
+        let arch = detect_sm_arch(&stream);
         Props::create(move || CubActor {
             inner: CubInner::Real {
                 ctx: ctx.clone(),
                 stream: stream.clone(),
                 completion: completion.clone(),
                 state: state.clone(),
-                kernel_cache: Mutex::new(KernelSourceCache::default()),
+                kernel_cache: Arc::new(Mutex::new(KernelSourceCache::default())),
+                nvrtc: nvrtc.clone(),
+                arch,
             },
         })
     }
@@ -193,8 +225,31 @@ pub fn cub_props(
     completion: Arc<dyn CompletionStrategy>,
     state: Arc<DeviceState>,
     ctx: Arc<cudarc::driver::CudaContext>,
+    nvrtc: Option<Arc<ActorRef<NvrtcMsg>>>,
 ) -> Props<CubActor> {
-    CubActor::props(stream, completion, state, ctx)
+    CubActor::props(stream, completion, state, ctx, nvrtc)
+}
+
+/// Probe the CUDA stream's underlying device for a compute-capability
+/// `SmArch`. Falls back to [`SmArch::Sm80`] if the cudarc query fails;
+/// the kernel JIT will still succeed because PTX is forward-compatible
+/// and the loader retargets at module-load time.
+fn detect_sm_arch(stream: &Arc<cudarc::driver::CudaStream>) -> SmArch {
+    use cudarc::driver::sys::CUdevice_attribute::*;
+    let ctx = stream.context();
+    let major = ctx.attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR).unwrap_or(8) as u32;
+    let minor = ctx.attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR).unwrap_or(0) as u32;
+    match (major, minor) {
+        (8, 0) => SmArch::Sm80,
+        (8, 6) => SmArch::Sm86,
+        (8, 9) => SmArch::Sm89,
+        (9, 0) => SmArch::Sm90,
+        (10, _) => SmArch::Sm100,
+        (12, _) => SmArch::Sm120,
+        // Fall back to the lowest Ampere-class arch we support; PTX
+        // produced for sm_80 JITs cleanly on every newer device.
+        _ => SmArch::Sm80,
+    }
 }
 
 #[async_trait]
@@ -210,6 +265,8 @@ impl Actor for CubActor {
                 completion,
                 state,
                 kernel_cache,
+                nvrtc,
+                arch,
             } => {
                 let dispatch_ctx = CubDispatchCtx {
                     stream,
@@ -217,6 +274,8 @@ impl Actor for CubActor {
                     state,
                     ctx,
                     kernel_cache,
+                    nvrtc: nvrtc.as_ref(),
+                    arch: *arch,
                 };
                 match msg {
                     CubMsg::Reduce(d) => d.dispatch(&dispatch_ctx),
