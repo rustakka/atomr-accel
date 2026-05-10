@@ -116,8 +116,8 @@ async fn run_histogram<T: CudaDtype>(
         reply,
         ..
     } = req;
-    let result = compile_and_launch::<T>(input, bins, lower_level, upper_level, nvrtc, cache, arch)
-        .await;
+    let result =
+        compile_and_launch::<T>(input, bins, lower_level, upper_level, nvrtc, cache, arch).await;
     let _ = reply.send(result);
 }
 

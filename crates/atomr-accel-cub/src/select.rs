@@ -181,16 +181,8 @@ async fn compile_and_launch_select<T: CudaDtype>(
         SelectMode::Unique => "select_unique",
     };
     let (src, kname) = emit_select_source::<T>(mode);
-    let handle = compile_or_get_handle(
-        nvrtc.clone(),
-        cache,
-        op.into(),
-        dtype,
-        src,
-        kname,
-        arch,
-    )
-    .await?;
+    let handle =
+        compile_or_get_handle(nvrtc.clone(), cache, op.into(), dtype, src, kname, arch).await?;
 
     let n = input.len() as u32;
     let args = match mode {

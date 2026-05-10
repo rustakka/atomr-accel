@@ -71,11 +71,15 @@ async fn cub_select_flagged_i32_keeps_evens() {
     let host_flags: Vec<u8> = (0..N).map(|i| if i % 2 == 0 { 1 } else { 0 }).collect();
 
     let mut input_slice = stream.alloc_zeros::<i32>(N).expect("input");
-    stream.memcpy_htod(&host_in, &mut input_slice).expect("htod input");
+    stream
+        .memcpy_htod(&host_in, &mut input_slice)
+        .expect("htod input");
     let input = GpuRef::new(Arc::new(input_slice), &cub_state);
 
     let mut flags_slice = stream.alloc_zeros::<u8>(N).expect("flags");
-    stream.memcpy_htod(&host_flags, &mut flags_slice).expect("htod flags");
+    stream
+        .memcpy_htod(&host_flags, &mut flags_slice)
+        .expect("htod flags");
     let flags = GpuRef::new(Arc::new(flags_slice), &cub_state);
 
     let output_slice = stream.alloc_zeros::<i32>(N).expect("output");
@@ -86,8 +90,14 @@ async fn cub_select_flagged_i32_keeps_evens() {
 
     let (tx, rx) = oneshot::channel();
     cub.tell(CubMsg::Select(Box::new(
-        SelectRequest::new(SelectMode::Flagged, input, output.clone(), num_selected.clone(), tx)
-            .with_flags(flags),
+        SelectRequest::new(
+            SelectMode::Flagged,
+            input,
+            output.clone(),
+            num_selected.clone(),
+            tx,
+        )
+        .with_flags(flags),
     )));
     let res = tokio::time::timeout(Duration::from_secs(60), rx)
         .await

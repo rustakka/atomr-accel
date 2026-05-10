@@ -160,9 +160,16 @@ async fn compile_and_launch<T: CudaDtype>(
         ReductionOp::Product => "segmented_reduce_product",
     };
     let (src, kname) = emit_segmented_reduce_source::<T>(op);
-    let handle =
-        compile_or_get_handle(nvrtc.clone(), cache, op_name.into(), dtype, src, kname, arch)
-            .await?;
+    let handle = compile_or_get_handle(
+        nvrtc.clone(),
+        cache,
+        op_name.into(),
+        dtype,
+        src,
+        kname,
+        arch,
+    )
+    .await?;
 
     let args = vec![
         KernelArg::DevSlice(Box::new(input)),

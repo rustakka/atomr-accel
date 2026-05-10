@@ -58,7 +58,9 @@ pub use histogram::{CubHistogramDispatch, HistogramRequest};
 pub use reduce::{CubReduceDispatch, ReduceRequest, ReductionOp};
 pub use scan::{CubScanDispatch, ScanKind, ScanRequest};
 pub use segmented::{CubSegmentedReduceDispatch, SegmentedReduceRequest};
-pub use select::{CubPartitionDispatch, CubSelectDispatch, PartitionRequest, SelectMode, SelectRequest};
+pub use select::{
+    CubPartitionDispatch, CubSelectDispatch, PartitionRequest, SelectMode, SelectRequest,
+};
 pub use sort::{CubSortDispatch, SortDirection, SortRequest};
 
 /// Public mailbox of [`CubActor`]. Each variant boxes a dispatch
@@ -237,8 +239,12 @@ pub fn cub_props(
 fn detect_sm_arch(stream: &Arc<cudarc::driver::CudaStream>) -> SmArch {
     use cudarc::driver::sys::CUdevice_attribute::*;
     let ctx = stream.context();
-    let major = ctx.attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR).unwrap_or(8) as u32;
-    let minor = ctx.attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR).unwrap_or(0) as u32;
+    let major = ctx
+        .attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR)
+        .unwrap_or(8) as u32;
+    let minor = ctx
+        .attribute(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR)
+        .unwrap_or(0) as u32;
     match (major, minor) {
         (8, 0) => SmArch::Sm80,
         (8, 6) => SmArch::Sm86,

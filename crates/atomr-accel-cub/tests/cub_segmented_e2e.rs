@@ -74,15 +74,21 @@ async fn cub_segmented_reduce_sum_f32_three_segments() {
     let host_end: Vec<i32> = vec![5, 12, 16];
 
     let mut input_slice = stream.alloc_zeros::<f32>(16).expect("input");
-    stream.memcpy_htod(&host_in, &mut input_slice).expect("htod input");
+    stream
+        .memcpy_htod(&host_in, &mut input_slice)
+        .expect("htod input");
     let input = GpuRef::new(Arc::new(input_slice), &cub_state);
 
     let mut begin_slice = stream.alloc_zeros::<i32>(3).expect("begin");
-    stream.memcpy_htod(&host_begin, &mut begin_slice).expect("htod begin");
+    stream
+        .memcpy_htod(&host_begin, &mut begin_slice)
+        .expect("htod begin");
     let begin = GpuRef::new(Arc::new(begin_slice), &cub_state);
 
     let mut end_slice = stream.alloc_zeros::<i32>(3).expect("end");
-    stream.memcpy_htod(&host_end, &mut end_slice).expect("htod end");
+    stream
+        .memcpy_htod(&host_end, &mut end_slice)
+        .expect("htod end");
     let end = GpuRef::new(Arc::new(end_slice), &cub_state);
 
     let output_slice = stream.alloc_zeros::<f32>(3).expect("output");
@@ -90,15 +96,7 @@ async fn cub_segmented_reduce_sum_f32_three_segments() {
 
     let (tx, rx) = oneshot::channel();
     cub.tell(CubMsg::SegmentedReduce(Box::new(
-        SegmentedReduceRequest::new(
-            ReductionOp::Sum,
-            input,
-            output.clone(),
-            begin,
-            end,
-            3,
-            tx,
-        ),
+        SegmentedReduceRequest::new(ReductionOp::Sum, input, output.clone(), begin, end, 3, tx),
     )));
     let res = tokio::time::timeout(Duration::from_secs(60), rx)
         .await
@@ -109,9 +107,21 @@ async fn cub_segmented_reduce_sum_f32_three_segments() {
     let host_out: Vec<f32> = stream
         .clone_dtoh(output.access().unwrap().as_ref())
         .expect("dtoh");
-    assert!((host_out[0] - 15.0).abs() < 1e-3, "seg 0 sum: {}", host_out[0]);
-    assert!((host_out[1] - 63.0).abs() < 1e-3, "seg 1 sum: {}", host_out[1]);
-    assert!((host_out[2] - 58.0).abs() < 1e-3, "seg 2 sum: {}", host_out[2]);
+    assert!(
+        (host_out[0] - 15.0).abs() < 1e-3,
+        "seg 0 sum: {}",
+        host_out[0]
+    );
+    assert!(
+        (host_out[1] - 63.0).abs() < 1e-3,
+        "seg 1 sum: {}",
+        host_out[1]
+    );
+    assert!(
+        (host_out[2] - 58.0).abs() < 1e-3,
+        "seg 2 sum: {}",
+        host_out[2]
+    );
 
     sys.terminate().await;
 }

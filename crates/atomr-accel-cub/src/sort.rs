@@ -168,15 +168,7 @@ async fn run_sort<K: CudaDtype, V: CudaDtype>(
     } = req;
     let paired = values_in.is_some() && values_out.is_some();
     let result = compile_and_launch::<K, V>(
-        direction,
-        paired,
-        keys_in,
-        keys_out,
-        values_in,
-        values_out,
-        nvrtc,
-        cache,
-        arch,
+        direction, paired, keys_in, keys_out, values_in, values_out, nvrtc, cache, arch,
     )
     .await;
     let _ = reply.send(result);

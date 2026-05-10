@@ -77,7 +77,9 @@ async fn cub_scan_inclusive_i32_matches_host() {
 
     let host_in: Vec<i32> = (1..=N as i32).collect();
     let mut input_slice = stream.alloc_zeros::<i32>(N).expect("input alloc");
-    stream.memcpy_htod(&host_in, &mut input_slice).expect("htod");
+    stream
+        .memcpy_htod(&host_in, &mut input_slice)
+        .expect("htod");
     let input = GpuRef::new(Arc::new(input_slice), &cub_state);
 
     let output_slice = stream.alloc_zeros::<i32>(N).expect("output alloc");

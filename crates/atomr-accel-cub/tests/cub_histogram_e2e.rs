@@ -71,10 +71,14 @@ async fn cub_histogram_u8_matches_host() {
     // Generate a deterministic byte stream cycling through every value.
     let host_in: Vec<u8> = (0..N).map(|i| (i % 256) as u8).collect();
     let mut input_slice = stream.alloc_zeros::<u8>(N).expect("input alloc");
-    stream.memcpy_htod(&host_in, &mut input_slice).expect("htod");
+    stream
+        .memcpy_htod(&host_in, &mut input_slice)
+        .expect("htod");
     let input = GpuRef::new(Arc::new(input_slice), &cub_state);
 
-    let bins_slice = stream.alloc_zeros::<u32>(BINS as usize).expect("bins alloc");
+    let bins_slice = stream
+        .alloc_zeros::<u32>(BINS as usize)
+        .expect("bins alloc");
     let bins = GpuRef::new(Arc::new(bins_slice), &cub_state);
 
     let (tx, rx) = oneshot::channel();

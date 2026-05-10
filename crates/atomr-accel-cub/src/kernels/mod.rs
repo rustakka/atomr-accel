@@ -97,7 +97,9 @@ pub fn emit_reduce_source<T: CudaDtype>(op: ReductionOp) -> (String, String) {
         dtype = dtype_name,
     );
 
-    let _ = write!(src, r#"
+    let _ = write!(
+        src,
+        r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     {cname}* __restrict__ d_partials,
@@ -209,7 +211,9 @@ pub fn emit_scan_source<T: CudaDtype>(kind: ScanKind) -> (String, String) {
         dtype = dtype_name,
     );
 
-    let _ = write!(src, r#"
+    let _ = write!(
+        src,
+        r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     {cname}* __restrict__ d_out,
@@ -339,7 +343,9 @@ pub fn emit_sort_source<K: CudaDtype, V: CudaDtype>(
 
     if paired {
         let vcname = V::cuda_type_name();
-        let _ = write!(src, r#"
+        let _ = write!(
+            src,
+            r#"
 extern "C" __global__ void {kname}(
     const {kcname}* __restrict__ d_keys_in,
     {kcname}* __restrict__ d_keys_out,
@@ -377,7 +383,9 @@ extern "C" __global__ void {kname}(
             method = sort_method,
         );
     } else {
-        let _ = write!(src, r#"
+        let _ = write!(
+            src,
+            r#"
 extern "C" __global__ void {kname}(
     const {kcname}* __restrict__ d_keys_in,
     {kcname}* __restrict__ d_keys_out,
@@ -430,7 +438,9 @@ pub fn emit_histogram_source<T: CudaDtype>() -> (String, String) {
         dtype = dtype_name,
     );
 
-    let _ = write!(src, r#"
+    let _ = write!(
+        src,
+        r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     unsigned int* __restrict__ d_bins,
@@ -495,7 +505,9 @@ pub fn emit_select_source<T: CudaDtype>(mode: SelectMode) -> (String, String) {
 
     match mode {
         SelectMode::Flagged => {
-            let _ = write!(src, r#"
+            let _ = write!(
+                src,
+                r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     const unsigned char* __restrict__ d_flags,
@@ -534,7 +546,9 @@ extern "C" __global__ void {kname}(
             );
         }
         SelectMode::Unique => {
-            let _ = write!(src, r#"
+            let _ = write!(
+                src,
+                r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     {cname}* __restrict__ d_out,
@@ -601,7 +615,9 @@ pub fn emit_partition_source<T: CudaDtype>() -> (String, String) {
         tile = TILE_ELEMENTS,
     );
 
-    let _ = write!(src, r#"
+    let _ = write!(
+        src,
+        r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     const unsigned char* __restrict__ d_flags,
@@ -670,7 +686,9 @@ pub fn emit_segmented_reduce_source<T: CudaDtype>(op: ReductionOp) -> (String, S
         dtype = dtype_name,
     );
 
-    let _ = write!(src, r#"
+    let _ = write!(
+        src,
+        r#"
 extern "C" __global__ void {kname}(
     const {cname}* __restrict__ d_in,
     {cname}* __restrict__ d_out,
