@@ -1,36 +1,55 @@
-// atomr_cub_kernels.cuh — vendored CUB kernel sources, BSD-3-Clause.
+// atomr_cub_kernels.cuh — vendored re-export header for the
+// per-(op, dtype) NVRTC kernels emitted by
+// `crates/atomr-accel-cub/src/kernels/mod.rs`.
 //
-// CUB ships header-only under <cub/...> in the CUDA toolkit. This file
-// is a thin wrapper that includes the device-wide primitives we
-// actually template-instantiate from `atomr-accel-cub`'s NVRTC
-// compile path. Each `__global__` here is a minimal driver wrapper —
-// the heavy lifting happens inside `cub::DeviceReduce::*`,
-// `cub::DeviceScan::*`, etc.
+// The device-wide CUB API (`cub::DeviceReduce::*` etc.) is a host-side
+// launcher and cannot be emitted from NVRTC. Phase 5.1 instead builds
+// each kernel from CUB's *block-level* primitives
+// (`cub::BlockReduce`, `cub::BlockScan`, `cub::BlockRadixSort`,
+// `cub::BlockHistogram`, `cub::BlockDiscontinuity`) plus a grid-stride
+// loop. Multi-block reductions/scans use a two-launch pattern (block
+// partials → finalize). Sort / select / partition are single-tile in
+// 5.1 (n ≤ BLOCK*ITEMS = 1024); larger inputs return a structured
+// error from the dispatcher with a Phase 5.2 hint.
+//
+// CUB ships header-only with the CUDA toolkit (12.0+). NVRTC resolves
+// `<cub/...>` and `<cuda_*.h>` via the include path that
+// `crates/atomr-accel-cub/build.rs` discovers from
+// CUDA_PATH / CUDA_HOME / /usr/local/cuda.
 //
 // SPDX-License-Identifier: BSD-3-Clause
-// Copyright (c) NVIDIA Corporation; redistributed under BSD-3-Clause.
+// Copyright (c) NVIDIA Corporation; CUB headers are BSD-3-Clause.
 
 #ifndef ATOMR_CUB_KERNELS_CUH
 #define ATOMR_CUB_KERNELS_CUH
 
-#include <cub/cub.cuh>
-#include <cub/device/device_reduce.cuh>
-#include <cub/device/device_scan.cuh>
-#include <cub/device/device_radix_sort.cuh>
-#include <cub/device/device_histogram.cuh>
-#include <cub/device/device_select.cuh>
-#include <cub/device/device_partition.cuh>
-#include <cub/device/device_segmented_reduce.cuh>
+#include <cub/block/block_reduce.cuh>
+#include <cub/block/block_scan.cuh>
+#include <cub/block/block_radix_sort.cuh>
+#include <cub/block/block_histogram.cuh>
+#include <cub/block/block_discontinuity.cuh>
+#include <cub/thread/thread_operators.cuh>
 
-// Driver `__global__` wrappers are emitted per-(op, dtype) at NVRTC
-// compile time by the actor; this header just forwards the includes.
-// Sample shape (rendered into the per-(op,dtype) source string):
-//
-//   extern "C" __global__ void atomr_cub_reduce_sum_T(
-//       const T* d_in, T* d_out, int n,
-//       void* d_temp, size_t temp_bytes)
-//   {
-//       cub::DeviceReduce::Sum(d_temp, temp_bytes, d_in, d_out, n);
-//   }
+// Half / bfloat16 support — the emitter inserts the matching
+// `#define ATOMR_CUB_USE_<…>` line above this include when the kernel
+// uses these types. Gating keeps NVRTC happy on hosts with older CUDA
+// toolkits that don't ship `<cuda_bf16.h>` standalone.
+#if defined(ATOMR_CUB_USE_FP16)
+#include <cuda_fp16.h>
+#endif
+#if defined(ATOMR_CUB_USE_BF16)
+#include <cuda_bf16.h>
+#endif
 
-#endif // ATOMR_CUB_KERNELS_CUH
+// Tiny multiply functor for the `Product` reduction. CUB does not ship
+// a `cub::Multiplies` analogue, so we define one inline here.
+namespace atomr_cub {
+template <typename T>
+struct Multiplies {
+    __host__ __device__ __forceinline__ T operator()(const T& a, const T& b) const {
+        return a * b;
+    }
+};
+}  // namespace atomr_cub
+
+#endif  // ATOMR_CUB_KERNELS_CUH

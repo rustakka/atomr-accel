@@ -41,8 +41,10 @@ use tokio::sync::oneshot;
 use atomr_accel_cuda::completion::CompletionStrategy;
 use atomr_accel_cuda::device::DeviceState;
 use atomr_accel_cuda::error::GpuError;
+use atomr_accel_cuda::kernel::KernelHandle;
 
 pub mod histogram;
+pub mod kernels;
 pub mod reduce;
 pub mod scan;
 pub mod segmented;
@@ -84,13 +86,20 @@ pub struct CubDispatchCtx<'a> {
     pub kernel_cache: &'a Mutex<KernelSourceCache>,
 }
 
-/// In-actor cache mapping `(op, dtype)` to the most-recent NVRTC PTX
-/// blob for replay. The persistent disk cache (shared with
-/// `atomr-accel-cuda`'s `NvrtcCache`) lives one level below; this map
-/// is the per-actor hot-path lookup.
+/// In-actor cache mapping `(op, dtype)` to the NVRTC compile result.
+/// The persistent disk cache (shared with `atomr-accel-cuda`'s
+/// `NvrtcCache`) lives one level below; this map is the per-actor
+/// hot-path lookup that avoids re-compiling and re-loading the
+/// already-resolved [`KernelHandle`].
+///
+/// Phase 5.1 extends the cache to also hold the loaded
+/// [`KernelHandle`]; the original PTX-bytes path stays for callers
+/// (e.g. tests) that round-trip raw cubin without going through the
+/// NvrtcActor.
 #[derive(Default)]
 pub struct KernelSourceCache {
     inner: std::collections::HashMap<(String, String), Arc<Vec<u8>>>,
+    handles: std::collections::HashMap<(String, String), KernelHandle>,
 }
 
 impl KernelSourceCache {
@@ -102,11 +111,31 @@ impl KernelSourceCache {
     pub fn insert(&mut self, op: &str, dtype: &str, ptx: Arc<Vec<u8>>) {
         self.inner.insert((op.to_string(), dtype.to_string()), ptx);
     }
+    /// Phase 5.1 — fetch a previously compiled [`KernelHandle`] for
+    /// `(op, dtype)`. Returns `None` on first invocation; the
+    /// dispatcher then runs the NVRTC compile and inserts via
+    /// [`Self::insert_handle`].
+    pub fn get_handle(&self, op: &str, dtype: &str) -> Option<KernelHandle> {
+        self.handles
+            .get(&(op.to_string(), dtype.to_string()))
+            .cloned()
+    }
+    /// Phase 5.1 — store a freshly compiled [`KernelHandle`] for
+    /// future cache hits in the same actor lifetime.
+    pub fn insert_handle(&mut self, op: &str, dtype: &str, handle: KernelHandle) {
+        self.handles
+            .insert((op.to_string(), dtype.to_string()), handle);
+    }
     pub fn len(&self) -> usize {
         self.inner.len()
     }
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+    /// Number of cached compiled kernel handles. Useful for tests that
+    /// want to assert a second invocation hit the cache.
+    pub fn handle_count(&self) -> usize {
+        self.handles.len()
     }
 }
 
