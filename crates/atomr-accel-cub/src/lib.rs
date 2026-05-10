@@ -58,7 +58,7 @@ pub use histogram::{CubHistogramDispatch, HistogramRequest};
 pub use reduce::{CubReduceDispatch, ReduceRequest, ReductionOp};
 pub use scan::{CubScanDispatch, ScanKind, ScanRequest};
 pub use segmented::{CubSegmentedReduceDispatch, SegmentedReduceRequest};
-pub use select::{CubPartitionDispatch, CubSelectDispatch, PartitionRequest, SelectRequest};
+pub use select::{CubPartitionDispatch, CubSelectDispatch, PartitionRequest, SelectMode, SelectRequest};
 pub use sort::{CubSortDispatch, SortDirection, SortRequest};
 
 /// Public mailbox of [`CubActor`]. Each variant boxes a dispatch
