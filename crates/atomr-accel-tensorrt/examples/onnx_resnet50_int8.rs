@@ -53,7 +53,7 @@ async fn main() {
     // tokio task.
     let (otx, _orx) = oneshot::channel();
     let _onnx_msg = OnnxMsg::Parse {
-        bytes: onnx_bytes,
+        bytes: onnx_bytes.clone(),
         config: Box::new(config),
         reply: otx,
     };
@@ -63,7 +63,23 @@ async fn main() {
     // would `actor.handle(...)` the message and wait on `rx`.
     if let Err(e) = actor.ensure_runtime() {
         tracing::info!(error = %e, "TensorRT not linked: skipping build");
+        drop(rx);
+        println!("onnx_resnet50_int8 demo wired up; run with --features tensorrt-link plus a real .onnx file for end-to-end build");
+        return;
     }
     drop(rx);
-    println!("onnx_resnet50_int8 demo wired up; run with TensorRT installed for real builds");
+
+    #[cfg(all(feature = "tensorrt-link", feature = "tensorrt-onnx"))]
+    {
+        // The placeholder bytes won't parse — TRT will report a
+        // protobuf decode error. Demonstrates the round-trip wiring:
+        // `actor.build_from_onnx` returns a structured `TrtError`
+        // rather than panicking, proving the libnvonnxparser link
+        // chain is intact.
+        let plan = actor.build_from_onnx(onnx_bytes.as_ref(), &IBuilderConfig::new());
+        match plan {
+            Ok(p) => println!("plan bytes: {}", p.as_slice().len()),
+            Err(e) => println!("expected ONNX parse failure on placeholder bytes: {e}"),
+        }
+    }
 }

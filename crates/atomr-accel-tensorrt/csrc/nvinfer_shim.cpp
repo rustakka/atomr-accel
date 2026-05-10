@@ -60,6 +60,15 @@ private:
 
 RustBridgeLogger g_logger;
 
+}  // namespace
+
+// Accessor used by the ONNX parser / plugin proxy translation units
+// (compiled separately under their own cargo features) to share the
+// single process-wide logger instance.
+nvinfer1::ILogger& atomr_trt_logger() { return g_logger; }
+
+namespace {
+
 template <typename F>
 auto try_or_null(F&& f) -> decltype(f()) {
     try {
